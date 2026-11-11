@@ -14,6 +14,29 @@ pub fn initialize(db: &Connection) -> rusqlite::Result<()> {
     if !has_at {
         db.execute("ALTER TABLE events ADD COLUMN at INTEGER", [])?;
     }
+    let columns = db
+        .prepare("PRAGMA table_info(sessions)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    for column in ["remote_id", "provider_id"] {
+        if !columns.iter().any(|c| c == column) {
+            db.execute(
+                &format!("ALTER TABLE sessions ADD COLUMN {column} TEXT"),
+                [],
+            )?;
+        }
+    }
+    // Before session IDs were stored explicitly, permission requests retained
+    // the ACP sessionId. Recover only unambiguous IDs from that same local chat.
+    db.execute_batch(
+        "UPDATE sessions SET remote_id=(
+        SELECT MIN(json_extract(data,'$.params.sessionId')) FROM events
+        WHERE events.session=sessions.id AND kind='permission' AND json_valid(data)
+        AND json_type(data,'$.params.sessionId')='text'
+        AND length(json_extract(data,'$.params.sessionId'))>0
+        HAVING COUNT(DISTINCT json_extract(data,'$.params.sessionId'))=1
+    ) WHERE remote_id IS NULL;",
+    )?;
     Ok(())
 }
 pub fn append(
@@ -38,6 +61,26 @@ pub fn messages(db: &Connection, session: &str) -> rusqlite::Result<Value> {
             "data":serde_json::from_str::<Value>(&data).unwrap_or(Value::Null),"at":r.get::<_,Option<i64>>(3)?}))
     })?;
     Ok(Value::Array(rows.collect::<Result<Vec<_>, _>>()?))
+}
+pub struct SavedConnection {
+    pub remote_id: Option<String>,
+    pub provider_id: Option<String>,
+    pub provider: String,
+    pub cwd: String,
+}
+pub fn connection(db: &Connection, id: &str) -> rusqlite::Result<SavedConnection> {
+    db.query_row(
+        "SELECT remote_id,provider_id,provider,cwd FROM sessions WHERE id=?1",
+        [id],
+        |r| {
+            Ok(SavedConnection {
+                remote_id: r.get(0)?,
+                provider_id: r.get(1)?,
+                provider: r.get(2)?,
+                cwd: r.get(3)?,
+            })
+        },
+    )
 }
 #[cfg(test)]
 mod tests {
@@ -87,5 +130,28 @@ mod tests {
         assert_eq!(rows[3]["data"]["rawOutput"]["stdout"], "partial");
         assert_eq!(rows[4]["at"], 60);
         assert_eq!(messages(&db, "b").unwrap().as_array().unwrap().len(), 1);
+    }
+    #[test]
+    fn recovers_only_unambiguous_legacy_permission_session_ids() {
+        let db = Connection::open_in_memory().unwrap();
+        db.execute_batch(
+            r#"CREATE TABLE sessions(id TEXT PRIMARY KEY,provider TEXT,cwd TEXT);
+          CREATE TABLE events(session TEXT,kind TEXT,data TEXT);
+          INSERT INTO sessions VALUES('a','Kiro','/tmp'),('b','Kiro','/tmp'),('c','Kiro','/tmp');
+          INSERT INTO events VALUES('a','permission','{"params":{"sessionId":"remote-a"}}'),
+          ('a','permission','{"params":{"sessionId":"remote-a"}}'),
+          ('b','permission','{"params":{"sessionId":"remote-b"}}'),
+          ('b','permission','{"params":{"sessionId":"different"}}');"#,
+        )
+        .unwrap();
+        initialize(&db).unwrap();
+        initialize(&db).unwrap();
+        assert_eq!(
+            connection(&db, "a").unwrap().remote_id.as_deref(),
+            Some("remote-a")
+        );
+        assert!(connection(&db, "b").unwrap().remote_id.is_none());
+        assert!(connection(&db, "c").unwrap().remote_id.is_none());
+        assert!(connection(&db, "a").unwrap().provider_id.is_none());
     }
 }

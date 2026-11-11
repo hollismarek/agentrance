@@ -63,3 +63,8 @@ test('a permission decision racing with turn completion is still retained',()=>{
  const [op]=reduceActivity([permission(),{kind:'done',at:1200,data:null},{kind:'permission_resolved',at:1300,data:{request:1,option:'once',optionKind:'allow_once'}}]);
  assert.equal(op.approvals[0].decision.option,'once');assert.equal(op.status,'interrupted');
 });
+test('reconnecting expires old approvals and cannot reuse decisions across provider processes',()=>{
+ const events=[permission(1,'old'),{kind:'connection_started',data:{}},permission(1,'new'),{kind:'permission_resolved',data:{request:1,option:'once',optionKind:'allow_once'}}];
+ const ops=reduceActivity(events,true);assert.equal(ops[0].approvals[0].expired,true);assert.equal(ops[0].approvals[0].decision,undefined);assert.equal(ops[0].status,'interrupted');
+ assert.equal(ops[1].approvals[0].decision.option,'once');assert.equal(ops[1].status,'pending');
+});

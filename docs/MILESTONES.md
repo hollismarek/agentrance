@@ -18,7 +18,7 @@ Use the existing single window: collapsible project sidebar, conversation area, 
 
 ## Remaining original v0.1 scope
 
-Ollama HTTP with qwen3:4b and agent-directed read-only repository exploration, polished provider/session configuration, resumable conversation behavior where supported, and final desktop packaging remain separate milestones. reqwest and futures-util are reserved for Ollama. Packaging is disabled during development (bundle.active=false). Agent Desk does not store provider authentication or add application telemetry.
+Ollama HTTP with qwen3:4b and agent-directed read-only repository exploration, polished provider/session configuration and final desktop packaging remain separate milestones. reqwest and futures-util are reserved for Ollama. Packaging is disabled during development (bundle.active=false). Agent Desk does not store provider authentication or add application telemetry.
 
 ## UI resilience and configuration follow-up
 
@@ -27,3 +27,13 @@ Implemented after provider review: separate sidebar, session pane, composer, pro
 The SQLite mutex now covers persistence only. Event sequence numbers are merged and deduplicated on the frontend, preserving stored order if concurrent IPC emissions arrive out of order. Startup history replay and buffering retain activity emitted before session creation returns. Compare creation failures leave successful sessions visible and usable.
 
 Validation: 15 activity cases, 4 provider/event-order cases, 2 Rust storage tests, TypeScript compilation, and a Vite production build pass. Browser automation remains skipped. Provider authentication, tool permission policy, and development packaging settings are unchanged.
+
+## Continue saved conversations
+
+Saved history now offers **Continue conversation**. New chats persist the provider configuration ID and ACP session ID, plus their existing project directory, in SQLite. Continuing launches the matching configured CLI using its existing authentication and the original project root. It prefers advertised `session/resume` support and otherwise uses advertised `session/load`; providers without either capability leave history readable and report the limitation. No fresh conversation is silently substituted if restoration fails or the provider has removed its session.
+
+For older chats, migration recovers an ACP session ID only when saved permission requests for that local conversation contain exactly one distinct nonempty session ID. Chats without that evidence remain read-only. Legacy provider names must match one current configuration unambiguously; new chats match the stable configuration ID. Executable arguments, environment overrides, and authentication data are not copied into the history database.
+
+`session/load` replay notifications do not duplicate the locally saved transcript/activity. Reconnection creates a lifecycle boundary that expires old permissions; request numbers reused by later provider processes cannot resolve old approval records. Closing a connection kills its process without deleting the conversation. Comparisons still start fresh sessions.
+
+Validation: scripted ACP subprocess tests cover load/resume capability negotiation, exact saved session IDs and original roots, transcript replay suppression, separate sessions, continued streaming, and shutdown. SQLite migration tests cover recoverable, ambiguous, and missing legacy IDs. Frontend tests cover provider matching, connection lifecycle ordering, and stale permissions across reconnects. Live Kiro continuation still needs a hands-on check in the Tauri app.

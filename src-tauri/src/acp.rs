@@ -1,7 +1,7 @@
 use super::*;
 use std::{
     process::Stdio,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
     time::Duration,
 };
 use tokio::{
@@ -9,7 +9,11 @@ use tokio::{
     process::{Child, ChildStdin, Command},
     sync::{oneshot, Mutex as AsyncMutex},
 };
+type EventSink = Arc<dyn Fn(&str, Value) + Send + Sync>;
 pub struct Client {
+    replaying: Arc<AtomicBool>,
+    stopped: Arc<AtomicBool>,
+    connected: Arc<AtomicBool>,
     input: Arc<AsyncMutex<ChildStdin>>,
     pending: Arc<AsyncMutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>>>,
     permissions: Arc<AsyncMutex<HashMap<String, Value>>>,
@@ -20,9 +24,7 @@ pub struct Client {
 }
 impl Drop for Client {
     fn drop(&mut self) {
-        if let Ok(child) = self.child.get_mut() {
-            let _ = child.start_kill();
-        }
+        self.shutdown();
     }
 }
 impl Client {
@@ -31,6 +33,9 @@ impl Client {
         id: String,
         p: &Provider,
     ) -> Result<Arc<Self>, String> {
+        Self::start_transport(p, Arc::new(move |kind, data| event(&app, &id, kind, data))).await
+    }
+    async fn start_transport(p: &Provider, emit: EventSink) -> Result<Arc<Self>, String> {
         let mut child = Command::new(&p.executable)
             .args(&p.args)
             .envs(&p.env)
@@ -48,7 +53,13 @@ impl Client {
             oneshot::Sender<Result<Value, String>>,
         >::new()));
         let permissions = Arc::new(AsyncMutex::new(HashMap::new()));
+        let replaying = Arc::new(AtomicBool::new(false));
+        let stopped = Arc::new(AtomicBool::new(false));
+        let connected = Arc::new(AtomicBool::new(true));
         let client = Arc::new(Self {
+            replaying: replaying.clone(),
+            stopped: stopped.clone(),
+            connected: connected.clone(),
             input: input.clone(),
             pending: pending.clone(),
             permissions: permissions.clone(),
@@ -63,18 +74,24 @@ impl Client {
                 let Ok(v) = serde_json::from_str::<Value>(&line) else {
                     continue;
                 };
+                if stopped.load(Ordering::SeqCst) {
+                    continue;
+                }
                 if let Some(method) = v["method"].as_str() {
                     if method == "session/update" {
+                        // session/load replays provider history. The app already
+                        // has its durable transcript and activity; do not duplicate it.
+                        if replaying.load(Ordering::SeqCst) {
+                            continue;
+                        }
                         let u = &v["params"]["update"];
                         match u["sessionUpdate"].as_str() {
                             Some("agent_message_chunk") => {
                                 if let Some(t) = u["content"]["text"].as_str() {
-                                    event(&app, &id, "delta", json!(t));
+                                    emit("delta", json!(t));
                                 }
                             }
-                            Some("tool_call") | Some("tool_call_update") => {
-                                event(&app, &id, "tool", u.clone())
-                            }
+                            Some("tool_call") | Some("tool_call_update") => emit("tool", u.clone()),
                             _ => {}
                         }
                     } else if method == "session/request_permission" {
@@ -82,9 +99,7 @@ impl Client {
                             .lock()
                             .await
                             .insert(v["id"].to_string(), v["params"].clone());
-                        event(
-                            &app,
-                            &id,
+                        emit(
                             "permission",
                             json!({"request":v["id"],"params":v["params"]}),
                         );
@@ -105,9 +120,37 @@ impl Client {
             for (_, tx) in pending.lock().await.drain() {
                 let _ = tx.send(Err("Provider process exited".into()));
             }
-            event(&app, &id, "disconnected", Value::Null);
+            connected.store(false, Ordering::SeqCst);
+            if !stopped.load(Ordering::SeqCst) {
+                emit("disconnected", Value::Null);
+            }
         });
         Ok(client)
+    }
+    pub fn is_connected(&self) -> bool {
+        self.connected.load(Ordering::SeqCst) && !self.stopped.load(Ordering::SeqCst)
+    }
+    pub fn shutdown(&self) {
+        self.stopped.store(true, Ordering::SeqCst);
+        self.connected.store(false, Ordering::SeqCst);
+        if let Ok(mut child) = self.child.lock() {
+            let _ = child.start_kill();
+        }
+    }
+    pub async fn restore(&self, init: &Value, remote: &str, cwd: &str) -> Result<(), String> {
+        let method = crate::resume::method(init)?;
+        self.replaying
+            .store(method == "session/load", Ordering::SeqCst);
+        let result = self
+            .request(
+                method,
+                json!({"sessionId":remote,"cwd":cwd,"mcpServers":[]}),
+            )
+            .await;
+        self.replaying.store(false, Ordering::SeqCst);
+        result?;
+        *self.remote.lock().await = remote.to_string();
+        Ok(())
     }
     pub async fn send(&self, v: Value) -> Result<(), String> {
         write(&self.input, v).await
@@ -168,4 +211,58 @@ async fn write(input: &AsyncMutex<ChildStdin>, v: Value) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
     input.flush().await.map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn reconnects_exact_sessions_without_duplicate_replay_or_cross_talk() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let script=r#"
+import json,sys
+remote=sys.argv[1]
+mode=sys.argv[2]
+def send(v): print(json.dumps(v),flush=True)
+for line in sys.stdin:
+ m=json.loads(line); method=m.get('method'); params=m.get('params',{})
+ if method=='initialize':
+  caps={'loadSession':True}
+  if mode=='session/resume': caps['sessionCapabilities']={'resume':{}}
+  result={'protocolVersion':1,'agentCapabilities':caps}
+ elif method in ('session/load','session/resume'):
+  assert method==mode and params['sessionId']==remote
+  assert params['cwd']==sys.argv[3] and params['mcpServers']==[]
+  if method=='session/load':
+   send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':remote,'update':{'sessionUpdate':'agent_message_chunk','content':{'type':'text','text':'OLD REPLAY'}}}})
+   send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':remote,'update':{'sessionUpdate':'tool_call','toolCallId':'old','status':'completed'}}})
+  result={}
+ elif method=='session/prompt':
+  assert params['sessionId']==remote
+  send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':remote,'update':{'sessionUpdate':'agent_message_chunk','content':{'type':'text','text':'continued '+remote}}}})
+  result={'stopReason':'end_turn'}
+ else: raise AssertionError('Unexpected method: '+str(method))
+ send({'jsonrpc':'2.0','id':m['id'],'result':result})
+"#;
+            let mut clients=Vec::new();
+            for (remote,method) in [("saved-a","session/load"),("saved-b","session/resume")] {
+                let cwd=std::env::temp_dir().to_string_lossy().into_owned();
+                let p=Provider{id:remote.into(),name:"Fake ACP".into(),executable:"python3".into(),
+                    args:vec!["-u".into(),"-c".into(),script.into(),remote.into(),method.into(),cwd.clone()],env:HashMap::new(),cwd:cwd.clone()};
+                let events=Arc::new(Mutex::new(Vec::<(String,Value)>::new()));
+                let sink=events.clone();
+                let client=Client::start_transport(&p,Arc::new(move |kind,data|sink.lock().unwrap().push((kind.into(),data)))).await.unwrap();
+                let init=client.request("initialize",json!({"protocolVersion":1})).await.unwrap();
+                client.restore(&init,remote,&cwd).await.unwrap();
+                assert_eq!(*client.remote.lock().await,remote);
+                assert!(events.lock().unwrap().is_empty(),"load replay must not duplicate local history");
+                clients.push((client,events,remote));
+            }
+            for (client,events,remote) in &clients {
+                client.request("session/prompt",json!({"sessionId":client.remote.lock().await.clone(),"prompt":[]})).await.unwrap();
+                assert_eq!(*events.lock().unwrap(),vec![("delta".into(),json!(format!("continued {remote}")))]);
+                client.shutdown();assert!(!client.is_connected());
+            }
+        }).await.expect("mock ACP reconnect timed out");
+    }
 }

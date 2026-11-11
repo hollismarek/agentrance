@@ -2,15 +2,16 @@ export type ActivityEvent = {kind: string; data: any; at?: number | null; seq?: 
 export type Operation = {
   id: string; title: string; kind?: string; status: string; started?: number; ended?: number;
   reported: Record<string, any>; updates: ActivityEvent[];
-  approvals: {request: any; params: any; decision?: any; expired?: boolean}[];
+  approvals: {request: any; params: any; decision?: any; expired?: boolean; generation: number}[];
 };
 const record = (v: any): v is Record<string, any> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const terminal = new Set(['completed', 'failed', 'declined', 'interrupted']);
-export const activityKinds = new Set(['tool', 'permission', 'permission_resolved', 'done', 'disconnected', 'session_closed']);
+export const activityKinds = new Set(['tool', 'permission', 'permission_resolved', 'done', 'disconnected', 'session_closed', 'connection_started']);
 
 // ACP updates are patches. Arrays such as content replace the previous snapshot;
 // rawInput/rawOutput null means unchanged. Keep every patch for provider variants.
 export function reduceActivity(events: ActivityEvent[], live = true): Operation[] {
+  let generation=0;
   const operations = new Map<string, Operation>();
   function operation(patch: any, event: ActivityEvent, fallback: string) {
     patch = record(patch) ? patch : {};
@@ -39,11 +40,11 @@ export function reduceActivity(events: ActivityEvent[], live = true): Operation[
     if (e.kind === 'tool') operation(e.data, e, `legacy-${index}`);
     if (e.kind === 'permission' && record(e.data) && record(e.data.params)) {
       const op = operation(e.data.params?.toolCall, e, `permission-${JSON.stringify(e.data.request)}`);
-      op.approvals.push({request: e.data.request, params: {...e.data.params, options: Array.isArray(e.data.params.options) ? e.data.params.options.filter((o: any) => record(o) && typeof o.optionId === 'string' && typeof o.name === 'string' && typeof o.kind === 'string') : []}});
+      op.approvals.push({generation,request: e.data.request, params: {...e.data.params, options: Array.isArray(e.data.params.options) ? e.data.params.options.filter((o: any) => record(o) && typeof o.optionId === 'string' && typeof o.name === 'string' && typeof o.kind === 'string') : []}});
     }
     if (e.kind === 'permission_resolved' && record(e.data)) {
       for (const op of operations.values()) {
-        const approval = op.approvals.find(a => JSON.stringify(a.request) === JSON.stringify(e.data.request) && !a.decision);
+        const approval = op.approvals.find(a => JSON.stringify(a.request) === JSON.stringify(e.data.request) && !a.decision && a.generation===generation);
         if (!approval) continue;
         approval.decision = e.data;
         if (e.data.option == null || (typeof e.data.optionKind === 'string' && e.data.optionKind.startsWith('reject'))) {
@@ -52,7 +53,8 @@ export function reduceActivity(events: ActivityEvent[], live = true): Operation[
         }
       }
     }
-    if (['done', 'disconnected', 'session_closed'].includes(e.kind)) {
+    if (['done', 'disconnected', 'session_closed', 'connection_started'].includes(e.kind)) {
+      if(e.kind==='connection_started')generation++;
       for (const op of operations.values()) {
         for (const a of op.approvals) if (!a.decision) a.expired = true;
         if (!terminal.has(op.status)) {

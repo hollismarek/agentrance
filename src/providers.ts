@@ -19,3 +19,8 @@ export function parseProviders(raw: string): Provider[] {
 export function defaultProviders(cwd: string): Provider[] {
   return [{id:'kiro',name:'Kiro CLI',executable:'kiro-cli',args:['acp'],env:{},cwd}];
 }
+
+export function resumeProvider(providers:Provider[], saved:{providerId?:string|null;provider:string}):Provider|undefined {
+  const matches=providers.filter(p => saved.providerId ? p.id===saved.providerId : p.name===saved.provider);
+  return matches.length===1 ? matches[0] : undefined;
+}

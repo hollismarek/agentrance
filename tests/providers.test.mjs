@@ -23,3 +23,16 @@ test('history plus startup event buffering retains new events exactly once',()=>
  const event={seq:1,kind:'tool',data:{toolCallId:'a'}};
  assert.deepEqual(mergeEvents([event],[event,{seq:2,kind:'done',data:null}]).map(e=>e.seq),[1,2]);
 });
+test('resume matches stable provider id or an unambiguous legacy name',async()=>{
+ const {resumeProvider}=await import('../src/providers.ts');
+ const [p]=defaultProviders('/tmp/project');
+ assert.equal(resumeProvider([p],{providerId:'kiro',provider:'Renamed'}),p);
+ assert.equal(resumeProvider([p],{provider:'Kiro CLI'}),p);
+ assert.equal(resumeProvider([p,{...p,id:'another'}],{provider:'Kiro CLI'}),undefined);
+ assert.equal(resumeProvider([p],{providerId:'other',provider:'Kiro CLI'}),undefined);
+});
+test('connection state follows the latest lifecycle boundary after resume',async()=>{
+ const {connectionIsLive}=await import('../src/sessionEvents.ts');
+ assert.equal(connectionIsLive([{kind:'session_closed',data:null},{kind:'connection_started',data:{}}]),true);
+ assert.equal(connectionIsLive([{kind:'connection_started',data:{}},{kind:'disconnected',data:null}]),false);
+});

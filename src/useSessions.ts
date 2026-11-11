@@ -2,13 +2,14 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
 import type {ActivityEvent} from './activity';
-import {mergeEvents} from './sessionEvents';
+import {mergeEvents,connectionIsLive} from './sessionEvents';
 import type {Provider, SavedSession, Session} from './types';
 export function useSessions(onError: (message:string) => void) {
   const [sessions,setSessions] = useState<Session[]>([]);
   const [past,setPast] = useState<SavedSession[]>([]);
   const [panes,setPanes] = useState<string[]>([]);
   const [starting,setStarting] = useState(false);
+  const reconnecting = useRef(new Set<string>());
   const earlyEvents = useRef(new Map<string, ActivityEvent[]>());
   const listenersReady = useRef<Promise<unknown>>(Promise.resolve());
   const refresh = useCallback(() => invoke<SavedSession[]>('history').then(setPast).catch(e => onError(String(e))),[onError]);
@@ -39,7 +40,7 @@ export function useSessions(onError: (message:string) => void) {
       const items = await invoke<ActivityEvent[]>('messages',{id});
       const events=mergeEvents(items,buffered);
       setSessions(a => [...a,{id,provider:provider.name,cwd:provider.cwd,items:events,busy:false,
-        live:!events.some(e => ['disconnected','session_closed'].includes(e.kind))}]);
+        live:connectionIsLive(events),providerId:provider.id,canResume:true}]);
     } finally {earlyEvents.current.delete(id)}
     void refresh();return id;
   }
@@ -75,6 +76,19 @@ export function useSessions(onError: (message:string) => void) {
       setPanes([saved.id]);
     } catch(e){onError(String(e))}
   }
+  async function resume(saved:SavedSession,provider:Provider) {
+    if(reconnecting.current.has(saved.id))return;
+    reconnecting.current.add(saved.id);
+    setSessions(a => a.map(s => s.id===saved.id ? {...s,resuming:true} : s));
+    try {
+      await listenersReady.current;
+      await invoke('resume_session',{id:saved.id,provider});
+      const items=await invoke<ActivityEvent[]>('messages',{id:saved.id});
+      setSessions(a => a.map(s => s.id===saved.id ? {...s,items:mergeEvents(items,s.items),live:connectionIsLive(mergeEvents(items,s.items)),canResume:true,resuming:false} : s));
+      void refresh();
+    }catch(e){onError(String(e));setSessions(a => a.map(s => s.id===saved.id ? {...s,resuming:false,live:false} : s))}
+    finally{reconnecting.current.delete(saved.id)}
+  }
   async function close(id:string) {
     try {
       await invoke('close_session',{id});
@@ -82,5 +96,5 @@ export function useSessions(onError: (message:string) => void) {
     } catch(e){onError(String(e))}
   }
   async function cancel(id:string) {try{await invoke('cancel',{id})}catch(e){onError(String(e))}}
-  return {sessions,past,panes,setPanes,starting,start,send,compare,open,close,cancel};
+  return {sessions,past,panes,setPanes,starting,start,send,compare,open,close,cancel,resume};
 }

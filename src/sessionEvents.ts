@@ -7,3 +7,12 @@ export function mergeEvents(existing:ActivityEvent[],incoming:ActivityEvent[]):A
     seen.add(e.seq);return true;
   })].sort((a,b) => (a.seq ?? Number.MAX_SAFE_INTEGER)-(b.seq ?? Number.MAX_SAFE_INTEGER));
 }
+
+export function connectionIsLive(events:ActivityEvent[]):boolean {
+  let live=true;
+  for(const e of events){
+    if(['disconnected','session_closed'].includes(e.kind))live=false;
+    if(e.kind==='connection_started')live=true;
+  }
+  return live;
+}

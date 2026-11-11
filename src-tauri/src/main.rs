@@ -1,10 +1,11 @@
 mod acp;
+mod resume;
 mod storage;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 use tauri::{Emitter, Manager};
@@ -20,6 +21,7 @@ struct Provider {
 struct AppState {
     clients: tokio::sync::Mutex<HashMap<String, Arc<acp::Client>>>,
     db: Mutex<Connection>,
+    connecting: Mutex<HashSet<String>>,
 }
 fn event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) {
     let at = std::time::SystemTime::now()
@@ -90,13 +92,100 @@ async fn new_session(app: tauri::AppHandle, mut provider: Provider) -> Result<St
         .lock()
         .map_err(|e| e.to_string())?
         .execute(
-            "INSERT INTO sessions(id,provider,cwd) VALUES(?1,?2,?3)",
-            params![id, provider.name, provider.cwd],
+            "INSERT INTO sessions(id,provider,cwd,remote_id,provider_id) VALUES(?1,?2,?3,?4,?5)",
+            params![
+                id,
+                provider.name,
+                provider.cwd,
+                session["sessionId"].as_str(),
+                provider.id
+            ],
         )
         .map_err(|e| e.to_string())?;
     state.clients.lock().await.insert(id.clone(), client);
     event(&app, &id, "identity", init);
     Ok(id)
+}
+// Reserve a local session while reconnecting, without serializing other chats.
+struct Connecting<'a> {
+    state: &'a AppState,
+    id: String,
+}
+impl Drop for Connecting<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut ids) = self.state.connecting.lock() {
+            ids.remove(&self.id);
+        }
+    }
+}
+#[tauri::command]
+async fn resume_session(
+    app: tauri::AppHandle,
+    id: String,
+    mut provider: Provider,
+) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    {
+        let mut ids = state.connecting.lock().map_err(|e| e.to_string())?;
+        if !ids.insert(id.clone()) {
+            return Err("This conversation is already reconnecting".into());
+        }
+    }
+    let _reservation = Connecting {
+        state: &state,
+        id: id.clone(),
+    };
+    let saved = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        storage::connection(&db, &id).map_err(|e| e.to_string())?
+    };
+    let remote=saved.remote_id.ok_or("This older conversation has no saved provider session ID. It remains readable, but cannot be continued. New chats now save the information needed to resume.")?;
+    if let Some(provider_id) = saved.provider_id {
+        if provider.id != provider_id {
+            return Err(
+                "Use this conversation's original provider configuration to continue".into(),
+            );
+        }
+    } else if provider.name != saved.provider {
+        return Err("Use this conversation's original provider to continue".into());
+    }
+    {
+        let mut clients = state.clients.lock().await;
+        if clients.get(&id).is_some_and(|c| c.is_connected()) {
+            return Ok(());
+        }
+        if let Some(old) = clients.remove(&id) {
+            old.shutdown();
+        }
+    }
+    // Always use the saved conversation's original root, even if provider defaults changed.
+    provider.cwd = saved.cwd;
+    if !std::path::Path::new(&provider.cwd).is_absolute()
+        || !std::path::Path::new(&provider.cwd).is_dir()
+    {
+        return Err("The conversation's original project directory is unavailable".into());
+    }
+    let client = acp::Client::start(app.clone(), id.clone(), &provider).await?;
+    let init=client.request("initialize",json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agent-desk","version":"0.1.0"}})).await?;
+    if init["protocolVersion"] != 1 {
+        return Err("Provider did not negotiate ACP v1".into());
+    }
+    client
+        .restore(&init, &remote, &provider.cwd)
+        .await
+        .map_err(|e| format!("Could not continue this conversation: {e}"))?;
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .execute(
+            "UPDATE sessions SET provider_id=?1 WHERE id=?2",
+            params![provider.id, id],
+        )
+        .map_err(|e| e.to_string())?;
+    state.clients.lock().await.insert(id.clone(), client);
+    event(&app, &id, "connection_started", init);
+    Ok(())
 }
 #[tauri::command]
 async fn prompt(app: tauri::AppHandle, id: String, text: String) -> Result<(), String> {
@@ -120,6 +209,17 @@ async fn prompt(app: tauri::AppHandle, id: String, text: String) -> Result<(), S
             json!({"sessionId":remote,"prompt":[{"type":"text","text":text}]}),
         )
         .await;
+    // Closing/reconnecting may replace this process while a prompt unwinds.
+    if !app
+        .state::<AppState>()
+        .clients
+        .lock()
+        .await
+        .get(&id)
+        .is_some_and(|current| Arc::ptr_eq(current, &client))
+    {
+        return result.map(|_| ());
+    }
     if let Err(e) = &result {
         event(&app, &id, "error", json!(e));
     }
@@ -161,18 +261,30 @@ async fn cancel(app: tauri::AppHandle, id: String) -> Result<(), String> {
         .await
 }
 #[tauri::command]
-async fn close_session(app: tauri::AppHandle, id: String) {
+async fn close_session(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    if state
+        .connecting
+        .lock()
+        .map_err(|e| e.to_string())?
+        .contains(&id)
+    {
+        return Err("Wait for this conversation to reconnect before closing it".into());
+    }
+    if let Some(client) = state.clients.lock().await.remove(&id) {
+        client.shutdown();
+    }
     event(&app, &id, "session_closed", Value::Null);
-    app.state::<AppState>().clients.lock().await.remove(&id);
+    Ok(())
 }
 #[tauri::command]
 fn history(app: tauri::AppHandle) -> Result<Value, String> {
     let state = app.state::<AppState>();
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut q = db
-        .prepare("SELECT id,provider,cwd FROM sessions ORDER BY rowid DESC")
+        .prepare("SELECT id,provider,cwd,provider_id,remote_id FROM sessions ORDER BY rowid DESC")
         .map_err(|e| e.to_string())?;
-    let rows=q.query_map([],|r|Ok(json!({"id":r.get::<_,String>(0)?,"provider":r.get::<_,String>(1)?,"cwd":r.get::<_,String>(2)?}))).map_err(|e|e.to_string())?;
+    let rows=q.query_map([],|r|Ok(json!({"id":r.get::<_,String>(0)?,"provider":r.get::<_,String>(1)?,"cwd":r.get::<_,String>(2)?,"providerId":r.get::<_,Option<String>>(3)?,"canResume":r.get::<_,Option<String>>(4)?.is_some()}))).map_err(|e|e.to_string())?;
     Ok(Value::Array(
         rows.collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?,
@@ -194,12 +306,14 @@ fn main() {
             app.manage(AppState {
                 clients: Default::default(),
                 db: Mutex::new(db),
+                connecting: Default::default(),
             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             startup_directory,
             new_session,
+            resume_session,
             prompt,
             permission,
             cancel,

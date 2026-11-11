@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {invoke} from '@tauri-apps/api/core';
-import {defaultProviders, parseProviders} from './providers';
+import {defaultProviders, parseProviders, resumeProvider} from './providers';
 import type {Provider} from './types';
 import {useSessions} from './useSessions';
 import {Sidebar} from './components/Sidebar';
@@ -30,7 +30,7 @@ function App() {
     setProviders(providers);setSelected(providers[0].id);setSettings(false);
   }
   const canSend=!!text.trim() && !desk.starting && !!desk.panes.length && desk.panes.every(id => {
-    const s=desk.sessions.find(s => s.id === id);return s?.live && !s.busy;
+    const s=desk.sessions.find(s => s.id === id);return s?.live && !s.busy && !s.resuming;
   });
   function send(){if(canSend){void desk.send(desk.panes,text);setText('')}}
   function compare(){const question=text;setText('');void desk.compare(providers,question)}
@@ -55,7 +55,8 @@ function App() {
         {desk.panes.map(id => {
           const session=desk.sessions.find(s => s.id === id);if(!session)return null;
           return <ErrorBoundary key={id} label={`${session.provider} conversation`}>
-            <SessionPane session={session} onPermission={async(request,option) => {await invoke('permission',{id,request,option})}} onCancel={() => void desk.cancel(id)}/>
+            <SessionPane session={session} resumeAvailable={!!resumeProvider(providers,session)}
+              onResume={() => {const provider=resumeProvider(providers,session);if(provider)void desk.resume(session,provider)}} onPermission={async(request,option) => {await invoke('permission',{id,request,option})}} onCancel={() => void desk.cancel(id)}/>
           </ErrorBoundary>;
         })}
       </section>
