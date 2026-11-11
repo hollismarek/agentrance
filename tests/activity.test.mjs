@@ -55,3 +55,11 @@ test('persisted events replay identically to live accumulated events',()=>{
  const events=[initial,permission(),{kind:'permission_resolved',at:1400,data:{request:1,option:'once',optionKind:'allow_once'}},tool({toolCallId:'x',status:'completed'},2000)];
  assert.deepEqual(reduceActivity(JSON.parse(JSON.stringify(events)),false),reduceActivity(events,true));
 });
+test('malformed optional provider metadata cannot crash the activity reducer',()=>{
+ const [op]=reduceActivity([null,{kind:'permission',data:null},tool({toolCallId:'x',title:{bad:true},kind:42,content:[null,{type:'content',content:{type:'text',text:{bad:true}}},{type:'terminal',terminalId:42}],status:'in_progress'})]);
+ assert.equal(op.title,'Tool operation');assert.equal(op.kind,undefined);assert.equal(operationOutput(op).text,'');assert.deepEqual(operationOutput(op).terminals,[]);
+});
+test('a permission decision racing with turn completion is still retained',()=>{
+ const [op]=reduceActivity([permission(),{kind:'done',at:1200,data:null},{kind:'permission_resolved',at:1300,data:{request:1,option:'once',optionKind:'allow_once'}}]);
+ assert.equal(op.approvals[0].decision.option,'once');assert.equal(op.status,'interrupted');
+});

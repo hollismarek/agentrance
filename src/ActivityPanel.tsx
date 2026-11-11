@@ -9,7 +9,7 @@ export function ActivityPanel({events, live, provider, onPermission}: {
   const [now, setNow] = useState(Date.now());
   const [sending, setSending] = useState<string[]>([]);
   const [error, setError] = useState('');
-  const activity = useMemo(() => events.filter(e => activityKinds.has(e.kind)), [events]);
+  const activity = useMemo(() => events.filter(e => activityKinds.has(e?.kind)), [events]);
   const operations = useMemo(() => reduceActivity(activity, live), [activity, live]);
   const awaiting = operations.reduce((n, op) => n + op.approvals.filter(a => !a.decision && !a.expired).length, 0);
   const running = operations.filter(op => op.status === 'running').length;

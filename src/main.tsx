@@ -1,25 +1,68 @@
-import React,{useState,useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {invoke} from '@tauri-apps/api/core';
-import {listen} from '@tauri-apps/api/event';
+import {defaultProviders, parseProviders} from './providers';
+import type {Provider} from './types';
+import {useSessions} from './useSessions';
+import {Sidebar} from './components/Sidebar';
+import {SessionPane} from './components/SessionPane';
+import {Composer} from './components/Composer';
+import {ProviderSettings} from './components/ProviderSettings';
+import {ErrorBoundary} from './components/ErrorBoundary';
 import './style.css';
-import {ActivityPanel} from './ActivityPanel';
-import {activityKinds, type ActivityEvent} from './activity';
-type Provider={id:string,name:string,executable:string,args:string[],env:Record<string,string>,cwd:string};
-type Message=ActivityEvent;
-type Session={id:string,provider:string,cwd:string,items:Message[],busy:boolean,live:boolean,identity?:any};
-const defaultProvider:Provider={id:'kiro',name:'Kiro CLI',executable:'kiro-cli',args:['acp'],env:{},cwd:'/home/hollis/Documents/Codex/agent-desk'};
-function App(){
- const [providers,setProviders]=useState<Provider[]>(()=>JSON.parse(localStorage.getItem('providers')||'null')||[defaultProvider]);
- const [selected,setSelected]=useState('kiro');const [sessions,setSessions]=useState<Session[]>([]);const [panes,setPanes]=useState<string[]>([]);
- const [past,setPast]=useState<any[]>([]);const [text,setText]=useState('');const [error,setError]=useState('');const [settings,setSettings]=useState(false);const [config,setConfig]=useState('');const [starting,setStarting]=useState(false);
- const refresh=()=>invoke<any[]>('history').then(setPast).catch(e=>setError(String(e)));
- useEffect(()=>{refresh();const subscription=listen<any>('agent-event',({payload:e})=>setSessions(all=>all.map(s=>s.id!==e.session?s:{...s,items:[...s.items,e],busy:e.kind==='done'||e.kind==='disconnected'?false:s.busy,live:e.kind==='disconnected'?false:s.live,identity:e.kind==='identity'?e.data:s.identity})));const historyErrors=listen<string>('history-error',({payload})=>setError(payload));return()=>{subscription.then(f=>f());historyErrors.then(f=>f())}},[]);
- async function fresh(provider:Provider){const id=await invoke<string>('new_session',{provider});const s:Session={id,provider:provider.name,cwd:provider.cwd,items:[],busy:false,live:true};setSessions(a=>[...a,s]);refresh();return id;}
- async function start(){setStarting(true);try{const p=providers.find(p=>p.id===selected)!;setPanes([await fresh(p)]);}catch(e){setError(String(e))}finally{setStarting(false)}}
- async function send(ids=panes,question=text){if(!question.trim())return;setText('');await Promise.all(ids.map(async id=>{setSessions(a=>a.map(s=>s.id===id?{...s,busy:true}:s));try{await invoke('prompt',{id,text:question})}catch(e){setError(String(e));setSessions(a=>a.map(s=>s.id===id?{...s,busy:false}:s))}}));}
- async function compare(){if(!text.trim())return;const question=text;setStarting(true);try{const ids=await Promise.all(providers.map(fresh));setPanes(ids);await send(ids,question)}catch(e){setError(String(e))}finally{setStarting(false)}}
- async function open(s:any){if(!sessions.some(x=>x.id===s.id)){const items=await invoke<Message[]>('messages',{id:s.id});setSessions(a=>[...a,{...s,items,busy:false,live:false}]);}setPanes([s.id]);}
- function save(){try{const ps=JSON.parse(config);if(!Array.isArray(ps)||!ps.length||ps.some(p=>!p.id||!p.name||!p.executable||!p.cwd||!Array.isArray(p.args)||!p.env))throw Error('Each provider needs id, name, executable, args, env and cwd.');setProviders(ps);setSelected(ps[0].id);localStorage.setItem('providers',JSON.stringify(ps));setSettings(false)}catch(e){setError(String(e))}}
- return <div className="app"><aside><h1>Agent Desk<span>LOCAL WORKSPACE</span></h1><button disabled={starting} onClick={start}>＋ New session</button><select aria-label="Provider" value={selected} onChange={e=>setSelected(e.target.value)}>{providers.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><h3>History</h3><nav>{past.map(s=><button className={panes.includes(s.id)?'active':''} key={s.id} onClick={()=>open(s)}>{s.provider}<small>{s.cwd.split('/').pop()} · {s.id.slice(0,8)}</small></button>)}</nav><button onClick={()=>{setConfig(JSON.stringify(providers,null,2));setSettings(true)}}>Provider settings</button><small>Authentication stays with your CLI.<br/>No app telemetry.</small></aside><main><header><div><strong>Your agents, one desk.</strong><small>Independent conversations · local history</small></div><button onClick={()=>setPanes(sessions.filter(s=>s.live).map(s=>s.id))}>Split open sessions</button></header>{error&&<div role="alert" className="error">{error}<button onClick={()=>setError('')}>Dismiss</button></div>}<div className="tabs">{sessions.map(s=><button key={s.id} onClick={()=>setPanes([s.id])}>{s.provider} · {s.id.slice(0,4)} {s.busy?'◌':''}<span onClick={e=>{e.stopPropagation();invoke('close_session',{id:s.id});setSessions(a=>a.filter(x=>x.id!==s.id));setPanes(a=>a.filter(x=>x!==s.id))}}> ×</span></button>)}</div><section className="panes">{!panes.length&&<div className="empty"><h2>A second perspective starts here.</h2><p>Start a session, or write a question and compare all configured providers.</p><p>Comparisons always open fresh, independent sessions.</p></div>}{panes.map(id=>{const s=sessions.find(s=>s.id===id);if(!s)return null;const merged:Message[]=[];for(const m of s.items.filter(m=>!activityKinds.has(m.kind)&&['user','delta','error'].includes(m.kind))){if(m.kind==='delta'&&merged.at(-1)?.kind==='delta')merged[merged.length-1].data+=m.data;else merged.push({...m})}return <article key={id}><div className="pane-title"><strong>{s.provider}</strong><small>{s.live?'Connected':'Saved history'} · {id.slice(0,8)}</small><small>{s.cwd}</small></div><div className="messages">{merged.map((m,i)=><div key={i} className={'message '+m.kind}><label>{m.kind==='user'?'You':m.kind==='delta'?s.provider:m.kind}</label>{m.kind==='tool'?<details><summary>{m.data.title||m.data.status||'Tool activity'}</summary><pre>{JSON.stringify(m.data,null,2)}</pre></details>:<div>{String(m.data)}</div>}</div>)}{s.busy&&<p className="muted">Responding…</p>}</div><ActivityPanel events={s.items} live={s.live} provider={s.provider} onPermission={async(request,option)=>{await invoke('permission',{id,request,option})}}/>{s.busy&&<button onClick={()=>invoke('cancel',{id}).catch(e=>setError(String(e)))}>Stop response</button>}</article>})}</section><footer><textarea aria-label="Message" placeholder="Ask a question about your project…" value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send()}}/><div><small>Ctrl+Enter to send · compare creates fresh sessions</small><button disabled={starting||!text.trim()} onClick={compare}>Compare all providers</button><button className="primary" disabled={!text.trim()||!panes.length||panes.some(id=>{const s=sessions.find(s=>s.id===id);return !s?.live||s.busy})} onClick={()=>send()}>Send</button></div></footer></main>{settings&&<div className="overlay"><div className="settings"><h2>Providers</h2><p>Set each executable, argument list, environment overrides, and absolute project directory. Use existing CLI login; do not put credentials here.</p><textarea aria-label="Provider configuration" value={config} onChange={e=>setConfig(e.target.value)}/><button onClick={()=>setSettings(false)}>Cancel</button><button onClick={save}>Save providers</button></div></div>}</div>
-}createRoot(document.getElementById('root')!).render(<App/>);
+function App() {
+  const [providers,setProviders] = useState<Provider[]>([]);
+  const [selected,setSelected] = useState('');
+  const [text,setText] = useState('');
+  const [error,setError] = useState('');
+  const [settings,setSettings] = useState(false);
+  const desk = useSessions(setError);
+  useEffect(() => {
+    invoke<string>('startup_directory').then(cwd => {
+      let loaded=defaultProviders(cwd);
+      try {const raw=localStorage.getItem('providers');if(raw)loaded=parseProviders(raw)}
+      catch(e){setError(`Saved provider settings could not be loaded: ${e}. Existing saved data has been preserved; review Provider settings.`)}
+      setProviders(loaded);setSelected(loaded[0].id);
+    }).catch(e => setError(`Could not determine the project directory: ${e}`));
+  },[]);
+  function save(providers:Provider[]) {
+    localStorage.setItem('providers',JSON.stringify(providers));
+    setProviders(providers);setSelected(providers[0].id);setSettings(false);
+  }
+  const canSend=!!text.trim() && !desk.starting && !!desk.panes.length && desk.panes.every(id => {
+    const s=desk.sessions.find(s => s.id === id);return s?.live && !s.busy;
+  });
+  function send(){if(canSend){void desk.send(desk.panes,text);setText('')}}
+  function compare(){const question=text;setText('');void desk.compare(providers,question)}
+  return <div className="app">
+    <Sidebar providers={providers} selected={selected} past={desk.past} panes={desk.panes} starting={desk.starting}
+      onStart={() => {const provider=providers.find(p => p.id === selected);if(provider)void desk.start(provider)}}
+      onSelect={setSelected} onOpen={s => void desk.open(s)} onSettings={() => setSettings(true)}/>
+    <main>
+      <header><div><strong>Your agents, one desk.</strong><small>Independent conversations · local history</small></div>
+        <button onClick={() => desk.setPanes(desk.sessions.filter(s => s.live).map(s => s.id))}>Split open sessions</button>
+      </header>
+      {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
+      <div className="tabs">{desk.sessions.map(s => <div className="session-tab" key={s.id}>
+        <button onClick={() => desk.setPanes([s.id])}>{s.provider} · {s.id.slice(0,4)} {s.busy ? '◌' : ''}</button>
+        <button aria-label={`Close ${s.provider} ${s.id.slice(0,4)}`} onClick={() => void desk.close(s.id)}>×</button>
+      </div>)}</div>
+      <section className="panes">
+        {!desk.panes.length && <div className="empty"><h2>A second perspective starts here.</h2>
+          <p>Start a session, or write a question and compare all configured providers.</p>
+          <p>Comparisons always open fresh, independent sessions.</p>
+        </div>}
+        {desk.panes.map(id => {
+          const session=desk.sessions.find(s => s.id === id);if(!session)return null;
+          return <ErrorBoundary key={id} label={`${session.provider} conversation`}>
+            <SessionPane session={session} onPermission={async(request,option) => {await invoke('permission',{id,request,option})}} onCancel={() => void desk.cancel(id)}/>
+          </ErrorBoundary>;
+        })}
+      </section>
+      <Composer text={text} onText={setText} onSend={send} onCompare={compare} canSend={canSend}
+        canCompare={!desk.starting && !!providers.length && !!text.trim()}/>
+    </main>
+    {settings && <ProviderSettings providers={providers} onSave={save} onClose={() => setSettings(false)}/>}
+  </div>;
+}
+createRoot(document.getElementById('root')!).render(<ErrorBoundary label="Agent Desk"><App/></ErrorBoundary>);
