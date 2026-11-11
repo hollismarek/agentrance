@@ -9,6 +9,7 @@ export function useSessions(onError: (message:string) => void) {
   const [past,setPast] = useState<SavedSession[]>([]);
   const [panes,setPanes] = useState<string[]>([]);
   const [starting,setStarting] = useState(false);
+  const switching = useRef(new Set<string>());
   const deleted = useRef(new Set<string>());
   const reconnecting = useRef(new Set<string>());
   const earlyEvents = useRef(new Map<string, ActivityEvent[]>());
@@ -111,6 +112,13 @@ export function useSessions(onError: (message:string) => void) {
     setSessions(a=>a.filter(s=>s.id!==id));setPanes(a=>a.filter(x=>x!==id));setPast(a=>a.filter(s=>s.id!==id));
     await refresh();
   }
+  async function setAgent(id:string,agentId:string){
+    if(switching.current.has(id))return;
+    switching.current.add(id);
+    setSessions(a=>a.map(s=>s.id===id?{...s,changingAgent:true}:s));
+    try{await invoke('set_agent',{id,agentId})}catch(e){onError(String(e))}
+    finally{switching.current.delete(id);setSessions(a=>a.map(s=>s.id===id?{...s,changingAgent:false}:s))}
+  }
   async function cancel(id:string) {try{await invoke('cancel',{id})}catch(e){onError(String(e))}}
-  return {sessions,past,panes,setPanes,starting,start,send,compare,open,close,cancel,resume,rename,remove};
+  return {sessions,past,panes,setPanes,starting,start,send,compare,open,close,cancel,resume,rename,remove,setAgent};
 }

@@ -9,13 +9,20 @@ use tokio::{
     process::{Child, ChildStdin, Command},
     sync::{oneshot, Mutex as AsyncMutex},
 };
+struct Pending {
+    tx: oneshot::Sender<Result<Value, String>>,
+    method: String,
+    revision: u64,
+    mode: Option<String>,
+}
 type EventSink = Arc<dyn Fn(&str, Value) + Send + Sync>;
 pub struct Client {
+    agents: Arc<Mutex<crate::agents::State>>,
     replaying: Arc<AtomicBool>,
     stopped: Arc<AtomicBool>,
     connected: Arc<AtomicBool>,
     input: Arc<AsyncMutex<ChildStdin>>,
-    pending: Arc<AsyncMutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>>>,
+    pending: Arc<AsyncMutex<HashMap<u64, Pending>>>,
     permissions: Arc<AsyncMutex<HashMap<String, Value>>>,
     pub remote: AsyncMutex<String>,
     pub turn: AsyncMutex<()>,
@@ -48,15 +55,14 @@ impl Client {
             .map_err(|e| format!("Cannot start {}: {e}", p.name))?;
         let input = Arc::new(AsyncMutex::new(child.stdin.take().ok_or("No stdin")?));
         let out = child.stdout.take().ok_or("No stdout")?;
-        let pending = Arc::new(AsyncMutex::new(HashMap::<
-            u64,
-            oneshot::Sender<Result<Value, String>>,
-        >::new()));
+        let pending = Arc::new(AsyncMutex::new(HashMap::<u64, Pending>::new()));
         let permissions = Arc::new(AsyncMutex::new(HashMap::new()));
         let replaying = Arc::new(AtomicBool::new(false));
         let stopped = Arc::new(AtomicBool::new(false));
         let connected = Arc::new(AtomicBool::new(true));
+        let agents = Arc::new(Mutex::new(crate::agents::State::default()));
         let client = Arc::new(Self {
+            agents: agents.clone(),
             replaying: replaying.clone(),
             stopped: stopped.clone(),
             connected: connected.clone(),
@@ -79,12 +85,24 @@ impl Client {
                 }
                 if let Some(method) = v["method"].as_str() {
                     if method == "session/update" {
-                        // session/load replays provider history. The app already
-                        // has its durable transcript and activity; do not duplicate it.
+                        let u = &v["params"]["update"];
+                        // Restore mode/configuration reports even while history
+                        // replay is suppressed. They describe current controls.
+                        let snapshot = if let Ok(mut state) = agents.lock() {
+                            if state.update(u) {
+                                Some(state.snapshot())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+                        if let Some(snapshot) = snapshot {
+                            emit("agent_state", snapshot);
+                        }
                         if replaying.load(Ordering::SeqCst) {
                             continue;
                         }
-                        let u = &v["params"]["update"];
                         match u["sessionUpdate"].as_str() {
                             Some("agent_message_chunk") => {
                                 if let Some(t) = u["content"]["text"].as_str() {
@@ -108,8 +126,37 @@ impl Client {
                         let _ = write(&input, response).await;
                     }
                 } else if let Some(n) = v["id"].as_u64() {
-                    if let Some(tx) = pending.lock().await.remove(&n) {
-                        let _ = tx.send(if v.get("error").is_some() {
+                    if let Some(request) = pending.lock().await.remove(&n) {
+                        if v.get("error").is_none() {
+                            // Apply setup/configuration results in wire order,
+                            // before waking callers, so later notifications win.
+                            let snapshot = if let Ok(mut state) = agents.lock() {
+                                let before = state.revision;
+                                match request.method.as_str() {
+                                    "session/new"
+                                    | "session/load"
+                                    | "session/resume"
+                                    | "session/set_config_option" => state.setup(&v["result"]),
+                                    "session/set_mode" if state.revision == request.revision => {
+                                        if let Some(mode) = &request.mode {
+                                            state.confirm(mode);
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                                if state.revision != before {
+                                    Some(state.snapshot())
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+                            if let Some(snapshot) = snapshot {
+                                emit("agent_state", snapshot);
+                            }
+                        }
+                        let _ = request.tx.send(if v.get("error").is_some() {
                             Err(v["error"].to_string())
                         } else {
                             Ok(v["result"].clone())
@@ -117,8 +164,8 @@ impl Client {
                     }
                 }
             }
-            for (_, tx) in pending.lock().await.drain() {
-                let _ = tx.send(Err("Provider process exited".into()));
+            for (_, request) in pending.lock().await.drain() {
+                let _ = request.tx.send(Err("Provider process exited".into()));
             }
             connected.store(false, Ordering::SeqCst);
             if !stopped.load(Ordering::SeqCst) {
@@ -152,13 +199,47 @@ impl Client {
         *self.remote.lock().await = remote.to_string();
         Ok(())
     }
+    pub fn agent_snapshot(&self) -> Result<Value, String> {
+        Ok(self.agents.lock().map_err(|e| e.to_string())?.snapshot())
+    }
+    pub async fn set_agent(&self, id: &str) -> Result<Value, String> {
+        if !self.is_connected() {
+            return Err("Reconnect this conversation before choosing an agent".into());
+        }
+        let _idle = self
+            .turn
+            .try_lock()
+            .map_err(|_| "Wait for the current response or agent switch to finish")?;
+        let remote = self.remote.lock().await.clone();
+        let (method, params) = {
+            self.agents
+                .lock()
+                .map_err(|e| e.to_string())?
+                .request(&remote, id)?
+        };
+        let result = self.request(&method, params).await?;
+        if method == "session/set_config_option" && !result["configOptions"].is_array() {
+            return Err("Provider did not report its updated agent configuration".into());
+        }
+        self.agent_snapshot()
+    }
     pub async fn send(&self, v: Value) -> Result<(), String> {
         write(&self.input, v).await
     }
     pub async fn request(&self, method: &str, params: Value) -> Result<Value, String> {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
-        self.pending.lock().await.insert(id, tx);
+        let revision = self.agents.lock().map_err(|e| e.to_string())?.revision;
+        let mode = params["modeId"].as_str().map(String::from);
+        self.pending.lock().await.insert(
+            id,
+            Pending {
+                tx,
+                method: method.into(),
+                revision,
+                mode,
+            },
+        );
         if let Err(e) = self
             .send(json!({"jsonrpc":"2.0","id":id,"method":method,"params":params}))
             .await
@@ -236,7 +317,7 @@ for line in sys.stdin:
   if method=='session/load':
    send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':remote,'update':{'sessionUpdate':'agent_message_chunk','content':{'type':'text','text':'OLD REPLAY'}}}})
    send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':remote,'update':{'sessionUpdate':'tool_call','toolCallId':'old','status':'completed'}}})
-  result={}
+  result={'modes':{'currentModeId':'review','availableModes':[{'id':'review','name':'Review'}]}}
  elif method=='session/prompt':
   assert params['sessionId']==remote
   send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':remote,'update':{'sessionUpdate':'agent_message_chunk','content':{'type':'text','text':'continued '+remote}}}})
@@ -255,7 +336,9 @@ for line in sys.stdin:
                 let init=client.request("initialize",json!({"protocolVersion":1})).await.unwrap();
                 client.restore(&init,remote,&cwd).await.unwrap();
                 assert_eq!(*client.remote.lock().await,remote);
-                assert!(events.lock().unwrap().is_empty(),"load replay must not duplicate local history");
+                assert_eq!(client.agent_snapshot().unwrap()["selection"]["current"],"review");
+                assert!(events.lock().unwrap().iter().all(|(kind,_)|kind=="agent_state"),"load replay must not duplicate local history");
+                events.lock().unwrap().clear();
                 clients.push((client,events,remote));
             }
             for (client,events,remote) in &clients {
@@ -264,5 +347,54 @@ for line in sys.stdin:
                 client.shutdown();assert!(!client.is_connected());
             }
         }).await.expect("mock ACP reconnect timed out");
+    }
+    #[tokio::test]
+    async fn agent_switches_are_confirmed_by_provider_and_preserve_errors_and_busy_state() {
+        tokio::time::timeout(Duration::from_secs(10),async{
+            let script=r#"
+import sys,json
+kind=sys.argv[1]
+choices=[{'id':'review','name':'Review'},{'id':'code','name':'Code'},{'id':'fail','name':'Failure test'}]
+def setup(current):
+ if kind=='config': return {'configOptions':[{'id':'mode','name':'Agent','category':'mode','type':'select','currentValue':current,'options':[{'value':c['id'],'name':c['name']} for c in choices]}]}
+ return {'modes':{'currentModeId':current,'availableModes':choices}}
+def send(v):print(json.dumps(v),flush=True)
+for line in sys.stdin:
+ m=json.loads(line);method=m['method'];p=m.get('params',{})
+ if method=='session/new':result=dict(sessionId='remote-agent',**setup('review'))
+ elif method in ('session/set_mode','session/set_config_option'):
+  assert p['sessionId']=='remote-agent'
+  assert method==('session/set_config_option' if kind=='config' else 'session/set_mode')
+  value=p['value'] if kind=='config' else p['modeId']
+  if kind=='config':assert p['configId']=='mode'
+  if value=='fail':
+   send({'jsonrpc':'2.0','id':m['id'],'error':{'code':-32602,'message':'Agent unavailable'}});continue
+  assert value=='code'
+  result=setup('code') if kind=='config' else {}
+ elif method=='session/prompt':
+  update={'sessionUpdate':'config_option_update',**setup('review')} if kind=='config' else {'sessionUpdate':'current_mode_update','currentModeId':'review'}
+  send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'remote-agent','update':update}})
+  result={'stopReason':'end_turn'}
+ else: raise AssertionError(method)
+ send({'jsonrpc':'2.0','id':m['id'],'result':result})
+"#;
+            for kind in ["modes","config"]{
+                let events=Arc::new(Mutex::new(Vec::<(String,Value)>::new()));let sink=events.clone();
+                let p=Provider{id:"mock".into(),name:"Mock".into(),executable:"python3".into(),args:vec!["-u".into(),"-c".into(),script.into(),kind.into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
+                let c=Client::start_transport(&p,Arc::new(move|kind,data|sink.lock().unwrap().push((kind.into(),data)))).await.unwrap();
+                let setup=c.request("session/new",json!({})).await.unwrap();
+                *c.remote.lock().await="remote-agent".into();assert!(setup.is_object());
+                let idle=c.turn.lock().await;assert!(c.set_agent("code").await.is_err());drop(idle);
+                assert!(c.set_agent("invented").await.is_err());
+                assert!(c.set_agent("fail").await.unwrap_err().contains("Agent unavailable"));
+                assert_eq!(c.agent_snapshot().unwrap()["selection"]["current"],"review");
+                assert_eq!(c.set_agent("code").await.unwrap()["selection"]["current"],"code");
+                c.request("session/prompt",json!({"sessionId":"remote-agent"})).await.unwrap();
+                assert_eq!(c.agent_snapshot().unwrap()["selection"]["current"],"review");
+                assert!(events.lock().unwrap().iter().any(|(kind,data)|kind=="agent_state"&&data["selection"]["current"]=="review"));
+                assert!(!events.lock().unwrap().iter().any(|(kind,_)|kind=="permission_resolved"));
+                c.shutdown();
+            }
+        }).await.expect("mock agent selection timed out");
     }
 }

@@ -1,8 +1,8 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {activityKinds, commandText, elapsed, operationOutput, reduceActivity, type ActivityEvent} from './activity';
 const labels: Record<string,string> = {pending:'Pending', running:'Running', awaiting:'Awaiting approval', completed:'Completed', failed:'Failed', interrupted:'No final result', declined:'Declined'};
-export function ActivityPanel({events, live, provider, onPermission}: {
-  events: ActivityEvent[]; live: boolean; provider: string;
+export function ActivityPanel({events, live, provider, onPermission, agentControl}: {
+  events: ActivityEvent[]; live: boolean; provider: string; agentControl?: React.ReactNode;
   onPermission: (request: any, option: string | null) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
@@ -26,10 +26,10 @@ export function ActivityPanel({events, live, provider, onPermission}: {
     finally {setSending(a => a.filter(x => x !== key))}
   }
   return <section className="activity-panel" aria-label={`${provider} activity inspector`}>
-    <button className="activity-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+    <div className="activity-toolbar"><button className="activity-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
       <span>{open ? '▾' : '▸'} Activity <span className="activity-count">{operations.length}</span></span>
       <span>{awaiting > 0 && <span className="status awaiting">{awaiting} awaiting approval</span>} {running > 0 && <span className="status running">{running} running</span>}</span>
-    </button>
+    </button>{agentControl}</div>
     {open && <div className="activity-body">
       <p className="activity-note">Live provider reports · read-only inspector. Output appears as the agent supplies it.</p>
       {error && <p role="alert" className="error">{error}</p>}

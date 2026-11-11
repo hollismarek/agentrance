@@ -31,13 +31,13 @@ function App() {
     setProviders(providers);setSelected(providers[0].id);setSettings(false);
   }
   const canSend=!!text.trim() && !desk.starting && !!desk.panes.length && desk.panes.every(id => {
-    const s=desk.sessions.find(s => s.id === id);return s?.live && !s.busy && !s.resuming;
+    const s=desk.sessions.find(s => s.id === id);return s?.live && !s.busy && !s.resuming && !s.changingAgent;
   });
   function send(){if(canSend){void desk.send(desk.panes,text);setText('')}}
   function compare(){const question=text;setText('');void desk.compare(providers,question)}
   return <div className="app">
     <Sidebar providers={providers} selected={selected} past={desk.past} panes={desk.panes} starting={desk.starting}
-      busyIds={desk.sessions.filter(s=>s.busy||s.resuming).map(s=>s.id)} onRename={desk.rename} onDelete={desk.remove}
+      busyIds={desk.sessions.filter(s=>s.busy||s.resuming||s.changingAgent).map(s=>s.id)} onRename={desk.rename} onDelete={desk.remove}
       onStart={() => {const provider=providers.find(p => p.id === selected);if(provider)void desk.start(provider)}}
       onSelect={setSelected} onOpen={s => void desk.open(s)} onSettings={() => setSettings(true)}/>
     <main>
@@ -57,7 +57,7 @@ function App() {
         {desk.panes.map(id => {
           const session=desk.sessions.find(s => s.id === id);if(!session)return null;
           return <ErrorBoundary key={id} label={`${session.provider} conversation`}>
-            <SessionPane session={session} resumeAvailable={!!resumeProvider(providers,session)}
+            <SessionPane session={session} onAgent={agentId=>void desk.setAgent(id,agentId)} resumeAvailable={!!resumeProvider(providers,session)}
               onResume={() => {const provider=resumeProvider(providers,session);if(provider)void desk.resume(session,provider)}} onPermission={async(request,option) => {await invoke('permission',{id,request,option})}} onCancel={() => void desk.cancel(id)}/>
           </ErrorBoundary>;
         })}

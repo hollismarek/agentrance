@@ -51,3 +51,15 @@ Validation: summary derivation for old/new chats, persistent rename, Unicode tru
 Closing a read-only history tab no longer writes a connection-closed event or changes its last-activity time. Rename submissions trim surrounding whitespace (the backend remains authoritative), and delete dialogs initially focus Cancel.
 
 Known lifetime limitation: deleted-chat suppression IDs are retained in the backend and frontend until the app exits. They prevent in-flight provider callbacks or stale history requests from repopulating deleted entries. Safe reclamation needs to wait for reader-task termination and outstanding UI requests; pruning immediately after deletion commits is unsafe. This per-run growth remains a later lifecycle improvement, not an immediate removal of the race guard.
+
+## Per-conversation agent selector (Kiro V3)
+
+Each conversation now has an Agent dropdown beside the Activity toggle. It remains visible with the inspector collapsed and does not expand/collapse the inspector when used. The header also shows the active agent's reported name. Saved chats retain their last reported selection; continue the chat before changing it. Switching is disabled during a response, reconnection, or another switch, and independent conversations retain independent controls.
+
+Choices come from ACP session setup and live reports. Advertised select configuration options for mode take precedence and use `session/set_config_option`; otherwise an advertised session modes list uses the V3-supported `session/set_mode`. Grouped configuration choices are supported. Missing or withdrawn controls are labelled unavailable, and unadvertised IDs are rejected in Rust. No V2 launch-flag adapter or legacy Kiro extension is used. New default Kiro configurations explicitly launch V3; existing saved executable/argument settings are preserved.
+
+Configuration and mode replies/notifications update the backend in protocol wire order, and persisted snapshots carry a per-connection revision so delayed publication cannot overwrite newer state. Resume/load restores the reported controls without replaying duplicate conversation content. Failed switches leave the last reported selection intact and show the provider's error. Permission requests continue through the existing explicit approval flow; agent selection does not approve commands or modify authentication.
+
+Validation: 29 JavaScript cases and 11 Rust tests pass, including scripted ACP subprocess switches via both V3 session APIs, failures, unsupported IDs, busy-state rejection, provider-originated changes, restoration, and snapshot ordering. A React static-render check confirms the dropdown remains present outside the collapsed Activity body. TypeScript, Rust, and production build checks pass. Browser automation remains skipped; live Kiro custom-agent selection needs a hands-on check.
+
+Protocol references: https://kiro.dev/docs/cli/v3/acp-migration/ and https://agentclientprotocol.com/protocol/v1/session-config-options .

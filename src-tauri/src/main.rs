@@ -1,4 +1,5 @@
 mod acp;
+mod agents;
 mod resume;
 mod storage;
 use rusqlite::{params, Connection};
@@ -104,6 +105,7 @@ async fn new_session(app: tauri::AppHandle, mut provider: Provider) -> Result<St
         .ok_or("Missing sessionId")?
         .to_string();
     *client.remote.lock().await = remote;
+    let agent_state = client.agent_snapshot()?;
     let state = app.state::<AppState>();
     state
         .db
@@ -122,6 +124,7 @@ async fn new_session(app: tauri::AppHandle, mut provider: Provider) -> Result<St
         .map_err(|e| e.to_string())?;
     state.clients.lock().await.insert(id.clone(), client);
     event(&app, &id, "identity", init);
+    event(&app, &id, "agent_state", agent_state);
     Ok(id)
 }
 // Reserve a local session while reconnecting, without serializing other chats.
@@ -201,8 +204,34 @@ async fn resume_session(
             params![provider.id, id],
         )
         .map_err(|e| e.to_string())?;
+    let agent_state = client.agent_snapshot()?;
     state.clients.lock().await.insert(id.clone(), client);
     event(&app, &id, "connection_started", init);
+    event(&app, &id, "agent_state", agent_state);
+    Ok(())
+}
+#[tauri::command]
+async fn set_agent(app: tauri::AppHandle, id: String, agent_id: String) -> Result<(), String> {
+    let client = app
+        .state::<AppState>()
+        .clients
+        .lock()
+        .await
+        .get(&id)
+        .cloned()
+        .ok_or("Continue this conversation before choosing an agent")?;
+    let snapshot = client.set_agent(&agent_id).await?;
+    if !app
+        .state::<AppState>()
+        .clients
+        .lock()
+        .await
+        .get(&id)
+        .is_some_and(|current| Arc::ptr_eq(current, &client))
+    {
+        return Err("The conversation connection closed during the agent switch".into());
+    }
+    event(&app, &id, "agent_state", snapshot);
     Ok(())
 }
 #[tauri::command]
@@ -382,6 +411,7 @@ fn main() {
             startup_directory,
             new_session,
             resume_session,
+            set_agent,
             prompt,
             permission,
             cancel,
