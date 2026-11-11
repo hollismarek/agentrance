@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const browser=await chromium.launch({headless:true});
+try {
+ const page=await browser.newPage({viewport:{width:1000,height:900}});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:5174/tests/activity-preview.html');
+ await page.waitForFunction(()=>typeof window.feed==='function');
+ const feed=event=>page.evaluate(e=>window.feed(e),event);
+ await page.getByRole('button',{name:/Activity/}).click();
+ await feed({kind:'tool',at:Date.now(),data:{toolCallId:'build',title:'Run repository checks',kind:'execute',status:'in_progress',rawInput:{command:'cargo test --offline'}}});
+ await page.locator('.operation>summary').click();
+ await feed({kind:'tool',at:Date.now(),data:{toolCallId:'build',rawOutput:{stdout:'first output while command is still running\n'}}});
+ await page.getByText('first output while command is still running',{exact:false}).first().waitFor();
+ assert.equal(await page.locator('.operation.running').count(),1);
+ assert.match(await page.locator('.operation-body').innerText(),/Exit code: not reported/);
+ const before=await page.locator('.operation>summary small').innerText();
+ await page.waitForFunction(text=>document.querySelector('.operation>summary small').textContent!==text,before);
+ await page.getByRole('button',{name:/Activity/}).click();
+ await feed({kind:'permission',at:Date.now(),data:{request:42,params:{toolCall:{toolCallId:'write',title:'Write generated report',kind:'edit'},options:[{optionId:'allow',name:'Allow once',kind:'allow_once'}]}}});
+ await page.getByText('1 awaiting approval',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:/Activity/}).getAttribute('aria-expanded'),'true');
+ assert.deepEqual(await page.evaluate(()=>window.decisions),[]);
+ await page.locator('.operation.awaiting>summary').click();
+ await page.getByRole('button',{name:/Allow once/}).click();
+ await page.getByText('Allow once (allow_once) · sent to provider',{exact:true}).waitFor();
+ assert.deepEqual(await page.evaluate(()=>window.decisions),[{request:42,option:'allow'}]);
+ await feed({kind:'tool',at:Date.now(),data:{toolCallId:'build',status:'failed',rawOutput:{stdout:'first output while command is still running\n',stderr:'check failed',exitCode:1}}});
+ await page.locator('.operation.failed').waitFor();
+ assert.match(await page.locator('.operation.failed').innerText(),/Exit code: 1/);
+ await page.getByText('check failed',{exact:true}).waitFor();
+ await feed({kind:'tool',at:Date.now(),data:{toolCallId:'read',title:'Read configuration',kind:'read',status:'completed'}});
+ await page.locator('.operation.completed>summary').click();
+ await page.getByText('Raw stdout/stderr not exposed by provider.',{exact:true}).last().waitFor();
+ await page.screenshot({path:'/tmp/agent-desk-activity.png',fullPage:true});
+ assert.deepEqual(errors,[]);
+ console.log('Browser checks passed: live partial output, elapsed ticker, automatic panel reveal, explicit approval only, failed exit, unavailable output.');
+} finally {await browser.close()}

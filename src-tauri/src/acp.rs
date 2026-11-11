@@ -1,7 +1,7 @@
 use super::*;
 use tokio::{io::{AsyncBufReadExt,AsyncWriteExt,BufReader},process::{Command,Child,ChildStdin},sync::{oneshot,Mutex as AsyncMutex}};
 use std::{process::Stdio,sync::atomic::{AtomicU64,Ordering},time::Duration};
-pub struct Client { input:Arc<AsyncMutex<ChildStdin>>, pending:Arc<AsyncMutex<HashMap<u64,oneshot::Sender<Result<Value,String>>>>>, permissions:Arc<AsyncMutex<HashMap<String,Vec<String>>>>, pub remote:AsyncMutex<String>,pub turn:AsyncMutex<()>, next:AtomicU64, child:Mutex<Child> }
+pub struct Client { input:Arc<AsyncMutex<ChildStdin>>, pending:Arc<AsyncMutex<HashMap<u64,oneshot::Sender<Result<Value,String>>>>>, permissions:Arc<AsyncMutex<HashMap<String,Value>>>, pub remote:AsyncMutex<String>,pub turn:AsyncMutex<()>, next:AtomicU64, child:Mutex<Child> }
 impl Drop for Client { fn drop(&mut self){if let Ok(child)=self.child.get_mut(){let _=child.start_kill();}} }
 impl Client {
  pub async fn start(app:tauri::AppHandle,id:String,p:&Provider)->Result<Arc<Self>,String>{
@@ -23,8 +23,7 @@ impl Client {
        Some("tool_call")|Some("tool_call_update")=>event(&app,&id,"tool",u.clone()),_=>{}
       }
      }else if method=="session/request_permission" {
-      let options=v["params"]["options"].as_array().map(|a|a.iter().filter_map(|x|x["optionId"].as_str().map(String::from)).collect()).unwrap_or_default();
-      permissions.lock().await.insert(v["id"].to_string(),options);
+      permissions.lock().await.insert(v["id"].to_string(),v["params"].clone());
       event(&app,&id,"permission",json!({"request":v["id"],"params":v["params"]}));
      }else if v.get("id").is_some(){
       let response=json!({"jsonrpc":"2.0","id":v["id"],"error":{"code":-32601,"message":"Unsupported client method; authentication stays with the CLI"}});
@@ -44,10 +43,18 @@ impl Client {
   self.pending.lock().await.remove(&id);
   result.map_err(|_|"Provider response timed out".to_string())?.map_err(|_|"Provider disconnected".to_string())?
  }
- pub async fn respond_permission(&self,request:Value,option:Option<String>)->Result<(),String>{
-  let options=self.permissions.lock().await.remove(&request.to_string()).ok_or("Permission request expired")?;
-  if option.as_ref().is_some_and(|o|!options.contains(o)){return Err("Unknown permission option".into())}
-  self.send(json!({"jsonrpc":"2.0","id":request,"result":{"outcome":match option{Some(o)=>json!({"outcome":"selected","optionId":o}),None=>json!({"outcome":"cancelled"})}}})).await
+ pub async fn respond_permission(&self,request:Value,option:Option<String>)->Result<Value,String>{
+  let mut permissions=self.permissions.lock().await;
+  let params=permissions.get(&request.to_string()).ok_or("Permission request expired")?;
+  let selected=match &option {
+   Some(id)=>Some(params["options"].as_array().and_then(|options|options.iter().find(|o|o["optionId"].as_str()==Some(id.as_str()))).ok_or("Unknown permission option")?),
+   None=>None
+  };
+  let decision=json!({"request":request,"option":option,"optionKind":selected.map(|o|o["kind"].clone()),"optionName":selected.map(|o|o["name"].clone())});
+  self.send(json!({"jsonrpc":"2.0","id":request,"result":{"outcome":match &option{Some(o)=>json!({"outcome":"selected","optionId":o}),None=>json!({"outcome":"cancelled"})}}})).await?;
+  permissions.remove(&request.to_string());
+  Ok(decision)
  }
+
 }
 async fn write(input:&AsyncMutex<ChildStdin>,v:Value)->Result<(),String>{let mut input=input.lock().await;input.write_all(format!("{v}\n").as_bytes()).await.map_err(|e|e.to_string())?;input.flush().await.map_err(|e|e.to_string())}

@@ -1,4 +1,5 @@
 mod acp;
+mod storage;
 use std::{collections::HashMap, sync::{Arc,Mutex}};
 use serde::{Serialize,Deserialize};
 use serde_json::{json,Value};
@@ -8,12 +9,18 @@ use rusqlite::{Connection,params};
 struct Provider { id:String, name:String, executable:String, args:Vec<String>, env:HashMap<String,String>, cwd:String }
 struct AppState { clients:tokio::sync::Mutex<HashMap<String,Arc<acp::Client>>>, db:Mutex<Connection> }
 fn event(app:&tauri::AppHandle,id:&str,kind:&str,data:Value) {
- let payload=json!({"session":id,"kind":kind,"data":data});
- if ["user","delta","error","tool"].contains(&kind) {
-  let state=app.state::<AppState>();
-  if let Ok(db)=state.db.lock() { let _=db.execute("INSERT INTO events(session,kind,data) VALUES(?1,?2,?3)",params![id,kind,data.to_string()]); };
- }
- let _=app.emit("agent-event",payload);
+ let at=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
+ let state=app.state::<AppState>();
+ let mut payload=json!({"session":id,"kind":kind,"data":data,"at":at});
+ // Persist and publish under the same lock to preserve replay/live ordering.
+ if let Ok(db)=state.db.lock() {
+  match storage::append(&db,id,kind,&data,at) {
+   Ok(seq)=>payload["seq"]=json!(seq),
+   Err(e)=>{let _=app.emit("history-error",format!("Unable to save conversation activity: {e}"));}
+  }
+  let _=app.emit("agent-event",payload);
+ };
+
 }
 #[tauri::command]
 async fn new_session(app:tauri::AppHandle,provider:Provider)->Result<String,String>{
@@ -43,7 +50,9 @@ async fn prompt(app:tauri::AppHandle,id:String,text:String)->Result<(),String>{
 #[tauri::command]
 async fn permission(app:tauri::AppHandle,id:String,request:Value,option:Option<String>)->Result<(),String>{
  let client=app.state::<AppState>().clients.lock().await.get(&id).cloned().ok_or("Session closed")?;
- client.respond_permission(request,option).await
+ let decision=client.respond_permission(request,option).await?;
+ event(&app,&id,"permission_resolved",decision);
+ Ok(())
 }
 #[tauri::command]
 async fn cancel(app:tauri::AppHandle,id:String)->Result<(),String>{
@@ -53,6 +62,7 @@ async fn cancel(app:tauri::AppHandle,id:String)->Result<(),String>{
 }
 #[tauri::command]
 async fn close_session(app:tauri::AppHandle,id:String){
+ event(&app,&id,"session_closed",Value::Null);
  app.state::<AppState>().clients.lock().await.remove(&id);
 }
 #[tauri::command]
@@ -65,13 +75,11 @@ fn history(app:tauri::AppHandle)->Result<Value,String>{
 #[tauri::command]
 fn messages(app:tauri::AppHandle,id:String)->Result<Value,String>{
  let state=app.state::<AppState>();let db=state.db.lock().map_err(|e|e.to_string())?;
- let mut q=db.prepare("SELECT kind,data FROM events WHERE session=?1 ORDER BY rowid").map_err(|e|e.to_string())?;
- let rows=q.query_map([id],|r|{let d:String=r.get(1)?;Ok(json!({"kind":r.get::<_,String>(0)?,"data":serde_json::from_str::<Value>(&d).unwrap_or(Value::Null)}))}).map_err(|e|e.to_string())?;
- Ok(Value::Array(rows.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?))
+ storage::messages(&db,&id).map_err(|e|e.to_string())
 }
 fn main(){tauri::Builder::default().setup(|app|{
  let dir=app.path().app_data_dir()?;std::fs::create_dir_all(&dir)?;
  let db=Connection::open(dir.join("history.sqlite3"))?;
- db.execute_batch("PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY,provider TEXT NOT NULL,cwd TEXT NOT NULL); CREATE TABLE IF NOT EXISTS events(session TEXT NOT NULL,kind TEXT NOT NULL,data TEXT NOT NULL);")?;
+ storage::initialize(&db)?;
  app.manage(AppState{clients:Default::default(),db:Mutex::new(db)});Ok(())
 }).invoke_handler(tauri::generate_handler![new_session,prompt,permission,cancel,history,messages,close_session]).run(tauri::generate_context!()).expect("Agent Desk failed");}
