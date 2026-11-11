@@ -22,6 +22,9 @@ struct AppState {
     clients: tokio::sync::Mutex<HashMap<String, Arc<acp::Client>>>,
     db: Mutex<Connection>,
     connecting: Mutex<HashSet<String>>,
+    // Retain suppression markers for this app run: killing a provider does not
+    // synchronously join its reader task or drain in-flight command callbacks.
+    // Reclamation must await all producers; removing at commit is unsafe.
     deleted: Mutex<HashSet<String>>,
 }
 fn event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) {
@@ -286,10 +289,16 @@ async fn close_session(app: tauri::AppHandle, id: String) -> Result<(), String> 
     {
         return Err("Wait for this conversation to reconnect before closing it".into());
     }
-    if let Some(client) = state.clients.lock().await.remove(&id) {
+    let client = state.clients.lock().await.remove(&id);
+    if let Some(client) = client {
+        let was_connected = client.is_connected();
         client.shutdown();
+        // Viewing and closing saved history is not conversation activity and
+        // must not change the chat's last-activity time or history ordering.
+        if was_connected {
+            event(&app, &id, "session_closed", Value::Null);
+        }
     }
-    event(&app, &id, "session_closed", Value::Null);
     Ok(())
 }
 #[tauri::command]

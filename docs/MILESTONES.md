@@ -45,3 +45,9 @@ History entries, open tabs, and conversation headers now use a one-line preview 
 Deletion requires confirmation in the app, removes the local session and activity rows in a single SQLite transaction, and closes any idle connection. Running or reconnecting conversations cannot be deleted until stopped/finished. The provider's independently saved session is not deleted. Late provider notifications and in-flight UI refreshes cannot repopulate a deleted local conversation. Closing a tab still only closes its connection; it keeps history.
 
 Validation: summary derivation for old/new chats, persistent rename, Unicode truncation, deletion isolation/idempotence, and transaction rollback tests pass alongside the existing tests (22 frontend cases, 7 Rust tests). TypeScript, Rust, and production frontend build checks pass. Browser automation remains skipped as previously agreed.
+
+## Review follow-up
+
+Closing a read-only history tab no longer writes a connection-closed event or changes its last-activity time. Rename submissions trim surrounding whitespace (the backend remains authoritative), and delete dialogs initially focus Cancel.
+
+Known lifetime limitation: deleted-chat suppression IDs are retained in the backend and frontend until the app exits. They prevent in-flight provider callbacks or stale history requests from repopulating deleted entries. Safe reclamation needs to wait for reader-task termination and outstanding UI requests; pruning immediately after deletion commits is unsafe. This per-run growth remains a later lifecycle improvement, not an immediate removal of the race guard.

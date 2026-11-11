@@ -16,7 +16,7 @@ export function Sidebar({providers, selected, past, panes, starting, busyIds, on
     if(!dialog || working)return;
     setWorking(true);setError('');
     try {
-      if(dialog.kind==='rename')await onRename(dialog.chat.id,title);
+      if(dialog.kind==='rename')await onRename(dialog.chat.id,title.trim());
       else await onDelete(dialog.chat.id);
       setDialog(null);
     }catch(e){setError(String(e))}finally{setWorking(false)}
@@ -50,7 +50,7 @@ export function Sidebar({providers, selected, past, panes, starting, busyIds, on
       {dialog.kind==='rename'?<><label htmlFor="chat-title">One-line title</label><input id="chat-title" autoFocus value={title} maxLength={120} onChange={e => setTitle(e.target.value)}/></>:
         <><p><strong>{chatTitle(dialog.chat)}</strong></p><p>This removes the conversation and activity history from Agent Desk and closes its connection. This cannot be undone. The provider’s own saved session stays with the provider.</p></>}
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="dialog-actions"><button type="button" disabled={working} onClick={() => setDialog(null)}>Cancel</button>
+      <div className="dialog-actions"><button type="button" autoFocus={dialog.kind==='delete'} disabled={working} onClick={() => setDialog(null)}>Cancel</button>
         <button className={dialog.kind==='delete'?'danger':'primary'} disabled={working||(dialog.kind==='rename'&&!title.trim())} type="submit">{working?'Saving…':dialog.kind==='rename'?'Save title':'Delete conversation'}</button>
       </div>
     </form>
