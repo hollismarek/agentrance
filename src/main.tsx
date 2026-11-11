@@ -4,6 +4,8 @@ import {invoke} from '@tauri-apps/api/core';
 import {defaultProviders, parseProviders, resumeProvider} from './providers';
 import type {Provider} from './types';
 import {useSessions} from './useSessions';
+import {AppMenu} from './components/AppMenu';
+import {HelpDialog,type HelpTopic} from './components/HelpDialog';
 import {Sidebar} from './components/Sidebar';
 import {SessionPane} from './components/SessionPane';
 import {Composer} from './components/Composer';
@@ -16,6 +18,7 @@ function App() {
   const [selected,setSelected] = useState('');
   const [text,setText] = useState('');
   const [error,setError] = useState('');
+  const [help,setHelp]=useState<{topic:HelpTopic;sessionId?:string}|null>(null);
   const [settings,setSettings] = useState(false);
   const desk = useSessions(setError);
   useEffect(() => {
@@ -39,10 +42,10 @@ function App() {
     <Sidebar providers={providers} selected={selected} past={desk.past} panes={desk.panes} starting={desk.starting}
       busyIds={desk.sessions.filter(s=>s.busy||s.resuming||s.changingAgent||s.changingModel).map(s=>s.id)} onRename={desk.rename} onDelete={desk.remove}
       onStart={() => {const provider=providers.find(p => p.id === selected);if(provider)void desk.start(provider)}}
-      onSelect={setSelected} onOpen={s => void desk.open(s)} onSettings={() => setSettings(true)}/>
+      onSelect={setSelected} onOpen={s => void desk.open(s)}/>
     <main>
-      <header><div><strong>Your agents, one desk.</strong><small>Independent conversations · local history</small></div>
-        <button onClick={() => desk.setPanes(desk.sessions.filter(s => s.live).map(s => s.id))}>Split open sessions</button>
+      <header><strong>Conversations</strong><div className="header-actions">
+        <button onClick={() => desk.setPanes(desk.sessions.filter(s => s.live).map(s => s.id))}>Split open sessions</button><AppMenu onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
       </header>
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
       <div className="tabs">{desk.sessions.map(s => <div className="session-tab" key={s.id}>
@@ -52,12 +55,11 @@ function App() {
       <section className="panes">
         {!desk.panes.length && <div className="empty"><h2>A second perspective starts here.</h2>
           <p>Start a session, or write a question and compare all configured providers.</p>
-          <p>Comparisons always open fresh, independent sessions.</p>
         </div>}
         {desk.panes.map(id => {
           const session=desk.sessions.find(s => s.id === id);if(!session)return null;
           return <ErrorBoundary key={id} label={`${session.provider} conversation`}>
-            <SessionPane session={session} onModel={modelId=>void desk.setModel(id,modelId)} onAgent={agentId=>void desk.setAgent(id,agentId)} resumeAvailable={!!resumeProvider(providers,session)}
+            <SessionPane session={session} onHelp={()=>setHelp({topic:'models',sessionId:id})} onModel={modelId=>void desk.setModel(id,modelId)} onAgent={agentId=>void desk.setAgent(id,agentId)} resumeAvailable={!!resumeProvider(providers,session)}
               onResume={() => {const provider=resumeProvider(providers,session);if(provider)void desk.resume(session,provider)}} onPermission={async(request,option) => {await invoke('permission',{id,request,option})}} onCancel={() => void desk.cancel(id)}/>
           </ErrorBoundary>;
         })}
@@ -65,6 +67,7 @@ function App() {
       <Composer text={text} onText={setText} onSend={send} onCompare={compare} canSend={canSend}
         canCompare={!desk.starting && !!providers.length && !!text.trim()}/>
     </main>
+    {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={desk.sessions} onClose={()=>setHelp(null)}/>}
     {settings && <ProviderSettings providers={providers} onSave={save} onClose={() => setSettings(false)}/>}
   </div>;
 }

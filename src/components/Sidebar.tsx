@@ -1,9 +1,9 @@
 import React, {useState} from 'react';
 import type {Provider, SavedSession} from '../types';
 import {chatTitle, historyDate} from '../history';
-export function Sidebar({providers, selected, past, panes, starting, busyIds, onStart, onSelect, onOpen, onSettings, onRename, onDelete}: {
+export function Sidebar({providers, selected, past, panes, starting, busyIds, onStart, onSelect, onOpen, onRename, onDelete}: {
   providers: Provider[]; selected: string; past: SavedSession[]; panes: string[]; starting: boolean; busyIds:string[];
-  onStart: () => void; onSelect: (id: string) => void; onOpen: (session: SavedSession) => void; onSettings: () => void;
+  onStart: () => void; onSelect: (id: string) => void; onOpen: (session: SavedSession) => void;
   onRename: (id:string,title:string) => Promise<void>; onDelete: (id:string) => Promise<void>;
 }) {
   const [menu,setMenu]=useState<string|null>(null);
@@ -42,8 +42,6 @@ export function Sidebar({providers, selected, past, panes, starting, busyIds, on
         <button className="danger-text" disabled={busyIds.includes(s.id)} title={busyIds.includes(s.id)?'Stop the response or wait for reconnection before deleting.':undefined} onClick={() => action('delete',s)}>Delete chat…</button>
       </div>}
     </div>)}</nav>
-    <button onClick={onSettings}>Provider settings</button>
-    <small>Authentication stays with your CLI.<br/>No app telemetry.</small>
   </aside>{dialog && <div className="overlay" onKeyDown={e => {if(e.key==='Escape'&&!working)setDialog(null)}}>
     <form className="history-dialog" role="dialog" aria-modal="true" aria-labelledby="history-dialog-title" onSubmit={e => {e.preventDefault();void confirm()}}>
       <h2 id="history-dialog-title">{dialog.kind==='rename'?'Rename conversation':'Delete conversation?'}</h2>

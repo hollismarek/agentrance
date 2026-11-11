@@ -15,7 +15,7 @@ export function AgentSelector({selection,live,busy,changing,onChange,label='Agen
     <select id={id} aria-label={`Conversation ${noun}`} disabled={!live||busy||changing||!available} value={current}
       onChange={e=>{if(e.target.value!==current)onChange(e.target.value)}}>
       {!known && <option value={current}>{current?`Current: ${current}`:available?'Not reported':'Not exposed by provider'}</option>}
-      {selection?.choices.map(c=><option key={c.id} value={c.id} title={c.description||undefined}>{c.name}{label==='Model'&&rateText(c)?` · ${rateText(c)}`:''}</option>)}
+      {selection?.choices.map(c=>{const rate=label==='Model'?rateText(c):null;return <option key={c.id} value={c.id} title={c.description||undefined}>{c.name}{rate?` · ${rate}`:''}</option>})}
     </select>
     {changing&&<span className="agent-switching" role="status">Switching…</span>}
   </div>;

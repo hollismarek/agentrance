@@ -1,5 +1,6 @@
 mod acp;
 mod agents;
+mod clipboard;
 mod resume;
 mod storage;
 use rusqlite::{params, Connection};
@@ -432,6 +433,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            clipboard::copy_text,
             startup_directory,
             new_session,
             resume_session,

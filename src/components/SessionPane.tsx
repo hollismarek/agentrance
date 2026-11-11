@@ -1,42 +1,37 @@
-import React from 'react';
+import React,{useMemo} from 'react';
 import {ActivityPanel} from '../ActivityPanel';
-import type {ActivityEvent} from '../activity';
+import {conversationTurns,questionAndAnswer} from '../conversation';
+import {CopyButton} from './CopyButton';
 import type {Session} from '../types';
 import {agentSelection,agentName,modelSelection} from '../agents';
-import {SelectionDetails} from './SelectionDetails';
 import {AgentSelector} from './AgentSelector';
 import {chatTitle} from '../history';
 import {ErrorBoundary} from './ErrorBoundary';
-export function SessionPane({session:s, onPermission, onCancel, onResume, resumeAvailable, onAgent, onModel}: {
-  onModel:(id:string)=>void; onAgent:(id:string)=>void; session: Session; onResume: () => void; resumeAvailable: boolean; onPermission: (request: unknown, option: string | null) => Promise<void>; onCancel: () => void;
+export function SessionPane({session:s, onPermission, onCancel, onResume, resumeAvailable, onAgent, onModel, onHelp}: {
+  onHelp:()=>void; onModel:(id:string)=>void; onAgent:(id:string)=>void; session: Session; onResume: () => void; resumeAvailable: boolean; onPermission: (request: unknown, option: string | null) => Promise<void>; onCancel: () => void;
 }) {
-  const selection=agentSelection(s.items);
-  const activeAgent=agentName(selection);
-  const model=modelSelection(s.items);
-  const activeModel=agentName(model);
-  const merged: ActivityEvent[] = [];
-  for (const m of s.items.filter(m => ['user','delta','error'].includes(m.kind))) {
-    if (m.kind === 'delta' && merged.at(-1)?.kind === 'delta') merged[merged.length-1].data += m.data;
-    else merged.push({...m});
-  }
+  const {selection,model}=useMemo(()=>({selection:agentSelection(s.items),model:modelSelection(s.items)}),[s.items]);
+  const activeAgent=agentName(selection),activeModel=agentName(model);
+  const turns=useMemo(()=>conversationTurns(s.items,s.busy),[s.items,s.busy]);
   return <article>
     <div className="pane-title"><strong>{chatTitle(s)}</strong>
       <small>{s.provider} · {s.resuming ? 'Reconnecting…' : s.live ? 'Connected' : 'Saved history'}{activeAgent?` · ${activeAgent}`:''}{activeModel?` · Model: ${activeModel}`:''}</small><small>{s.cwd}</small>
     </div>
-    <div className="messages">{merged.map((m,i) => <div key={i} className={'message '+m.kind}>
-      <label>{m.kind === 'user' ? 'You' : m.kind === 'delta' ? s.provider : m.kind}</label><div>{String(m.data)}</div>
-    </div>)}{s.busy && <p className="muted">Responding…</p>}</div>
+    <div className="messages">{turns.map(turn=><section className="chat-turn" key={turn.key}>
+      {turn.question!==null&&<div className="message user"><div className="message-heading"><label>You</label><CopyButton text={turn.question} label="Copy question"/></div><div>{turn.question}</div></div>}
+      {turn.answer&&<div className="message delta"><div className="message-heading"><label>{s.provider}</label><div className="message-actions"><CopyButton text={turn.answer} label="Copy answer" disabled={!turn.complete}/>{turn.question!==null&&<CopyButton text={questionAndAnswer(turn,s.provider)} label="Copy Q&A" disabled={!turn.complete}/>}</div></div><div>{turn.answer}</div></div>}
+      {turn.errors.map((error,i)=><div className="message error" key={i}><label>Error</label><div>{error}</div></div>)}
+    </section>)}{s.busy&&<p className="muted">Responding…</p>}</div>
     <ErrorBoundary key={s.id} label="Activity inspector">
       <ActivityPanel events={s.items} live={s.live} provider={s.provider} onPermission={onPermission}
         agentControl={<><AgentSelector selection={selection} live={s.live} busy={s.busy||!!s.resuming||!!s.changingModel} changing={!!s.changingAgent} onChange={onAgent}/>
-          <AgentSelector label="Model" selection={model} live={s.live} busy={s.busy||!!s.resuming||!!s.changingAgent} changing={!!s.changingModel} onChange={onModel}/></>}
-        controlDetails={<SelectionDetails agent={selection} model={model}/>}/>
+          <AgentSelector label="Model" selection={model} live={s.live} busy={s.busy||!!s.resuming||!!s.changingAgent} changing={!!s.changingModel} onChange={onModel}/><button className="session-help" title="Agent and model details in Help" aria-label="Help for this conversation" onClick={onHelp}>?</button></>}/>
     </ErrorBoundary>
     {s.busy && <button onClick={onCancel}>Stop response</button>}
     {!s.live && <div className="resume-conversation" role="status">
       {s.canResume ? <><button disabled={s.resuming || !resumeAvailable} onClick={onResume}>{s.resuming ? 'Reconnecting…' : 'Continue conversation'}</button>
-        <small>{resumeAvailable ? 'Restores this chat with its original provider and project.' : 'Restore the original provider configuration in Provider settings to continue this chat.'}</small></> :
-        <small>This older chat has no recoverable provider session ID. You can read it here; new chats support continuing from history.</small>}
+        <small>{!resumeAvailable?'Original provider unavailable. Open Menu → Provider settings.':''}</small></> :
+        <small>Saved chat only — no provider session ID was recorded.</small>}
     </div>}
   </article>;
 }

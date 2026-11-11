@@ -1,8 +1,8 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {activityKinds, commandText, elapsed, operationOutput, reduceActivity, type ActivityEvent} from './activity';
 const labels: Record<string,string> = {pending:'Pending', running:'Running', awaiting:'Awaiting approval', completed:'Completed', failed:'Failed', interrupted:'No final result', declined:'Declined'};
-export function ActivityPanel({events, live, provider, onPermission, agentControl, controlDetails}: {
-  events: ActivityEvent[]; live: boolean; provider: string; agentControl?: React.ReactNode; controlDetails?:React.ReactNode;
+export function ActivityPanel({events, live, provider, onPermission, agentControl}: {
+  events: ActivityEvent[]; live: boolean; provider: string; agentControl?: React.ReactNode;
   onPermission: (request: any, option: string | null) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
@@ -29,9 +29,8 @@ export function ActivityPanel({events, live, provider, onPermission, agentContro
     <div className="activity-toolbar"><button className="activity-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
       <span>{open ? '▾' : '▸'} Activity <span className="activity-count">{operations.length}</span></span>
       <span>{awaiting > 0 && <span className="status awaiting">{awaiting} awaiting approval</span>} {running > 0 && <span className="status running">{running} running</span>}</span>
-    </button>{agentControl}</div>{controlDetails}
+    </button>{agentControl}</div>
     {open && <div className="activity-body">
-      <p className="activity-note">Live provider reports · read-only inspector. Output appears as the agent supplies it.</p>
       {error && <p role="alert" className="error">{error}</p>}
       {!operations.length && <p className="muted">No tool activity reported yet.</p>}
       {operations.map(op => {
@@ -55,7 +54,6 @@ export function ActivityPanel({events, live, provider, onPermission, agentContro
               {a.decision ? <p>{a.decision.optionName || (a.decision.option == null ? 'Denied / cancelled' : a.decision.option)}{a.decision.optionKind ? ` (${a.decision.optionKind})` : ''} · sent to provider</p> : a.expired ? <p className="muted">Request is no longer active.</p> : <div className="approval-buttons">{(a.params.options || []).map((o: any) => <button key={o.optionId} disabled={sending.includes(JSON.stringify(a.request))} onClick={() => decide(a.request,o.optionId)}>{o.name}<small>{o.kind}</small></button>)}<button disabled={sending.includes(JSON.stringify(a.request))} onClick={() => decide(a.request,null)}>Deny</button></div>}
             </div>)}
             <details><summary>Provider details and update history ({op.updates.length})</summary>
-              <p className="muted">Each update is retained. Content and raw output are provider snapshots, not assumed to be append-only streams.</p>
               {op.updates.map((u,i) => <div key={i}><small>{u.at ? new Date(u.at).toLocaleTimeString() : 'Timestamp unavailable'} · {u.kind}</small><pre>{JSON.stringify(u.data,null,2)}</pre></div>)}
             </details>
           </div>

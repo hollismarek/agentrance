@@ -1,0 +1,44 @@
+import React,{useEffect,useMemo,useRef,useState} from 'react';
+import type {Session} from '../types';
+import {chatTitle} from '../history';
+import {agentSelection,modelSelection} from '../agents';
+import {SelectionDetails} from './SelectionDetails';
+export type HelpTopic='start'|'models'|'activity'|'history'|'about';
+const topics:{id:HelpTopic;name:string}[]=[{id:'start',name:'Getting started'},{id:'models',name:'Agents & models'},{id:'activity',name:'Activity & approvals'},{id:'history',name:'History & copying'},{id:'about',name:'About & privacy'}];
+export function HelpDialog({initialTopic='start',initialSessionId,sessions,onClose}:{initialTopic?:HelpTopic;initialSessionId?:string;sessions:Session[];onClose:()=>void}){
+  const [topic,setTopic]=useState<HelpTopic>(initialTopic);
+  const [sessionId,setSessionId]=useState(initialSessionId||sessions[0]?.id||'');
+  const panel=useRef<HTMLDivElement>(null);
+  const close=useRef<HTMLButtonElement>(null);
+  useEffect(()=>{
+    const previous=document.activeElement as HTMLElement|null;close.current?.focus();
+    return()=>{if(previous?.isConnected)previous.focus()};
+  },[]);
+  const selected=sessions.find(s=>s.id===sessionId)||sessions[0];
+  const controls=useMemo(()=>({agent:agentSelection(selected?.items||[]),model:modelSelection(selected?.items||[])}),[selected?.items]);
+  function keys(e:React.KeyboardEvent){
+    if(e.key==='Escape'){e.stopPropagation();onClose()}
+    if(e.key==='Tab'){
+      const nodes=Array.from(panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled),select:not(:disabled),input:not(:disabled),textarea:not(:disabled),a[href],[tabindex="0"]')||[]).filter(n=>n.offsetParent!==null);
+      const first=nodes[0],last=nodes.at(-1);
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}
+    }
+  }
+  return <div className="overlay help-overlay" onKeyDown={keys} onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
+    <div className="help-dialog" ref={panel} role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div className="help-heading"><h2 id="help-title">Help &amp; About</h2><button ref={close} aria-label="Close Help and About" onClick={onClose}>Close</button></div>
+      <div className="help-layout"><nav className="help-topics" aria-label="Help topics">{topics.map(t=><button key={t.id} aria-current={topic===t.id?'page':undefined} onClick={()=>setTopic(t.id)}>{t.name}</button>)}</nav>
+        <div className="help-content">
+          {topic==='start'&&<section><h3>Using Agent Desk</h3><p>Agent Desk keeps independent conversations with your configured providers in one local window.</p><ol><li>Open <strong>Menu → Provider settings</strong> to configure the executable, arguments, environment overrides, and project directory.</li><li>Select a provider in the sidebar and choose <strong>New session</strong>.</li><li>Write a prompt. Press <strong>Enter</strong> to send or <strong>Shift+Enter</strong> for a new line.</li></ol><h4>Compare and split</h4><p><strong>Compare all providers</strong> opens fresh independent sessions and sends your question to each provider. <strong>Split open sessions</strong> shows connected sessions together. Send targets the connected conversation panes currently displayed.</p><h4>Controls</h4><p>Agent and Model remain visible beside Activity. They become available when the provider reports choices and the conversation is connected and idle.</p></section>}
+          {topic==='models'&&<section><h3>Agents &amp; models</h3><p><strong>Agent</strong> selects workflow and instructions, such as Plan or Bug Fix. <strong>Model</strong> selects the AI used by that workflow. A profile can pin a model, so changing one can affect the other.</p><p>An automatic setting such as <strong>auto</strong> lets the provider choose models by task; it does not identify a single fixed model.</p><p>Names, descriptions, identifiers, and rates below are supplied by the provider. Rates are relative multipliers, not the total cost of a conversation. Missing information is not inferred.</p>
+            {sessions.length>0?<><label className="help-session-label" htmlFor="help-session">Conversation details</label><select id="help-session" value={selected?.id||''} onChange={e=>setSessionId(e.target.value)}>{sessions.map(s=><option key={s.id} value={s.id}>{chatTitle(s)} · {s.provider}</option>)}</select><p className="muted">{selected?.live?'Latest reported session settings':'Last saved session settings'}</p><SelectionDetails agent={controls.agent} model={controls.model}/></>:<p>Open a conversation to see its reported agent and model descriptions.</p>}
+          </section>}
+          {topic==='activity'&&<section><h3>Activity &amp; approvals</h3><p>Expand Activity to inspect agent tool calls. Each operation can be expanded for commands, provider output, exit codes, elapsed time, and its original updates.</p><p>States distinguish pending, running, awaiting approval, completed, failed, and operations with no final result. Elapsed time is observed by Agent Desk, not a provider execution-time guarantee.</p><p>Output appears as the provider sends it. Some providers omit raw stdout/stderr, an exit code, or a command string; these stay labelled unavailable. Provider output snapshots are retained in update history rather than assumed to be append-only chunks.</p><p>Permission requests reveal the inspector and remain visible alongside their decisions. Only your explicit selection sends an approval; the provider controls the scope of remembered choices.</p><p>Activity is a read-only inspector, separate from an interactive terminal. Stop response requests cancellation; it does not delete the chat.</p></section>}
+          {topic==='history'&&<section><h3>History &amp; copying</h3><p>History titles initially use a one-line preview of the first prompt. Use a chat’s <strong>⋯</strong> menu to rename it or delete it from Agent Desk.</p><p><strong>Continue conversation</strong> reconnects the provider’s saved session in its original project directory, when supported. Older chats without a recorded provider session ID remain readable.</p><p>Closing a tab keeps its history. Deleting a chat removes local conversation and activity history after confirmation; the provider’s own copy remains with the provider. Stop running responses before deleting.</p><h4>Copy a conversation turn</h4><p><strong>Copy question</strong> and <strong>Copy answer</strong> copy the original text, preserving Markdown and code blocks. <strong>Copy Q&amp;A</strong> copies both together with speaker labels. Answer copying becomes available when that response finishes.</p><p>Copying writes only the text you choose to the system clipboard; Agent Desk does not read your clipboard.</p></section>}
+          {topic==='about'&&<section><h3>Agent Desk</h3><p>A local desktop workspace for ACP coding agents, built with Tauri, React, and Rust.</p><h4>Privacy and provider accounts</h4><p>Agent Desk adds no application telemetry. Provider authentication stays with the existing CLI; Agent Desk does not collect or store login credentials.</p><p>Conversation and activity history live in a local SQLite database. Provider configuration is saved locally. Keep credentials out of configuration fields.</p><p>Your providers handle their own network access, authentication, telemetry, and independent session storage according to their settings. Local history does not mean a cloud provider runs offline.</p><h4>Coming later</h4><p>A first-run walkthrough and a read-only repository browser, code viewer, and diff viewer are planned.</p></section>}
+        </div>
+      </div>
+    </div>
+  </div>;
+}
