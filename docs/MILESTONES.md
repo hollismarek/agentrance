@@ -63,3 +63,13 @@ Configuration and mode replies/notifications update the backend in protocol wire
 Validation: 29 JavaScript cases and 11 Rust tests pass, including scripted ACP subprocess switches via both V3 session APIs, failures, unsupported IDs, busy-state rejection, provider-originated changes, restoration, and snapshot ordering. A React static-render check confirms the dropdown remains present outside the collapsed Activity body. TypeScript, Rust, and production build checks pass. Browser automation remains skipped; live Kiro custom-agent selection needs a hands-on check.
 
 Protocol references: https://kiro.dev/docs/cli/v3/acp-migration/ and https://agentclientprotocol.com/protocol/v1/session-config-options .
+
+## Distinguish agent profiles from models
+
+The Activity toolbar now has separate **Agent** and **Model** selectors. Agent profiles such as Default, Plan, or Bug Fix configure the workflow; they are not model names. Model choices and the current value come from the provider's advertised model configuration option, with no hardcoded model catalog or inferred agent-to-model mapping. An **Agent & model details** disclosure, independent of Activity expansion, lists provider-supplied descriptions and model identifiers. Agent descriptions can be enriched from matching advertised modes when configuration choices omit them.
+
+Kiro model metadata `_meta.kiro.rateMultiplier` and `rateUnit` is retained when supplied, and relative rates appear in model choices/details. Missing rates remain missing; this is not a total-cost estimate. “auto” stays an automatic model setting, with an explanation that the provider may select models by task rather than naming a fixed underlying model. Other provider aliases likewise remain exactly what the provider reports.
+
+Model changes use the advertised configuration ID through `session/set_config_option`, validate choices on the backend, and share the existing per-session operation guard. Responses and updates can change dependent agent/model settings, including model pins when switching profiles. Agent and model values are persisted together in revisioned control snapshots. No permission policy or authentication handling is changed.
+
+Validation: 31 JavaScript cases and 13 Rust tests pass. New coverage includes independent agent/model IDs, descriptions and pricing metadata, rejected and busy model changes, dependent model changes during profile switches, snapshot replay/order, and static rendering of model details outside the collapsed inspector. TypeScript, Rust, and production build checks pass. Live Kiro behavior remains a manual check in the Tauri app; browser automation is still skipped.

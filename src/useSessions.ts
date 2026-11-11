@@ -119,6 +119,12 @@ export function useSessions(onError: (message:string) => void) {
     try{await invoke('set_agent',{id,agentId})}catch(e){onError(String(e))}
     finally{switching.current.delete(id);setSessions(a=>a.map(s=>s.id===id?{...s,changingAgent:false}:s))}
   }
+  async function setModel(id:string,modelId:string){
+    if(switching.current.has(id))return;
+    switching.current.add(id);setSessions(a=>a.map(s=>s.id===id?{...s,changingModel:true}:s));
+    try{await invoke('set_model',{id,modelId})}catch(e){onError(String(e))}
+    finally{switching.current.delete(id);setSessions(a=>a.map(s=>s.id===id?{...s,changingModel:false}:s))}
+  }
   async function cancel(id:string) {try{await invoke('cancel',{id})}catch(e){onError(String(e))}}
-  return {sessions,past,panes,setPanes,starting,start,send,compare,open,close,cancel,resume,rename,remove,setAgent};
+  return {sessions,past,panes,setPanes,starting,start,send,compare,open,close,cancel,resume,rename,remove,setAgent,setModel};
 }

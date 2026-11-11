@@ -1,4 +1,4 @@
 import type {ActivityEvent} from './activity';
 export type Provider = {id: string; name: string; executable: string; args: string[]; env: Record<string,string>; cwd: string};
 export type SavedSession = {id: string; provider: string; cwd: string; providerId?: string | null; canResume?: boolean; title?:string; updatedAt?:number|null};
-export type Session = SavedSession & {items: ActivityEvent[]; busy: boolean; live: boolean; resuming?: boolean; changingAgent?:boolean; identity?: unknown};
+export type Session = SavedSession & {items: ActivityEvent[]; busy: boolean; live: boolean; resuming?: boolean; changingAgent?:boolean; changingModel?:boolean; identity?: unknown};

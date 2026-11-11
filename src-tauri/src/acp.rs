@@ -137,7 +137,9 @@ impl Client {
                                     | "session/load"
                                     | "session/resume"
                                     | "session/set_config_option" => state.setup(&v["result"]),
-                                    "session/set_mode" if state.revision == request.revision => {
+                                    "session/set_mode"
+                                        if state.mode_revision == request.revision =>
+                                    {
                                         if let Some(mode) = &request.mode {
                                             state.confirm(mode);
                                         }
@@ -203,23 +205,31 @@ impl Client {
         Ok(self.agents.lock().map_err(|e| e.to_string())?.snapshot())
     }
     pub async fn set_agent(&self, id: &str) -> Result<Value, String> {
+        self.set_selection(id, false).await
+    }
+    pub async fn set_model(&self, id: &str) -> Result<Value, String> {
+        self.set_selection(id, true).await
+    }
+    async fn set_selection(&self, id: &str, model: bool) -> Result<Value, String> {
         if !self.is_connected() {
-            return Err("Reconnect this conversation before choosing an agent".into());
+            return Err("Reconnect this conversation before changing its agent or model".into());
         }
         let _idle = self
             .turn
             .try_lock()
-            .map_err(|_| "Wait for the current response or agent switch to finish")?;
+            .map_err(|_| "Wait for the current response or selection change to finish")?;
         let remote = self.remote.lock().await.clone();
         let (method, params) = {
-            self.agents
-                .lock()
-                .map_err(|e| e.to_string())?
-                .request(&remote, id)?
+            let state = self.agents.lock().map_err(|e| e.to_string())?;
+            if model {
+                state.request_model(&remote, id)?
+            } else {
+                state.request(&remote, id)?
+            }
         };
         let result = self.request(&method, params).await?;
         if method == "session/set_config_option" && !result["configOptions"].is_array() {
-            return Err("Provider did not report its updated agent configuration".into());
+            return Err("Provider did not report its updated session configuration".into());
         }
         self.agent_snapshot()
     }
@@ -229,7 +239,7 @@ impl Client {
     pub async fn request(&self, method: &str, params: Value) -> Result<Value, String> {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
-        let revision = self.agents.lock().map_err(|e| e.to_string())?.revision;
+        let revision = self.agents.lock().map_err(|e| e.to_string())?.mode_revision;
         let mode = params["modeId"].as_str().map(String::from);
         self.pending.lock().await.insert(
             id,
@@ -396,5 +406,39 @@ for line in sys.stdin:
                 c.shutdown();
             }
         }).await.expect("mock agent selection timed out");
+    }
+    #[tokio::test]
+    async fn model_selection_uses_its_own_config_and_tracks_dependent_provider_updates() {
+        tokio::time::timeout(Duration::from_secs(10),async{
+            let script=r#"
+import sys,json
+model='auto'
+def config():return [{'id':'model','category':'model','type':'select','currentValue':model,'options':[{'value':'auto','name':'Auto'},{'value':'sonnet','name':'Claude Sonnet'},{'value':'unavailable','name':'Unavailable'}]}]
+def send(v):print(json.dumps(v),flush=True)
+for line in sys.stdin:
+ m=json.loads(line);p=m.get('params',{});method=m['method']
+ if method=='session/new': result={'sessionId':'r','modes':{'currentModeId':'plan','availableModes':[{'id':'plan','name':'Plan'},{'id':'code','name':'Code'}]},'configOptions':config()}
+ elif method=='session/set_config_option':
+  assert p['sessionId']=='r' and p['configId']=='model'
+  if p['value']=='unavailable':
+   send({'jsonrpc':'2.0','id':m['id'],'error':{'code':-32602,'message':'Model unavailable'}});continue
+  assert p['value']=='sonnet';model='sonnet';result={'configOptions':config()}
+ elif method=='session/set_mode':
+  assert p['modeId']=='code';model='auto'
+  send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'r','update':{'sessionUpdate':'config_option_update','configOptions':config()}}})
+  result={}
+ else:raise AssertionError(method)
+ send({'jsonrpc':'2.0','id':m['id'],'result':result})
+"#;
+            let p=Provider{id:"mock".into(),name:"Mock".into(),executable:"python3".into(),args:vec!["-u".into(),"-c".into(),script.into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
+            let c=Client::start_transport(&p,Arc::new(|_,_|{})).await.unwrap();
+            c.request("session/new",json!({})).await.unwrap();*c.remote.lock().await="r".into();
+            assert!(c.set_model("plan").await.is_err());
+            assert!(c.set_model("unavailable").await.unwrap_err().contains("Model unavailable"));
+            assert_eq!(c.agent_snapshot().unwrap()["model"]["current"],"auto");
+            let snapshot=c.set_model("sonnet").await.unwrap();assert_eq!(snapshot["model"]["current"],"sonnet");assert_eq!(snapshot["selection"]["current"],"plan");
+            let snapshot=c.set_agent("code").await.unwrap();assert_eq!(snapshot["model"]["current"],"auto");assert_eq!(snapshot["selection"]["current"],"code");
+            let idle=c.turn.lock().await;assert!(c.set_model("sonnet").await.is_err());drop(idle);c.shutdown();
+        }).await.expect("model selection timed out");
     }
 }

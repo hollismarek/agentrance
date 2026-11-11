@@ -235,6 +235,30 @@ async fn set_agent(app: tauri::AppHandle, id: String, agent_id: String) -> Resul
     Ok(())
 }
 #[tauri::command]
+async fn set_model(app: tauri::AppHandle, id: String, model_id: String) -> Result<(), String> {
+    let client = app
+        .state::<AppState>()
+        .clients
+        .lock()
+        .await
+        .get(&id)
+        .cloned()
+        .ok_or("Continue this conversation before choosing a model")?;
+    let snapshot = client.set_model(&model_id).await?;
+    if !app
+        .state::<AppState>()
+        .clients
+        .lock()
+        .await
+        .get(&id)
+        .is_some_and(|current| Arc::ptr_eq(current, &client))
+    {
+        return Err("The conversation connection closed during the model switch".into());
+    }
+    event(&app, &id, "agent_state", snapshot);
+    Ok(())
+}
+#[tauri::command]
 async fn prompt(app: tauri::AppHandle, id: String, text: String) -> Result<(), String> {
     let client = app
         .state::<AppState>()
@@ -412,6 +436,7 @@ fn main() {
             new_session,
             resume_session,
             set_agent,
+            set_model,
             prompt,
             permission,
             cancel,
