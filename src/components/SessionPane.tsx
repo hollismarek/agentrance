@@ -16,11 +16,6 @@ export function SessionPane({session:s, onPermission, onCancel, onResume, resume
     <div className="pane-title"><strong>{chatTitle(s)}</strong>
       <small>{s.provider} · {s.resuming ? 'Reconnecting…' : s.live ? 'Connected' : 'Saved history'}</small><small>{s.cwd}</small>
     </div>
-    {!s.live && <div className="resume-conversation">
-      {s.canResume ? <><button disabled={s.resuming || !resumeAvailable} onClick={onResume}>{s.resuming ? 'Reconnecting…' : 'Continue conversation'}</button>
-        <small>{resumeAvailable ? 'Restores this chat with its original provider and project.' : 'Restore the original provider configuration in Provider settings to continue this chat.'}</small></> :
-        <small>This older chat has no recoverable provider session ID. You can read it here; new chats support continuing from history.</small>}
-    </div>}
     <div className="messages">{merged.map((m,i) => <div key={i} className={'message '+m.kind}>
       <label>{m.kind === 'user' ? 'You' : m.kind === 'delta' ? s.provider : m.kind}</label><div>{String(m.data)}</div>
     </div>)}{s.busy && <p className="muted">Responding…</p>}</div>
@@ -28,5 +23,10 @@ export function SessionPane({session:s, onPermission, onCancel, onResume, resume
       <ActivityPanel events={s.items} live={s.live} provider={s.provider} onPermission={onPermission}/>
     </ErrorBoundary>
     {s.busy && <button onClick={onCancel}>Stop response</button>}
+    {!s.live && <div className="resume-conversation" role="status">
+      {s.canResume ? <><button disabled={s.resuming || !resumeAvailable} onClick={onResume}>{s.resuming ? 'Reconnecting…' : 'Continue conversation'}</button>
+        <small>{resumeAvailable ? 'Restores this chat with its original provider and project.' : 'Restore the original provider configuration in Provider settings to continue this chat.'}</small></> :
+        <small>This older chat has no recoverable provider session ID. You can read it here; new chats support continuing from history.</small>}
+    </div>}
   </article>;
 }
