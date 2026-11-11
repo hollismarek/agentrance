@@ -22,6 +22,7 @@ struct AppState {
     clients: tokio::sync::Mutex<HashMap<String, Arc<acp::Client>>>,
     db: Mutex<Connection>,
     connecting: Mutex<HashSet<String>>,
+    deleted: Mutex<HashSet<String>>,
 }
 fn event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) {
     let at = std::time::SystemTime::now()
@@ -32,11 +33,25 @@ fn event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) {
     let mut payload = json!({"session":id,"kind":kind,"data":data,"at":at});
     // The database lock covers only persistence. Sequence numbers let the UI
     // merge concurrent emissions in database order without holding it during IPC.
-    let saved = state
-        .db
-        .lock()
-        .map_err(|e| e.to_string())
-        .and_then(|db| storage::append(&db, id, kind, &data, at).map_err(|e| e.to_string()));
+    let saved = {
+        let db = state.db.lock().map_err(|e| e.to_string());
+        match db {
+            Ok(db) => {
+                // Late notifications from a stopped/deleted process must not
+                // recreate activity rows after deletion commits.
+                if state
+                    .deleted
+                    .lock()
+                    .map(|ids| ids.contains(id))
+                    .unwrap_or(true)
+                {
+                    return;
+                }
+                storage::append(&db, id, kind, &data, at).map_err(|e| e.to_string())
+            }
+            Err(e) => Err(e),
+        }
+    };
     match saved {
         Ok(seq) => payload["seq"] = json!(seq),
         Err(e) => {
@@ -281,14 +296,57 @@ async fn close_session(app: tauri::AppHandle, id: String) -> Result<(), String> 
 fn history(app: tauri::AppHandle) -> Result<Value, String> {
     let state = app.state::<AppState>();
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let mut q = db
-        .prepare("SELECT id,provider,cwd,provider_id,remote_id FROM sessions ORDER BY rowid DESC")
-        .map_err(|e| e.to_string())?;
-    let rows=q.query_map([],|r|Ok(json!({"id":r.get::<_,String>(0)?,"provider":r.get::<_,String>(1)?,"cwd":r.get::<_,String>(2)?,"providerId":r.get::<_,Option<String>>(3)?,"canResume":r.get::<_,Option<String>>(4)?.is_some()}))).map_err(|e|e.to_string())?;
-    Ok(Value::Array(
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?,
-    ))
+    storage::history(&db).map_err(|e| e.to_string())
+}
+#[tauri::command]
+fn rename_session(app: tauri::AppHandle, id: String, title: String) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    storage::rename(&db, &id, &title)
+}
+#[tauri::command]
+async fn delete_session(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    {
+        let mut ids = state.connecting.lock().map_err(|e| e.to_string())?;
+        if !ids.insert(id.clone()) {
+            return Err("Wait for this conversation to finish reconnecting".into());
+        }
+    }
+    let _reservation = Connecting {
+        state: &state,
+        id: id.clone(),
+    };
+    let mut clients = state.clients.lock().await;
+    let client = clients.get(&id).cloned();
+    let _idle = if let Some(client) = client.as_ref() {
+        Some(
+            client
+                .turn
+                .try_lock()
+                .map_err(|_| "Stop the running response before deleting this conversation")?,
+        )
+    } else {
+        None
+    };
+    state
+        .deleted
+        .lock()
+        .map_err(|e| e.to_string())?
+        .insert(id.clone());
+    let result = state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())
+        .and_then(|mut db| storage::delete(&mut db, &id).map_err(|e| e.to_string()));
+    if result.is_err() {
+        state.deleted.lock().map_err(|e| e.to_string())?.remove(&id);
+        return result;
+    }
+    if let Some(client) = clients.remove(&id) {
+        client.shutdown();
+    }
+    Ok(())
 }
 #[tauri::command]
 fn messages(app: tauri::AppHandle, id: String) -> Result<Value, String> {
@@ -307,6 +365,7 @@ fn main() {
                 clients: Default::default(),
                 db: Mutex::new(db),
                 connecting: Default::default(),
+                deleted: Default::default(),
             });
             Ok(())
         })
@@ -319,7 +378,9 @@ fn main() {
             cancel,
             history,
             messages,
-            close_session
+            close_session,
+            delete_session,
+            rename_session
         ])
         .run(tauri::generate_context!())
         .expect("Agent Desk failed");

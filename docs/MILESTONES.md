@@ -37,3 +37,11 @@ For older chats, migration recovers an ACP session ID only when saved permission
 `session/load` replay notifications do not duplicate the locally saved transcript/activity. Reconnection creates a lifecycle boundary that expires old permissions; request numbers reused by later provider processes cannot resolve old approval records. Closing a connection kills its process without deleting the conversation. Comparisons still start fresh sessions.
 
 Validation: scripted ACP subprocess tests cover load/resume capability negotiation, exact saved session IDs and original roots, transcript replay suppression, separate sessions, continued streaming, and shutdown. SQLite migration tests cover recoverable, ambiguous, and missing legacy IDs. Frontend tests cover provider matching, connection lifecycle ordering, and stale permissions across reconnects. Live Kiro continuation still needs a hands-on check in the Tauri app.
+
+## History labels and cleanup
+
+History entries, open tabs, and conversation headers now use a one-line preview of the first user prompt instead of Agent Desk's internal UUID. Titles are derived locally for existing chats too, without sending content to a model. Entries show provider, project, and last recorded activity, and are ordered by that activity. The per-entry options button offers Rename (a persistent custom title) and Delete chat.
+
+Deletion requires confirmation in the app, removes the local session and activity rows in a single SQLite transaction, and closes any idle connection. Running or reconnecting conversations cannot be deleted until stopped/finished. The provider's independently saved session is not deleted. Late provider notifications and in-flight UI refreshes cannot repopulate a deleted local conversation. Closing a tab still only closes its connection; it keeps history.
+
+Validation: summary derivation for old/new chats, persistent rename, Unicode truncation, deletion isolation/idempotence, and transaction rollback tests pass alongside the existing tests (22 frontend cases, 7 Rust tests). TypeScript, Rust, and production frontend build checks pass. Browser automation remains skipped as previously agreed.

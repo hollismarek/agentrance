@@ -2,6 +2,7 @@ import React from 'react';
 import {ActivityPanel} from '../ActivityPanel';
 import type {ActivityEvent} from '../activity';
 import type {Session} from '../types';
+import {chatTitle} from '../history';
 import {ErrorBoundary} from './ErrorBoundary';
 export function SessionPane({session:s, onPermission, onCancel, onResume, resumeAvailable}: {
   session: Session; onResume: () => void; resumeAvailable: boolean; onPermission: (request: unknown, option: string | null) => Promise<void>; onCancel: () => void;
@@ -12,8 +13,8 @@ export function SessionPane({session:s, onPermission, onCancel, onResume, resume
     else merged.push({...m});
   }
   return <article>
-    <div className="pane-title"><strong>{s.provider}</strong>
-      <small>{s.resuming ? 'Reconnecting…' : s.live ? 'Connected' : 'Saved history'} · {s.id.slice(0,8)}</small><small>{s.cwd}</small>
+    <div className="pane-title"><strong>{chatTitle(s)}</strong>
+      <small>{s.provider} · {s.resuming ? 'Reconnecting…' : s.live ? 'Connected' : 'Saved history'}</small><small>{s.cwd}</small>
     </div>
     {!s.live && <div className="resume-conversation">
       {s.canResume ? <><button disabled={s.resuming || !resumeAvailable} onClick={onResume}>{s.resuming ? 'Reconnecting…' : 'Continue conversation'}</button>

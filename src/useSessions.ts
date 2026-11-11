@@ -9,13 +9,20 @@ export function useSessions(onError: (message:string) => void) {
   const [past,setPast] = useState<SavedSession[]>([]);
   const [panes,setPanes] = useState<string[]>([]);
   const [starting,setStarting] = useState(false);
+  const deleted = useRef(new Set<string>());
   const reconnecting = useRef(new Set<string>());
   const earlyEvents = useRef(new Map<string, ActivityEvent[]>());
   const listenersReady = useRef<Promise<unknown>>(Promise.resolve());
-  const refresh = useCallback(() => invoke<SavedSession[]>('history').then(setPast).catch(e => onError(String(e))),[onError]);
+  const refresh = useCallback(() => invoke<SavedSession[]>('history').then(rows => {
+    const current=rows.filter(s => !deleted.current.has(s.id));
+    setPast(current);
+    setSessions(all => all.map(s => {const metadata=current.find(row => row.id===s.id);return metadata?{...s,...metadata}:s}));
+  }).catch(e => onError(String(e))),[onError]);
   useEffect(() => {
     refresh();
     const subscription = listen<ActivityEvent & {session:string}>('agent-event',({payload:e}) => {
+      if(deleted.current.has(e.session))return;
+      if(e.kind==='user')void refresh();
       // session/new may emit identity/activity before the invocation returns.
       const buffered = earlyEvents.current.get(e.session);
       if (buffered) buffered.push(e);
@@ -71,9 +78,9 @@ export function useSessions(onError: (message:string) => void) {
     try {
       if(!sessions.some(x => x.id === saved.id)) {
         const items=await invoke<ActivityEvent[]>('messages',{id:saved.id});
-        setSessions(a => a.some(s => s.id === saved.id) ? a : [...a,{...saved,items,busy:false,live:false}]);
+        setSessions(a => deleted.current.has(saved.id) || a.some(s => s.id === saved.id) ? a : [...a,{...saved,items,busy:false,live:false}]);
       }
-      setPanes([saved.id]);
+      if(!deleted.current.has(saved.id))setPanes([saved.id]);
     } catch(e){onError(String(e))}
   }
   async function resume(saved:SavedSession,provider:Provider) {
@@ -95,6 +102,15 @@ export function useSessions(onError: (message:string) => void) {
       setSessions(a => a.filter(s => s.id !== id));setPanes(a => a.filter(x => x !== id));
     } catch(e){onError(String(e))}
   }
+  async function rename(id:string,title:string){
+    await invoke('rename_session',{id,title});await refresh();
+  }
+  async function remove(id:string){
+    await invoke('delete_session',{id});
+    deleted.current.add(id);
+    setSessions(a=>a.filter(s=>s.id!==id));setPanes(a=>a.filter(x=>x!==id));setPast(a=>a.filter(s=>s.id!==id));
+    await refresh();
+  }
   async function cancel(id:string) {try{await invoke('cancel',{id})}catch(e){onError(String(e))}}
-  return {sessions,past,panes,setPanes,starting,start,send,compare,open,close,cancel,resume};
+  return {sessions,past,panes,setPanes,starting,start,send,compare,open,close,cancel,resume,rename,remove};
 }

@@ -18,7 +18,7 @@ pub fn initialize(db: &Connection) -> rusqlite::Result<()> {
         .prepare("PRAGMA table_info(sessions)")?
         .query_map([], |r| r.get::<_, String>(1))?
         .collect::<Result<Vec<_>, _>>()?;
-    for column in ["remote_id", "provider_id"] {
+    for column in ["remote_id", "provider_id", "title"] {
         if !columns.iter().any(|c| c == column) {
             db.execute(
                 &format!("ALTER TABLE sessions ADD COLUMN {column} TEXT"),
@@ -36,6 +36,10 @@ pub fn initialize(db: &Connection) -> rusqlite::Result<()> {
         AND length(json_extract(data,'$.params.sessionId'))>0
         HAVING COUNT(DISTINCT json_extract(data,'$.params.sessionId'))=1
     ) WHERE remote_id IS NULL;",
+    )?;
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS events_session ON events(session)",
+        [],
     )?;
     Ok(())
 }
@@ -81,6 +85,61 @@ pub fn connection(db: &Connection, id: &str) -> rusqlite::Result<SavedConnection
             })
         },
     )
+}
+pub fn one_line(text: &str, limit: usize) -> String {
+    let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.chars().count() > limit {
+        format!(
+            "{}…",
+            normalized
+                .chars()
+                .take(limit.saturating_sub(1))
+                .collect::<String>()
+                .trim_end()
+        )
+    } else {
+        normalized
+    }
+}
+pub fn history(db: &Connection) -> rusqlite::Result<Value> {
+    let mut q = db.prepare(
+        "SELECT id,provider,cwd,provider_id,remote_id,title,
+      (SELECT data FROM events WHERE session=s.id AND kind='user' ORDER BY rowid LIMIT 1),
+      (SELECT MAX(at) FROM events WHERE session=s.id) AS updated_at
+      FROM sessions s ORDER BY COALESCE(updated_at,0) DESC,s.rowid DESC",
+    )?;
+    let rows=q.query_map([],|r|{
+        let custom:Option<String>=r.get(5)?;
+        let first:Option<String>=r.get(6)?;
+        let prompt=first.and_then(|raw|serde_json::from_str::<Value>(&raw).ok()).and_then(|v|v.as_str().map(String::from)).unwrap_or_default();
+        let title=custom.unwrap_or_else(||{let line=one_line(&prompt,88);if line.is_empty(){"New conversation".into()}else{line}});
+        Ok(json!({"id":r.get::<_,String>(0)?,"provider":r.get::<_,String>(1)?,"cwd":r.get::<_,String>(2)?,
+            "providerId":r.get::<_,Option<String>>(3)?,"canResume":r.get::<_,Option<String>>(4)?.is_some(),
+            "title":title,"updatedAt":r.get::<_,Option<i64>>(7)?}))
+    })?;
+    Ok(Value::Array(rows.collect::<Result<Vec<_>, _>>()?))
+}
+pub fn rename(db: &Connection, id: &str, title: &str) -> Result<(), String> {
+    let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+    if title.is_empty() || title.chars().count() > 120 {
+        return Err("Choose a title between 1 and 120 characters".into());
+    }
+    let count = db
+        .execute(
+            "UPDATE sessions SET title=?1 WHERE id=?2",
+            params![title, id],
+        )
+        .map_err(|e| e.to_string())?;
+    if count == 0 {
+        return Err("Conversation no longer exists".into());
+    }
+    Ok(())
+}
+pub fn delete(db: &mut Connection, id: &str) -> rusqlite::Result<()> {
+    let tx = db.transaction()?;
+    tx.execute("DELETE FROM events WHERE session=?1", [id])?;
+    tx.execute("DELETE FROM sessions WHERE id=?1", [id])?;
+    tx.commit()
 }
 #[cfg(test)]
 mod tests {
@@ -153,5 +212,64 @@ mod tests {
         assert!(connection(&db, "b").unwrap().remote_id.is_none());
         assert!(connection(&db, "c").unwrap().remote_id.is_none());
         assert!(connection(&db, "a").unwrap().provider_id.is_none());
+    }
+    #[test]
+    fn derives_legacy_summaries_and_keeps_manual_titles() {
+        let db = Connection::open_in_memory().unwrap();
+        initialize(&db).unwrap();
+        db.execute(
+            "INSERT INTO sessions(id,provider,cwd) VALUES('a','Kiro','/tmp')",
+            [],
+        )
+        .unwrap();
+        assert_eq!(history(&db).unwrap()[0]["title"], "New conversation");
+        append(
+            &db,
+            "a",
+            "user",
+            &json!("  Review\n the repository\t please  "),
+            100,
+        )
+        .unwrap();
+        append(&db, "a", "user", &json!("A different follow-up"), 200).unwrap();
+        assert_eq!(
+            history(&db).unwrap()[0]["title"],
+            "Review the repository please"
+        );
+        rename(&db, "a", "  Printer driver investigation ").unwrap();
+        initialize(&db).unwrap();
+        assert_eq!(
+            history(&db).unwrap()[0]["title"],
+            "Printer driver investigation"
+        );
+        assert_eq!(history(&db).unwrap()[0]["updatedAt"], 200);
+        assert!(rename(&db, "a", "   ").is_err());
+        assert!(rename(&db, "missing", "title").is_err());
+        let unicode = one_line(&"🦀".repeat(200), 88);
+        assert_eq!(unicode.chars().count(), 88);
+        assert!(unicode.ends_with('…'));
+    }
+    #[test]
+    fn deletion_is_atomic_and_isolated_from_other_chats() {
+        let mut db = Connection::open_in_memory().unwrap();
+        initialize(&db).unwrap();
+        db.execute(
+            "INSERT INTO sessions(id,provider,cwd) VALUES('a','Kiro','/tmp'),('b','Kiro','/tmp')",
+            [],
+        )
+        .unwrap();
+        append(&db, "a", "user", &json!("Remove me"), 100).unwrap();
+        append(&db, "a", "tool", &json!({"x":1}), 120).unwrap();
+        append(&db, "b", "user", &json!("Keep me"), 200).unwrap();
+        delete(&mut db, "a").unwrap();
+        delete(&mut db, "a").unwrap();
+        assert_eq!(history(&db).unwrap().as_array().unwrap().len(), 1);
+        assert_eq!(history(&db).unwrap()[0]["title"], "Keep me");
+        assert!(messages(&db, "a").unwrap().as_array().unwrap().is_empty());
+        assert_eq!(messages(&db, "b").unwrap().as_array().unwrap().len(), 1);
+        // A failing second statement must roll back removal of the event rows.
+        db.execute_batch("CREATE TRIGGER prevent_delete BEFORE DELETE ON sessions BEGIN SELECT RAISE(ABORT,'test'); END;").unwrap();
+        assert!(delete(&mut db, "b").is_err());
+        assert_eq!(messages(&db, "b").unwrap().as_array().unwrap().len(), 1);
     }
 }

@@ -10,6 +10,7 @@ import {Composer} from './components/Composer';
 import {ProviderSettings} from './components/ProviderSettings';
 import {ErrorBoundary} from './components/ErrorBoundary';
 import './style.css';
+import {chatTitle} from './history';
 function App() {
   const [providers,setProviders] = useState<Provider[]>([]);
   const [selected,setSelected] = useState('');
@@ -36,6 +37,7 @@ function App() {
   function compare(){const question=text;setText('');void desk.compare(providers,question)}
   return <div className="app">
     <Sidebar providers={providers} selected={selected} past={desk.past} panes={desk.panes} starting={desk.starting}
+      busyIds={desk.sessions.filter(s=>s.busy||s.resuming).map(s=>s.id)} onRename={desk.rename} onDelete={desk.remove}
       onStart={() => {const provider=providers.find(p => p.id === selected);if(provider)void desk.start(provider)}}
       onSelect={setSelected} onOpen={s => void desk.open(s)} onSettings={() => setSettings(true)}/>
     <main>
@@ -44,8 +46,8 @@ function App() {
       </header>
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
       <div className="tabs">{desk.sessions.map(s => <div className="session-tab" key={s.id}>
-        <button onClick={() => desk.setPanes([s.id])}>{s.provider} · {s.id.slice(0,4)} {s.busy ? '◌' : ''}</button>
-        <button aria-label={`Close ${s.provider} ${s.id.slice(0,4)}`} onClick={() => void desk.close(s.id)}>×</button>
+        <button onClick={() => desk.setPanes([s.id])}>{chatTitle(s)} {s.busy ? '◌' : ''}<small>{s.provider}</small></button>
+        <button aria-label={`Close ${chatTitle(s)}`} onClick={() => void desk.close(s.id)}>×</button>
       </div>)}</div>
       <section className="panes">
         {!desk.panes.length && <div className="empty"><h2>A second perspective starts here.</h2>
