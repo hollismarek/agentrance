@@ -418,6 +418,13 @@ fn messages(app: tauri::AppHandle, id: String) -> Result<Value, String> {
     storage::messages(&db, &id).map_err(|e| e.to_string())
 }
 fn main() {
+    let context = tauri::generate_context!();
+    // GTK3's Wayland backend derives xdg_toplevel.app_id from the program
+    // name, independently of GtkApplication's ID. Match desktop metadata
+    // before Tauri initializes GTK or creates a window.
+    #[cfg(target_os = "linux")]
+    gtk::glib::set_prgname(Some(context.config().identifier.as_str()));
+
     tauri::Builder::default()
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
@@ -448,6 +455,6 @@ fn main() {
             delete_session,
             rename_session
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("Agent Desk failed");
 }

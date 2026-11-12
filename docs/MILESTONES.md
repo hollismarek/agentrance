@@ -105,3 +105,15 @@ a favicon does not fix a compositor's generic Wayland taskbar icon. The user's
 reported generic icon occurs in `npm run tauri dev` and remains unverified at
 runtime. Native packaging is now configured, but installers have not been built
 or tested on Windows/macOS or Linux in this milestone.
+
+
+## Align the native Wayland window identity
+
+The user's development trace showed `xdg_toplevel.set_app_id("agent-desk")`,
+while the installed desktop entry and icon use `local.agentdesk.app`.
+`enableGTKAppId` alone did not align these: GTK3 derives the Wayland ID from
+its program name. Before Tauri initializes GTK, Linux startup now sets that
+name from the Tauri context identifier. This uses the existing GTK dependency
+and does not change Windows/macOS startup. The live development watcher rebuilt and restarted the app; the new trace
+confirmed `set_app_id("local.agentdesk.app")`. Cargo check and all 13 Rust tests
+passed. The visible taskbar icon still requires user confirmation.
