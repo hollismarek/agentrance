@@ -93,3 +93,15 @@ A `custom-protocol` Cargo feature enables a standalone release build with the fr
 The installer defaults to a read-only preview; `--install` registers only per-user files. Three tests validate the launcher, matching IDs/icon resources, repeat installation, preservation of unrelated entries, rejection of missing binaries, and desktop command quoting. See scripts/README.md for regeneration and installation. Desktop installation outside the project requires execution permission in Codex.
 
 Development and standalone webviews have different origins: conversation history and CLI authentication are shared, but browser-local provider preferences may need to be re-entered when moving between them. Consolidating those preferences into app-wide storage is a later packaging improvement.
+
+
+## Standard Tauri desktop icon assets and packaging
+
+Added Windows ICO, macOS ICNS and high-resolution PNG assets using Tauri's icon
+generator, enabled the standard bundler, and added an HTML favicon. Removed the
+KDE-specific cache refresh from the optional Linux development-launcher script.
+The native window icon was already being applied by Tauri automatically; adding
+a favicon does not fix a compositor's generic Wayland taskbar icon. The user's
+reported generic icon occurs in `npm run tauri dev` and remains unverified at
+runtime. Native packaging is now configured, but installers have not been built
+or tested on Windows/macOS or Linux in this milestone.

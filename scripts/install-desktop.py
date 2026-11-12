@@ -79,7 +79,6 @@ def main():
     commands = [
         ['update-desktop-database', str(args.data_dir / 'applications')],
         ['gtk-update-icon-cache', '--force', '--ignore-theme-index', str(args.data_dir / 'icons/hicolor')],
-        ['kbuildsycoca6', '--noincremental'],
     ]
     for command in commands:
         executable = shutil.which(command[0])
