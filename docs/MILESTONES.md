@@ -83,3 +83,13 @@ Each question has Copy question, and each finished response has Copy answer and 
 The transcript is now grouped into turns using user/response/lifecycle events, preserving old logs without turn-end markers and interrupted responses. Agent/model extraction and turn grouping are memoized, and rate labels are computed once per option. Agent/model switches remain serialized because their provider settings can be dependent.
 
 Validation: 38 JavaScript cases and 13 Rust tests pass, plus TypeScript, Rust, and production build checks. New tests cover streamed Markdown copying, Q&A pairing, exclusion of activity data, finished versus streaming turns, interruption/resume boundaries, central Help references, compact workspace markup, and copy-control availability. Native clipboard transfer and visual/focus behavior still need a hands-on check in the Tauri app; browser automation remains skipped as agreed.
+
+## KDE/Wayland icon registration
+
+The bundled artwork alone did not supply KDE with an application-menu entry or matching Wayland identity. Tauri now registers the existing `local.agentdesk.app` identifier as its GTK application ID. The per-user desktop installer writes a matching `local.agentdesk.app.desktop` entry and 32/128/256-pixel hicolor icon resources. It refreshes available KDE/icon caches without launching or stopping the app.
+
+A `custom-protocol` Cargo feature enables a standalone release build with the frontend embedded, so the application-menu launcher does not require a development server. The launcher points at this checkout's release binary. Development and standalone windows share the same application identity; close existing windows before launching the updated app. GTK's application-ID registration permits one process for this identity, while sessions remain independent within the window.
+
+The installer defaults to a read-only preview; `--install` registers only per-user files. Three tests validate the launcher, matching IDs/icon resources, repeat installation, preservation of unrelated entries, rejection of missing binaries, and desktop command quoting. See scripts/README.md for regeneration and installation. Desktop installation outside the project requires execution permission in Codex.
+
+Development and standalone webviews have different origins: conversation history and CLI authentication are shared, but browser-local provider preferences may need to be re-entered when moving between them. Consolidating those preferences into app-wide storage is a later packaging improvement.
