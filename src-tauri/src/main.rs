@@ -1,3 +1,5 @@
+mod channel;
+mod settings;
 mod acp;
 mod agents;
 mod clipboard;
@@ -67,6 +69,18 @@ fn event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) {
         }
     }
     let _ = app.emit("agent-event", payload);
+}
+#[tauri::command]
+fn load_provider_settings(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    settings::load(&app.path().app_data_dir().map_err(|e| e.to_string())?)
+}
+#[tauri::command]
+fn save_provider_settings(app: tauri::AppHandle, raw: String) -> Result<(), String> {
+    settings::save(&app.path().app_data_dir().map_err(|e| e.to_string())?, &raw)
+}
+#[tauri::command]
+fn app_channel() -> &'static str {
+    if cfg!(debug_assertions) { "Development" } else { "Stable" }
 }
 #[tauri::command]
 fn startup_directory() -> Result<String, String> {
@@ -419,7 +433,10 @@ fn messages(app: tauri::AppHandle, id: String) -> Result<Value, String> {
     storage::messages(&db, &id).map_err(|e| e.to_string())
 }
 fn main() {
-    let context = tauri::generate_context!();
+    let mut context = tauri::generate_context!();
+    channel::configure(context.config_mut(), cfg!(debug_assertions));
+    #[cfg(debug_assertions)]
+    context.set_default_window_icon(Some(tauri::include_image!("icons/dev/icon.png")));
     // GTK3's Wayland backend derives xdg_toplevel.app_id from the program
     // name, independently of GtkApplication's ID. Match desktop metadata
     // before Tauri initializes GTK or creates a window.
@@ -443,6 +460,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             clipboard::copy_text,
             startup_directory,
+            app_channel,
+            load_provider_settings,
+            save_provider_settings,
             new_session,
             resume_session,
             set_agent,

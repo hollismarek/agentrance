@@ -17,6 +17,7 @@ import {initialWorkspace,workspaceReducer,type LayoutMode} from './workspace';
 import {editDraft,restoreDraft,type Drafts} from './drafts';
 import {chatTitle} from './history';
 function App() {
+  const [channel,setChannel]=useState('');
   const [providers,setProviders] = useState<Provider[]>([]);
   const [selected,setSelected] = useState('');
   const [drafts,setDrafts]=useState<Drafts>({});
@@ -29,15 +30,21 @@ function App() {
   const [settings,setSettings] = useState(false);
   const desk = useSessions(setError);
   useEffect(() => {
-    invoke<string>('startup_directory').then(cwd => {
+    Promise.all([invoke<string>('app_channel'),invoke<string>('startup_directory'),invoke<string|null>('load_provider_settings')]).then(async([value,cwd,stored])=>{
+      setChannel(value);document.title=`Agent Desk — ${value}`;
       let loaded=defaultProviders(cwd);
-      try {const raw=localStorage.getItem('providers');if(raw)loaded=parseProviders(raw)}
-      catch(e){setError(`Saved provider settings could not be loaded: ${e}. Existing saved data has been preserved; review Provider settings.`)}
+      try {
+        // Only Stable may import the original shared webview configuration.
+        const legacy=stored===null&&value==='Stable'?localStorage.getItem('providers'):null;
+        const raw=stored??legacy;
+        if(raw)loaded=parseProviders(raw);
+        if(legacy)await invoke('save_provider_settings',{raw:legacy});
+      } catch(e){setError(`Saved provider settings could not be loaded: ${e}. Existing saved data has been preserved; review Provider settings.`)}
       setProviders(loaded);setSelected(loaded[0].id);
-    }).catch(e => setError(`Could not determine the project directory: ${e}`));
+    }).catch(e=>setError(`Could not load application settings: ${e}`));
   },[]);
-  function save(providers:Provider[]) {
-    localStorage.setItem('providers',JSON.stringify(providers));
+  async function save(providers:Provider[]) {
+    await invoke('save_provider_settings',{raw:JSON.stringify(providers,null,2)});
     setProviders(providers);setSelected(providers[0].id);setSettings(false);
   }
   useEffect(()=>{if(desk.panes.length)dispatch({type:'open',ids:desk.panes})},[desk.panes]);
@@ -55,7 +62,7 @@ function App() {
       onStart={() => {const provider=providers.find(p => p.id === selected);if(provider)void desk.start(provider)}}
       onSelect={setSelected} onOpen={s => void desk.open(s)}/>
     <main>
-      <header><strong>Conversations</strong><div className="header-actions">
+      <header><strong>Conversations {channel==='Development'&&<span className="development-badge">DEV</span>}</strong><div className="header-actions">
         <button disabled={desk.starting||!providers.length} onClick={()=>setComparison(true)}>Compare…</button>
         <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option></select></label><AppMenu onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
       </header>

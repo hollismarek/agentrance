@@ -29,3 +29,5 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
   background-size:4px 4px;background-repeat:no-repeat;
 }
 .agent-selector select{min-width:90px;max-width:min(170px,100%)}
+
+.development-badge{font-size:10px;letter-spacing:1px;background:#f0ae55;color:#15242c;border-radius:4px;padding:3px 6px;vertical-align:middle;margin-left:5px}

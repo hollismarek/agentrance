@@ -189,3 +189,34 @@ pass. Frontend tests, TypeScript and production build passed for the draft chang
 Live-provider timeout and startup-error UI interactions have not been forced in
 the running app; subprocess tests exercise those failures without interrupting
 real conversations.
+
+## Stable and development channels
+
+Debug startup overrides the Tauri identifier, product/window name and native icon
+before the runtime initializes. Development uses `local.agentdesk.app.dev` and a
+DEV-marked icon; release retains the existing identity and artwork. A runtime
+channel command adds a DEV badge to the workspace. SQLite and webview storage use
+separate identities; existing history stays under Stable, with no copying of live
+databases or provider credentials. The channel configuration has a regression test.
+
+Standard Tauri packaging remains the cross-platform distribution path. The Linux
+workstation additionally has an opt-in snapshot installer: it stages immutable
+release binaries/icons outside the checkout, registers a stable menu entry,
+retains the previous snapshot and provides a rollback command. Installing does
+not restart running apps or migrate their data. A hidden development entry lets
+Wayland resolve the DEV taskbar icon independently. Tests cover immutable copies,
+repeat promotion, rollback, preservation of data, invalid candidates and isolated
+DEV registration. Windows/macOS native installers remain untested here.
+
+Provider settings now use a validated, atomically replaced JSON file in each
+channel's native app-data directory, rather than relying on webview localStorage
+isolation (which varies across platforms). Stable may import its legacy webview
+configuration once; Development does not import that shared legacy key. A storage
+test verifies isolation, repeat writes and preservation after invalid saves.
+
+Validation: frontend tests, TypeScript, production frontend build, 18 Rust tests
+and six Python installer cases pass. Release compilation succeeds; the Linux
+stable snapshot was installed outside the checkout and its executable hash was
+verified against the built artifact. Native side-by-side operation and the new
+DEV icon still need the user's hands-on confirmation. A project handoff document
+is available at docs/HANDOFF.md for a new Codex conversation in Stable.

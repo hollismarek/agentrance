@@ -24,39 +24,41 @@ def exec_argument(value):
     return '"' + ''.join(escaped.get(c, c) for c in str(value)) + '"'
 
 
-def desktop_entry(root, binary, identifier):
-    for value in (str(root), str(binary), identifier):
+def desktop_entry(root, binary, identifier, name="Agent Desk", hidden=False):
+    for value in (str(root), str(binary), identifier, name):
         if any(c in value for c in '\n\r\0'):
             raise ValueError('Launcher paths must not contain newlines or null characters')
     return '\n'.join([
-        '[Desktop Entry]', 'Type=Application', 'Name=Agent Desk',
+        '[Desktop Entry]', 'Type=Application', 'Name=' + key_value(name),
         'Comment=Local workspace for coding agents',
         'Exec=' + exec_argument(binary), 'Path=' + key_value(root),
         'Icon=' + identifier, 'StartupWMClass=' + identifier,
-        'Terminal=false', 'StartupNotify=true', 'Categories=Development;', '',
+        'Terminal=false', 'StartupNotify=true', 'Categories=Development;',
+        *(['NoDisplay=true'] if hidden else []), '',
     ])
 
 
-def install(root, binary, data_dir, identifier):
+def install(root, binary, data_dir, identifier, name="Agent Desk", hidden=False, icon_dir=None):
     binary = binary.resolve()
     if not binary.is_file() or not os.access(binary, os.X_OK):
         raise ValueError('Build the standalone binary before installing desktop integration')
+    icon_dir = icon_dir or root / 'src-tauri/icons'
     icons = {32: '32x32.png', 128: '128x128.png', 256: 'icon.png'}
-    for name in icons.values():
-        if not (root / 'src-tauri/icons' / name).is_file():
-            raise ValueError('Application icon is missing: ' + name)
+    for icon_name in icons.values():
+        if not (icon_dir / icon_name).is_file():
+            raise ValueError('Application icon is missing: ' + icon_name)
     files = []
-    for size, name in icons.items():
+    for size, icon_name in icons.items():
         target = data_dir / f'icons/hicolor/{size}x{size}/apps' / (identifier + '.png')
         target.parent.mkdir(parents=True, exist_ok=True)
         temp = target.with_suffix('.png.new')
-        shutil.copyfile(root / 'src-tauri/icons' / name, temp)
+        shutil.copyfile(icon_dir / icon_name, temp)
         temp.replace(target)
         files.append(target)
     launcher = data_dir / 'applications' / (identifier + '.desktop')
     launcher.parent.mkdir(parents=True, exist_ok=True)
     temp = launcher.with_suffix('.desktop.new')
-    temp.write_text(desktop_entry(root, binary, identifier))
+    temp.write_text(desktop_entry(root, binary, identifier, name, hidden))
     temp.replace(launcher)
     files.append(launcher)
     return files
