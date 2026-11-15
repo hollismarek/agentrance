@@ -172,3 +172,20 @@ deliberate clearing and closing the chat prevent restoration. Other conversation
 drafts are untouched. Two regression cases cover these paths. Frontend tests,
 TypeScript and production build pass. A partially delivered response can still
 leave its prompt in history; restoring the draft never automatically resends it.
+
+## Bounded provider diagnostics
+
+Provider stderr is drained in fixed-size chunks into an 8 KB in-memory tail.
+Startup/restore errors and transport failures include available stderr, labelled
+as provider diagnostics. It is never emitted as command stdout, tool output, or
+chat text. An EOF waits at most 200 ms for final diagnostics, then aborts the
+stderr reader so descendants cannot hold startup failure reporting open. Shutdown
+also aborts that reader. Stop notifications are idempotent: an already closed
+connection cannot emit a later timeout disconnection into a replacement session.
+
+Regression tests cover a login-related startup exit, no invented tool/text events,
+and bounded diagnostics without newlines. All 16 Rust tests and 3 installer tests
+pass. Frontend tests, TypeScript and production build passed for the draft change.
+Live-provider timeout and startup-error UI interactions have not been forced in
+the running app; subprocess tests exercise those failures without interrupting
+real conversations.

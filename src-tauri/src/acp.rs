@@ -5,10 +5,27 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, Command},
     sync::{oneshot, Mutex as AsyncMutex},
 };
+const DIAGNOSTIC_LIMIT: usize = 8192;
+#[derive(Default)]
+struct DiagnosticTail(std::collections::VecDeque<u8>);
+impl DiagnosticTail {
+    fn push(&mut self, bytes: &[u8]) {
+        for byte in bytes {
+            if self.0.len() == DIAGNOSTIC_LIMIT { self.0.pop_front(); }
+            self.0.push_back(*byte);
+        }
+    }
+    fn describe(&self, message: &str) -> String {
+        let bytes: Vec<u8> = self.0.iter().copied().collect();
+        let text = String::from_utf8_lossy(&bytes);
+        if text.trim().is_empty() { message.into() }
+        else { format!("{message}\nProvider diagnostics (stderr, last {DIAGNOSTIC_LIMIT} bytes):\n{}", text.trim()) }
+    }
+}
 struct Pending {
     tx: oneshot::Sender<Result<Value, String>>,
     method: String,
@@ -30,6 +47,8 @@ pub struct Client {
     child: Mutex<Child>,
     emit: EventSink,
     emission_gate: Arc<Mutex<()>>,
+    diagnostics: Arc<Mutex<DiagnosticTail>>,
+    stderr_task: tokio::task::AbortHandle,
 }
 impl Drop for Client {
     fn drop(&mut self) {
@@ -51,12 +70,22 @@ impl Client {
             .current_dir(&p.cwd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
             .map_err(|e| format!("Cannot start {}: {e}", p.name))?;
         let input = Arc::new(AsyncMutex::new(child.stdin.take().ok_or("No stdin")?));
         let out = child.stdout.take().ok_or("No stdout")?;
+        let mut stderr = child.stderr.take().ok_or("No stderr")?;
+        let diagnostics = Arc::new(Mutex::new(DiagnosticTail::default()));
+        let captured = diagnostics.clone();
+        let mut stderr_task = tokio::spawn(async move {
+            let mut chunk = [0u8; 1024];
+            while let Ok(size) = stderr.read(&mut chunk).await {
+                if size == 0 { break; }
+                captured.lock().unwrap_or_else(|e| e.into_inner()).push(&chunk[..size]);
+            }
+        });
         let pending = Arc::new(AsyncMutex::new(HashMap::<u64, Pending>::new()));
         let permissions = Arc::new(AsyncMutex::new(HashMap::new()));
         let replaying = Arc::new(AtomicBool::new(false));
@@ -88,6 +117,8 @@ impl Client {
             child: Mutex::new(child),
             emit: disconnect_emit,
             emission_gate,
+            diagnostics: diagnostics.clone(),
+            stderr_task: stderr_task.abort_handle(),
         });
         tokio::spawn(async move {
             let mut lines = BufReader::new(out).lines();
@@ -181,10 +212,15 @@ impl Client {
                     }
                 }
             }
-            for (_, request) in pending.lock().await.drain() {
-                let _ = request.tx.send(Err("Provider process exited".into()));
-            }
             connected.store(false, Ordering::SeqCst);
+            // stderr and stdout drain independently; allow final startup errors to
+            // arrive without hanging on descendants that keep stderr open.
+            let _ = tokio::time::timeout(Duration::from_millis(200), &mut stderr_task).await;
+            stderr_task.abort();
+            let diagnostic = diagnostics.lock().unwrap_or_else(|e| e.into_inner()).describe("Provider process exited");
+            for (_, request) in pending.lock().await.drain() {
+                let _ = request.tx.send(Err(diagnostic.clone()));
+            }
             if !stopped.load(Ordering::SeqCst) {
                 emit("disconnected", Value::Null);
             }
@@ -194,13 +230,16 @@ impl Client {
     pub fn is_connected(&self) -> bool {
         self.connected.load(Ordering::SeqCst) && !self.stopped.load(Ordering::SeqCst)
     }
-    pub fn shutdown(&self) {
+    pub fn shutdown(&self) { self.stop(false); }
+    fn stop(&self, notify: bool) {
         let _guard = self.emission_gate.lock().unwrap_or_else(|e| e.into_inner());
-        self.stopped.store(true, Ordering::SeqCst);
+        if self.stopped.swap(true, Ordering::SeqCst) { return; }
         self.connected.store(false, Ordering::SeqCst);
+        self.stderr_task.abort();
         if let Ok(mut child) = self.child.lock() {
             let _ = child.start_kill();
         }
+        if notify { (self.emit)("disconnected", Value::Null); }
     }
     pub async fn restore(&self, init: &Value, remote: &str, cwd: &str) -> Result<(), String> {
         let method = crate::resume::method(init)?;
@@ -249,16 +288,19 @@ impl Client {
         }
         self.agent_snapshot()
     }
+    fn diagnostic_error(&self, message: &str) -> String {
+        self.diagnostics.lock().unwrap_or_else(|e| e.into_inner()).describe(message)
+    }
     pub async fn send(&self, v: Value) -> Result<(), String> {
-        if !self.is_connected() { return Err("Provider disconnected; continue the conversation to reconnect".into()); }
-        write(&self.input, v).await
+        if !self.is_connected() { return Err(self.diagnostic_error("Provider disconnected; continue the conversation to reconnect")); }
+        write(&self.input, v).await.map_err(|e| self.diagnostic_error(&e))
     }
     pub async fn request(&self, method: &str, params: Value) -> Result<Value, String> {
         let duration = Duration::from_secs(if method == "session/prompt" { 1800 } else { 60 });
         self.request_with_timeout(method, params, duration).await
     }
     async fn request_with_timeout(&self, method: &str, params: Value, duration: Duration) -> Result<Value, String> {
-        if !self.is_connected() { return Err("Provider disconnected; continue the conversation to reconnect".into()); }
+        if !self.is_connected() { return Err(self.diagnostic_error("Provider disconnected; continue the conversation to reconnect")); }
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
         let revision = self.agents.lock().map_err(|e| e.to_string())?.mode_revision;
@@ -286,17 +328,21 @@ impl Client {
         .await;
         self.pending.lock().await.remove(&id);
         if result.is_err() {
-            self.shutdown();
+            self.stop(true);
             self.permissions.lock().await.clear();
             for (_, request) in self.pending.lock().await.drain() {
                 let _ = request.tx.send(Err("Provider disconnected after timeout".into()));
             }
-            (self.emit)("disconnected", Value::Null);
-            return Err("Provider response timed out; connection closed. Continue the conversation to reconnect.".into());
+            return Err(self.diagnostic_error("Provider response timed out; connection closed. Continue the conversation to reconnect."));
         }
-        result
+        let reply = result
             .map_err(|_| "Provider response timed out".to_string())?
-            .map_err(|_| "Provider disconnected".to_string())?
+            .map_err(|_| "Provider disconnected".to_string())?;
+        reply.map_err(|error| {
+            if matches!(method, "initialize" | "session/new" | "session/load" | "session/resume") && !error.contains("Provider diagnostics (stderr") {
+                self.diagnostics.lock().unwrap_or_else(|e| e.into_inner()).describe(&error)
+            } else { error }
+        })
     }
     pub async fn respond_permission(
         &self,
@@ -338,6 +384,24 @@ async fn write(input: &AsyncMutex<ChildStdin>, v: Value) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn diagnostics_are_bounded_even_without_newlines() {
+        let mut tail=DiagnosticTail::default();
+        tail.push(&vec![b'x'; DIAGNOSTIC_LIMIT * 4]);tail.push(b"final error");
+        assert_eq!(tail.0.len(), DIAGNOSTIC_LIMIT);
+        assert!(tail.describe("exited").ends_with("final error"));
+        assert_eq!(DiagnosticTail::default().describe("exited"),"exited");
+    }
+    #[tokio::test]
+    async fn startup_exit_reports_stderr_without_tool_output() {
+        let p=Provider{id:"broken".into(),name:"Broken".into(),executable:"python3".into(),args:vec!["-u".into(),"-c".into(),"import sys; sys.stdin.readline(); sys.stderr.write('Login required: run provider login'); sys.exit(2)".into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
+        let events=Arc::new(Mutex::new(Vec::new()));let captured=events.clone();
+        let c=Client::start_transport(&p,Arc::new(move |kind,_|captured.lock().unwrap().push(kind.to_owned()))).await.unwrap();
+        let error=c.request_with_timeout("initialize",json!({}),Duration::from_secs(3)).await.unwrap_err();
+        assert!(error.contains("Provider diagnostics (stderr"),"{error}");
+        assert!(error.contains("Login required: run provider login"),"{error}");
+        assert!(!events.lock().unwrap().iter().any(|kind| kind=="tool" || kind=="delta"));
+    }
     #[tokio::test]
     async fn timeout_disconnects_and_rejects_late_turns() {
         let p=Provider{id:"timeout".into(),name:"Timeout".into(),executable:"python3".into(),args:vec!["-u".into(),"-c".into(),"import sys,time; sys.stdin.readline(); time.sleep(.15); print('{\"method\":\"session/update\",\"params\":{\"update\":{\"sessionUpdate\":\"agent_message_chunk\",\"content\":{\"text\":\"late\"}}}}'); time.sleep(1)".into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
@@ -349,6 +413,8 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert_eq!(*events.lock().unwrap(),vec![("disconnected".into(),Value::Null)]);
         assert!(c.pending.lock().await.is_empty());
+        c.shutdown();c.stop(true);
+        assert_eq!(events.lock().unwrap().len(),1,"stopping twice must not emit a stale disconnect");
     }
     #[tokio::test]
     async fn reconnects_exact_sessions_without_duplicate_replay_or_cross_talk() {
