@@ -68,7 +68,7 @@ function App() {
             {p===1&&<div className="pane-divider" role="separator" tabIndex={0} aria-label="Resize conversation panes" aria-orientation={workspace.mode==='rows'?'horizontal':'vertical'} aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(ratio)}
               onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);resize(e)}} onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))resize(e)}} onPointerUp={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId)}}
               onKeyDown={e=>{if(['ArrowLeft','ArrowUp','ArrowRight','ArrowDown','Home'].includes(e.key)){e.preventDefault();setRatio(r=>e.key==='Home'?50:Math.max(25,Math.min(75,r+(['ArrowLeft','ArrowUp'].includes(e.key)?-5:5))))}}}/>}
-            <section aria-label={`Conversation pane ${p+1}`} className={`workspace-pane ${workspace.focus===p?'focused':''}`} style={{flex:workspace.mode==='single'?1:p===0?ratio:100-ratio}} onFocusCapture={()=>dispatch({type:'focus',pane:p})} onPointerDown={()=>dispatch({type:'focus',pane:p})}>
+            <section aria-label={`Conversation pane ${p+1}`} className={`workspace-pane ${workspace.focus===p?'focused':''}`} style={{flex:`${workspace.mode==='single'?1:p===0?ratio:100-ratio} 1 0%`}} onFocusCapture={()=>dispatch({type:'focus',pane:p})} onPointerDown={()=>dispatch({type:'focus',pane:p})}>
               <div className="tabs" role="tablist" aria-label={`Pane ${p+1} conversations`}>{workspace.groups[p].map(tabId=>{
                 const tab=desk.sessions.find(s=>s.id===tabId);if(!tab)return null;
                 return <div className="session-tab" key={tabId}><button role="tab" aria-selected={tabId===id} className={tabId===id?'active':''} onClick={()=>dispatch({type:'select',pane:p,id:tabId})}>{chatTitle(tab)} {tab.busy?'◌':''}<small>{tab.provider}</small></button><button aria-label={`Close ${chatTitle(tab)}`} onClick={()=>void desk.close(tabId)}>×</button></div>;
@@ -79,7 +79,7 @@ function App() {
                     onResume={()=>{const provider=resumeProvider(providers,session);if(provider)void desk.resume(session,provider)}} onPermission={async(request,option)=>{await invoke('permission',{id,request,option})}} onCancel={()=>void desk.cancel(id)}>
                     <Composer text={text} onText={value=>setDrafts(d=>({...d,[id]:value}))} canSend={canSend} label={`Message to ${session.provider}`} onSend={()=>{if(canSend){void desk.send([id],text);setDrafts(d=>({...d,[id]:''}))}}}/>
                   </SessionPane>
-                </ErrorBoundary></>:<div className="empty"><h2>{desk.sessions.length?'Choose a conversation':'A second perspective starts here.'}</h2><p>Click this pane, then start a session or open a chat from history.</p></div>}
+                </ErrorBoundary></>:<div className="empty"><h2>{desk.sessions.length?'Choose a conversation':'A second perspective starts here.'}</h2><p>{workspace.mode==='single'?'Start a session or open a chat from history.':'Click this pane, then start a session or open a chat from history.'}</p></div>}
             </section>
           </React.Fragment>;
         })}

@@ -143,3 +143,14 @@ input/send isolation, Shift+Enter, IME, repeated Enter and disabled sending. All
 existing frontend tests, TypeScript compilation and the production build pass.
 Visual sizing and native pointer dragging still need a hands-on check in Tauri;
 browser automation remains skipped as agreed.
+
+
+## Workspace review follow-up
+
+Confirmed that `useSessions.panes` is a stable state array, changed only by explicit
+navigation; its effect dependency must preserve repeated opens of the same chat.
+Made the pane flex shorthand explicit (`grow 1 0%`) so the two pane weights divide
+space remaining after the divider. Percentage bases totaling 100% would also need
+to account for divider width. Kept pointer selection because blank pane space does
+not receive keyboard focus automatically. Single-pane empty instructions now omit
+"Click this pane". TypeScript, frontend tests and the production build pass.
