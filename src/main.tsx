@@ -14,11 +14,12 @@ import {ProviderSettings} from './components/ProviderSettings';
 import {ErrorBoundary} from './components/ErrorBoundary';
 import './style.css';
 import {initialWorkspace,workspaceReducer,type LayoutMode} from './workspace';
+import {editDraft,restoreDraft,type Drafts} from './drafts';
 import {chatTitle} from './history';
 function App() {
   const [providers,setProviders] = useState<Provider[]>([]);
   const [selected,setSelected] = useState('');
-  const [drafts,setDrafts]=useState<Record<string,string>>({});
+  const [drafts,setDrafts]=useState<Drafts>({});
   const [comparison,setComparison]=useState(false);
   const [workspace,dispatch]=useReducer(workspaceReducer,initialWorkspace);
   const [ratio,setRatio]=useState(50);
@@ -62,7 +63,7 @@ function App() {
       <div ref={splitRef} className={`workspace ${workspace.mode}`}>
         {([0,1] as const).filter(p=>p===0||workspace.mode!=='single').map(p=>{
           const id=workspace.selected[p],session=desk.sessions.find(s=>s.id===id);
-          const text=id?drafts[id]??'':'';
+          const text=id?drafts[id]?.text??'':'';
           const canSend=!!session?.live&&!session.busy&&!session.resuming&&!session.changingAgent&&!session.changingModel&&!!text.trim();
           return <React.Fragment key={p}>
             {p===1&&<div className="pane-divider" role="separator" tabIndex={0} aria-label="Resize conversation panes" aria-orientation={workspace.mode==='rows'?'horizontal':'vertical'} aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(ratio)}
@@ -77,7 +78,7 @@ function App() {
                 <ErrorBoundary key={id} label={`${session.provider} conversation`}>
                   <SessionPane session={session} onHelp={()=>setHelp({topic:'models',sessionId:id})} onModel={modelId=>void desk.setModel(id,modelId)} onAgent={agentId=>void desk.setAgent(id,agentId)} resumeAvailable={!!resumeProvider(providers,session)}
                     onResume={()=>{const provider=resumeProvider(providers,session);if(provider)void desk.resume(session,provider)}} onPermission={async(request,option)=>{await invoke('permission',{id,request,option})}} onCancel={()=>void desk.cancel(id)}>
-                    <Composer text={text} onText={value=>setDrafts(d=>({...d,[id]:value}))} canSend={canSend} label={`Message to ${session.provider}`} onSend={()=>{if(canSend){void desk.send([id],text);setDrafts(d=>({...d,[id]:''}))}}}/>
+                    <Composer text={text} onText={value=>setDrafts(d=>editDraft(d,id,value))} canSend={canSend} label={`Message to ${session.provider}`} onSend={()=>{if(canSend){const clearedRevision=(drafts[id]?.revision??0)+1;setDrafts(d=>editDraft(d,id,''));void desk.send([id],text).then(results=>{if(!results[0])setDrafts(d=>restoreDraft(d,id,text,clearedRevision))})}}}/>
                   </SessionPane>
                 </ErrorBoundary></>:<div className="empty"><h2>{desk.sessions.length?'Choose a conversation':'A second perspective starts here.'}</h2><p>{workspace.mode==='single'?'Start a session or open a chat from history.':'Click this pane, then start a session or open a chat from history.'}</p></div>}
             </section>

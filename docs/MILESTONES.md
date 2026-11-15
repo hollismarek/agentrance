@@ -163,3 +163,12 @@ releasing its turn lock. Reconnection is required before another prompt. Event
 emission and shutdown share a gate so output cannot escape after shutdown.
 A fake-provider test checks timeout, disconnection, rejected follow-ups and absence
 of late text. All 14 Rust tests pass.
+
+## Recover failed prompt drafts
+
+Send now reports success/failure to its owning composer. A failed send restores
+its cleared draft only when its revision still matches: subsequent typing,
+deliberate clearing and closing the chat prevent restoration. Other conversation
+drafts are untouched. Two regression cases cover these paths. Frontend tests,
+TypeScript and production build pass. A partially delivered response can still
+leave its prompt in history; restoring the draft never automatically resends it.

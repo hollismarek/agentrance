@@ -57,11 +57,11 @@ export function useSessions(onError: (message:string) => void) {
     try{setPanes([await fresh(provider)])}catch(e){onError(String(e))}finally{setStarting(false)}
   }
   async function send(ids:string[],text:string) {
-    if (!text.trim()) return;
-    await Promise.all(ids.map(async id => {
+    if (!text.trim()) return [];
+    return Promise.all(ids.map(async id => {
       setSessions(a => a.map(s => s.id === id ? {...s,busy:true} : s));
-      try {await invoke('prompt',{id,text})}
-      catch(e){onError(String(e));setSessions(a => a.map(s => s.id === id ? {...s,busy:false} : s))}
+      try {await invoke('prompt',{id,text});return true}
+      catch(e){onError(String(e));setSessions(a => a.map(s => s.id === id ? {...s,busy:false} : s));return false}
     }));
   }
   async function compare(providers:Provider[],question:string) {
