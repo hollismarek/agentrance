@@ -273,6 +273,7 @@ async fn prompt(app: tauri::AppHandle, id: String, text: String) -> Result<(), S
         .turn
         .try_lock()
         .map_err(|_| "A response is already running")?;
+    if !client.is_connected() { return Err("Provider disconnected; continue the conversation to reconnect".into()); }
     event(&app, &id, "user", json!(text));
     let remote = client.remote.lock().await.clone();
     let result = client

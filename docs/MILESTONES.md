@@ -154,3 +154,12 @@ space remaining after the divider. Percentage bases totaling 100% would also nee
 to account for divider width. Kept pointer selection because blank pane space does
 not receive keyboard focus automatically. Single-pane empty instructions now omit
 "Click this pane". TypeScript, frontend tests and the production build pass.
+
+## Timeout lifecycle hardening
+
+ACP request timeouts now stop the provider transport, suppress subsequent events,
+clear pending permissions/requests and mark the conversation disconnected before
+releasing its turn lock. Reconnection is required before another prompt. Event
+emission and shutdown share a gate so output cannot escape after shutdown.
+A fake-provider test checks timeout, disconnection, rejected follow-ups and absence
+of late text. All 14 Rust tests pass.

@@ -28,6 +28,8 @@ pub struct Client {
     pub turn: AsyncMutex<()>,
     next: AtomicU64,
     child: Mutex<Child>,
+    emit: EventSink,
+    emission_gate: Arc<Mutex<()>>,
 }
 impl Drop for Client {
     fn drop(&mut self) {
@@ -60,6 +62,17 @@ impl Client {
         let replaying = Arc::new(AtomicBool::new(false));
         let stopped = Arc::new(AtomicBool::new(false));
         let connected = Arc::new(AtomicBool::new(true));
+        let emission_gate = Arc::new(Mutex::new(()));
+        let disconnect_emit = emit.clone();
+        let raw_emit = emit.clone();
+        let emit: EventSink = {
+            let stopped = stopped.clone();
+            let gate = emission_gate.clone();
+            Arc::new(move |kind, data| {
+                let _guard = gate.lock().unwrap_or_else(|e| e.into_inner());
+                if !stopped.load(Ordering::SeqCst) { raw_emit(kind, data); }
+            })
+        };
         let agents = Arc::new(Mutex::new(crate::agents::State::default()));
         let client = Arc::new(Self {
             agents: agents.clone(),
@@ -73,6 +86,8 @@ impl Client {
             turn: Default::default(),
             next: AtomicU64::new(1),
             child: Mutex::new(child),
+            emit: disconnect_emit,
+            emission_gate,
         });
         tokio::spawn(async move {
             let mut lines = BufReader::new(out).lines();
@@ -180,6 +195,7 @@ impl Client {
         self.connected.load(Ordering::SeqCst) && !self.stopped.load(Ordering::SeqCst)
     }
     pub fn shutdown(&self) {
+        let _guard = self.emission_gate.lock().unwrap_or_else(|e| e.into_inner());
         self.stopped.store(true, Ordering::SeqCst);
         self.connected.store(false, Ordering::SeqCst);
         if let Ok(mut child) = self.child.lock() {
@@ -234,9 +250,15 @@ impl Client {
         self.agent_snapshot()
     }
     pub async fn send(&self, v: Value) -> Result<(), String> {
+        if !self.is_connected() { return Err("Provider disconnected; continue the conversation to reconnect".into()); }
         write(&self.input, v).await
     }
     pub async fn request(&self, method: &str, params: Value) -> Result<Value, String> {
+        let duration = Duration::from_secs(if method == "session/prompt" { 1800 } else { 60 });
+        self.request_with_timeout(method, params, duration).await
+    }
+    async fn request_with_timeout(&self, method: &str, params: Value, duration: Duration) -> Result<Value, String> {
+        if !self.is_connected() { return Err("Provider disconnected; continue the conversation to reconnect".into()); }
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
         let revision = self.agents.lock().map_err(|e| e.to_string())?.mode_revision;
@@ -258,11 +280,20 @@ impl Client {
             return Err(e);
         }
         let result = tokio::time::timeout(
-            Duration::from_secs(if method == "session/prompt" { 1800 } else { 60 }),
+            duration,
             rx,
         )
         .await;
         self.pending.lock().await.remove(&id);
+        if result.is_err() {
+            self.shutdown();
+            self.permissions.lock().await.clear();
+            for (_, request) in self.pending.lock().await.drain() {
+                let _ = request.tx.send(Err("Provider disconnected after timeout".into()));
+            }
+            (self.emit)("disconnected", Value::Null);
+            return Err("Provider response timed out; connection closed. Continue the conversation to reconnect.".into());
+        }
         result
             .map_err(|_| "Provider response timed out".to_string())?
             .map_err(|_| "Provider disconnected".to_string())?
@@ -307,6 +338,18 @@ async fn write(input: &AsyncMutex<ChildStdin>, v: Value) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn timeout_disconnects_and_rejects_late_turns() {
+        let p=Provider{id:"timeout".into(),name:"Timeout".into(),executable:"python3".into(),args:vec!["-u".into(),"-c".into(),"import sys,time; sys.stdin.readline(); time.sleep(.15); print('{\"method\":\"session/update\",\"params\":{\"update\":{\"sessionUpdate\":\"agent_message_chunk\",\"content\":{\"text\":\"late\"}}}}'); time.sleep(1)".into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
+        let events=Arc::new(Mutex::new(Vec::new()));let captured=events.clone();
+        let c=Client::start_transport(&p,Arc::new(move |kind,data|captured.lock().unwrap().push((kind.to_owned(),data)))).await.unwrap();
+        assert!(c.request_with_timeout("session/prompt",json!({}),Duration::from_millis(30)).await.unwrap_err().contains("timed out"));
+        assert!(!c.is_connected());
+        assert!(c.request("session/prompt",json!({})).await.unwrap_err().contains("disconnected"));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(*events.lock().unwrap(),vec![("disconnected".into(),Value::Null)]);
+        assert!(c.pending.lock().await.is_empty());
+    }
     #[tokio::test]
     async fn reconnects_exact_sessions_without_duplicate_replay_or_cross_talk() {
         tokio::time::timeout(Duration::from_secs(10), async {
