@@ -100,7 +100,7 @@ export function useSessions(onError: (message:string) => void) {
   async function close(id:string) {
     try {
       await invoke('close_session',{id});
-      setSessions(a => a.filter(s => s.id !== id));setPanes(a => a.filter(x => x !== id));
+      setSessions(a => a.filter(s => s.id !== id));
     } catch(e){onError(String(e))}
   }
   async function rename(id:string,title:string){
@@ -109,7 +109,7 @@ export function useSessions(onError: (message:string) => void) {
   async function remove(id:string){
     await invoke('delete_session',{id});
     deleted.current.add(id);
-    setSessions(a=>a.filter(s=>s.id!==id));setPanes(a=>a.filter(x=>x!==id));setPast(a=>a.filter(s=>s.id!==id));
+    setSessions(a=>a.filter(s=>s.id!==id));setPast(a=>a.filter(s=>s.id!==id));
     await refresh();
   }
   async function setAgent(id:string,agentId:string){

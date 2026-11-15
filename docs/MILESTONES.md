@@ -117,3 +117,29 @@ name from the Tauri context identifier. This uses the existing GTK dependency
 and does not change Windows/macOS startup. The live development watcher rebuilt and restarted the app; the new trace
 confirmed `set_app_id("local.agentdesk.app")`. Cargo check and all 13 Rust tests
 passed. The visible taskbar icon still requires user confirmation.
+
+## Independent composers and a two-pane workspace
+
+Each conversation now owns a composer and an in-memory draft, retained across tab
+switches, layout changes, and moves between panes. Send and Stop target only that
+conversation. Closing/deleting a chat discards its draft; application restarts do
+not restore unsent drafts.
+
+Layout selects a single pane, side-by-side panes, or stacked panes. Each pane has
+its own tabs; clicking a pane targets new sessions and history opens. Existing
+open conversations are selected in their current pane. Move to other pane transfers
+the selected tab. Single-pane mode merges tabs without closing sessions. The
+divider supports pointer dragging and keyboard arrows (Home resets to halfway).
+
+Compare opens a dedicated prompt dialog and creates fresh independent sessions
+for all configured providers, distributed across the two panes; additional
+providers remain available as tabs. Comparison prompts do not consume chat drafts.
+Help describes these controls. Provider protocol, history, and approvals are
+unchanged.
+
+Validation: five workspace cases cover opening/focusing, comparison distribution,
+moving tabs, single-pane merging and closing/deletion. Two composer cases cover
+input/send isolation, Shift+Enter, IME, repeated Enter and disabled sending. All
+existing frontend tests, TypeScript compilation and the production build pass.
+Visual sizing and native pointer dragging still need a hands-on check in Tauri;
+browser automation remains skipped as agreed.

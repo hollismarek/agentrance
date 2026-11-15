@@ -7,8 +7,8 @@ import {agentSelection,agentName,modelSelection} from '../agents';
 import {AgentSelector} from './AgentSelector';
 import {chatTitle} from '../history';
 import {ErrorBoundary} from './ErrorBoundary';
-export function SessionPane({session:s, onPermission, onCancel, onResume, resumeAvailable, onAgent, onModel, onHelp}: {
-  onHelp:()=>void; onModel:(id:string)=>void; onAgent:(id:string)=>void; session: Session; onResume: () => void; resumeAvailable: boolean; onPermission: (request: unknown, option: string | null) => Promise<void>; onCancel: () => void;
+export function SessionPane({session:s, onPermission, onCancel, onResume, resumeAvailable, onAgent, onModel, onHelp, children}: {
+  children?:React.ReactNode; onHelp:()=>void; onModel:(id:string)=>void; onAgent:(id:string)=>void; session: Session; onResume: () => void; resumeAvailable: boolean; onPermission: (request: unknown, option: string | null) => Promise<void>; onCancel: () => void;
 }) {
   const {selection,model}=useMemo(()=>({selection:agentSelection(s.items),model:modelSelection(s.items)}),[s.items]);
   const activeAgent=agentName(selection),activeModel=agentName(model);
@@ -33,5 +33,6 @@ export function SessionPane({session:s, onPermission, onCancel, onResume, resume
         <small>{!resumeAvailable?'Original provider unavailable. Open Menu → Provider settings.':''}</small></> :
         <small>Saved chat only — no provider session ID was recorded.</small>}
     </div>}
+    {children}
   </article>;
 }
