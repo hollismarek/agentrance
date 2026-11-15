@@ -1,8 +1,8 @@
 import React, {useState} from 'react';
 import type {Provider, SavedSession} from '../types';
 import {chatTitle, historyDate} from '../history';
-export function Sidebar({providers, selected, past, panes, starting, busyIds, onStart, onSelect, onOpen, onRename, onDelete}: {
-  providers: Provider[]; selected: string; past: SavedSession[]; panes: string[]; starting: boolean; busyIds:string[];
+export function Sidebar({collapsed=false, providers, selected, past, panes, starting, busyIds, onStart, onSelect, onOpen, onRename, onDelete}: {
+  collapsed?: boolean; providers: Provider[]; selected: string; past: SavedSession[]; panes: string[]; starting: boolean; busyIds:string[];
   onStart: () => void; onSelect: (id: string) => void; onOpen: (session: SavedSession) => void;
   onRename: (id:string,title:string) => Promise<void>; onDelete: (id:string) => Promise<void>;
 }) {
@@ -21,7 +21,7 @@ export function Sidebar({providers, selected, past, panes, starting, busyIds, on
       setDialog(null);
     }catch(e){setError(String(e))}finally{setWorking(false)}
   }
-  return <><aside>
+  return <><aside id="workspace-sidebar" hidden={collapsed}>
     <h1>Agent Desk<span>LOCAL WORKSPACE</span></h1>
     <button disabled={starting || !providers.length} onClick={onStart}>＋ New session</button>
     <select aria-label="Provider" value={selected} onChange={e => onSelect(e.target.value)}>

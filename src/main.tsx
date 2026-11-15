@@ -18,6 +18,7 @@ import {editDraft,restoreDraft,type Drafts} from './drafts';
 import {chatTitle} from './history';
 function App() {
   const [channel,setChannel]=useState('');
+  const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
   const [providers,setProviders] = useState<Provider[]>([]);
   const [selected,setSelected] = useState('');
   const [drafts,setDrafts]=useState<Drafts>({});
@@ -57,12 +58,12 @@ function App() {
     setRatio(Math.max(25,Math.min(75,value*100)));
   }
   return <div className="app">
-    <Sidebar providers={providers} selected={selected} past={desk.past} panes={visible} starting={desk.starting}
+    <Sidebar collapsed={sidebarCollapsed} providers={providers} selected={selected} past={desk.past} panes={visible} starting={desk.starting}
       busyIds={desk.sessions.filter(s=>s.busy||s.resuming||s.changingAgent||s.changingModel).map(s=>s.id)} onRename={desk.rename} onDelete={desk.remove}
       onStart={() => {const provider=providers.find(p => p.id === selected);if(provider)void desk.start(provider)}}
       onSelect={setSelected} onOpen={s => void desk.open(s)}/>
     <main>
-      <header><strong>Conversations {channel==='Development'&&<span className="development-badge">DEV</span>}</strong><div className="header-actions">
+      <header><div className="workspace-heading"><button className="sidebar-toggle" aria-controls="workspace-sidebar" aria-expanded={!sidebarCollapsed} title={sidebarCollapsed?'Show sidebar':'Hide sidebar'} onClick={()=>setSidebarCollapsed(value=>!value)}>{sidebarCollapsed?'Show sidebar':'Hide sidebar'}</button><strong>Conversations {channel==='Development'&&<span className="development-badge">DEV</span>}</strong></div><div className="header-actions">
         <button disabled={desk.starting||!providers.length} onClick={()=>setComparison(true)}>Compare…</button>
         <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option></select></label><AppMenu onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
       </header>

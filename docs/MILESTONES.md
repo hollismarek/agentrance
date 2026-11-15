@@ -220,3 +220,15 @@ stable snapshot was installed outside the checkout and its executable hash was
 verified against the built artifact. Native side-by-side operation and the new
 DEV icon still need the user's hands-on confirmation. A project handoff document
 is available at docs/HANDOFF.md for a new Codex conversation in Stable.
+
+## Collapsible workspace sidebar
+
+The workspace header now offers Hide sidebar / Show sidebar to reclaim horizontal
+space on small screens. The sidebar stays mounted while hidden, retaining its
+selection and history state. The toggle reports its expanded state to assistive
+technology and remains available when collapsed. Header controls wrap on narrow
+windows. Visibility resets to expanded when the app restarts.
+
+Validation: frontend tests, TypeScript and production build pass. The Development
+launch command completed; native small-screen appearance and toggling still need
+a hands-on check. Stable was not restarted or upgraded.
