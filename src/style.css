@@ -291,7 +291,10 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 /* Keep the inspector body as the only list scroll area as entries grow. */
 /* Long output blocks hand wheel scrolling back to the inspector at their edge. */
 .activity-body .operation-body pre{overscroll-behavior:auto}
-.activity-latest{font-size:11px;padding:4px 7px;min-height:28px}
+.activity-latest,.activity-size{font-size:11px;padding:4px 7px;min-height:28px}
 .permission-location{overflow-wrap:anywhere}
 .permission-technical>summary{cursor:pointer;color:#b1c4cb;margin:10px 0}
 .permission-details .permission-description{max-height:none;overflow:visible}
+
+/* A larger reading preset; the composer and conversation keep their own space. */
+.activity-panel.activity-expanded{max-height:60%}

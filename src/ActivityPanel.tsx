@@ -9,6 +9,7 @@ export function ActivityPanel({events, live, provider, onPermission, agentContro
   const scrollBody=useRef<HTMLDivElement>(null);
   const followLatest=useRef(true);
   const [open, setOpen] = useState(false);
+  const [expanded,setExpanded]=useState(false);
   const [now, setNow] = useState(Date.now());
   const [sending, setSending] = useState<string[]>([]);
   const [error, setError] = useState('');
@@ -23,7 +24,7 @@ export function ActivityPanel({events, live, provider, onPermission, agentContro
   }
   useLayoutEffect(()=>{
     if(open&&followLatest.current)latest();
-  },[activity,open]);
+  },[activity,open,expanded]);
   useEffect(() => {if (awaiting) setOpen(true)}, [awaiting]);
   useEffect(() => {
     if (!open || !operations.some(op => op.started !== undefined && ['running','awaiting','pending'].includes(op.status))) return;
@@ -36,11 +37,11 @@ export function ActivityPanel({events, live, provider, onPermission, agentContro
     try {await onPermission(request, option)} catch (e) {setError(String(e))}
     finally {setSending(a => a.filter(x => x !== key))}
   }
-  return <section className="activity-panel" aria-label={`${provider} activity inspector`}>
-    <div className="activity-toolbar"><button className="activity-toggle" aria-expanded={open} onClick={() => {followLatest.current=true;setOpen(!open)}}>
+  return <section className={`activity-panel${open&&expanded?' activity-expanded':''}`} aria-label={`${provider} activity inspector`}>
+    <div className="activity-toolbar"><button className="activity-toggle" aria-expanded={open} onClick={() => {followLatest.current=true;setExpanded(false);setOpen(!open)}}>
       <span>{open ? '▾' : '▸'} Activity <span className="activity-count">{operations.length}</span></span>
       <span>{awaiting > 0 && <span className="status awaiting">{awaiting} awaiting approval</span>} {running > 0 && <span className="status running">{running} running</span>}</span>
-    </button>{open&&<button className="activity-latest" onClick={latest}>Latest activity ↓</button>}{agentControl}</div>
+    </button>{open&&<><button className="activity-size" aria-pressed={expanded} onClick={()=>setExpanded(value=>!value)}>{expanded?'Shrink activity':'Expand activity'}</button><button className="activity-latest" onClick={latest}>Latest activity ↓</button></>}{agentControl}</div>
     {open && <div className="activity-body" ref={scrollBody} onScroll={e=>{
       const body=e.currentTarget;
       followLatest.current=body.scrollHeight-body.clientHeight-body.scrollTop<=8;

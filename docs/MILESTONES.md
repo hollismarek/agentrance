@@ -303,3 +303,18 @@ coverage checks full descriptions, closed raw details, sparse/malformed requests
 paths, inputs and diffs. Development launch completed. Native scrolling under
 streaming load remains a hands-on verification; no live user conversation was
 used to force tool or permission events. Stable was not restarted or upgraded.
+
+## Expanded activity reading preset
+
+Open Activity now offers Expand activity / Shrink activity beside Latest activity.
+Normal workspace height remains capped at 35%; expanded raises the cap to 60%.
+The size control exposes its pressed state to assistive technology. Closing the
+inspector resets the preset; switching conversations unmounts its local state,
+so each newly displayed conversation starts at the normal size. Automatic
+permission reveal does not downgrade an already expanded inspector. Following
+the latest entry remains active across size changes only while reading at the
+bottom; scrolling above continues to preserve the reader's position.
+
+Validation: frontend tests, TypeScript and production build pass. Development
+launch completed; native expanded sizing on short/stacked windows remains a
+hands-on check. Stable was not restarted or upgraded.
