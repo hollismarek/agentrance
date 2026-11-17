@@ -1,8 +1,8 @@
 import React, {useState} from 'react';
 import type {Provider, SavedSession} from '../types';
 import {chatTitle, historyDate} from '../history';
-export function Sidebar({collapsed=false, providers, selected, past, panes, starting, busyIds, onStart, onSelect, onOpen, onRename, onDelete}: {
-  collapsed?: boolean; providers: Provider[]; selected: string; past: SavedSession[]; panes: string[]; starting: boolean; busyIds:string[];
+export function Sidebar({collapsed=false, onToggle, providers, selected, past, panes, starting, busyIds, onStart, onSelect, onOpen, onRename, onDelete}: {
+  collapsed?: boolean; onToggle?: () => void; providers: Provider[]; selected: string; past: SavedSession[]; panes: string[]; starting: boolean; busyIds:string[];
   onStart: () => void; onSelect: (id: string) => void; onOpen: (session: SavedSession) => void;
   onRename: (id:string,title:string) => Promise<void>; onDelete: (id:string) => Promise<void>;
 }) {
@@ -21,23 +21,27 @@ export function Sidebar({collapsed=false, providers, selected, past, panes, star
       setDialog(null);
     }catch(e){setError(String(e))}finally{setWorking(false)}
   }
-  return <><aside id="workspace-sidebar" hidden={collapsed}>
-    <h1>Agent Desk<span>LOCAL WORKSPACE</span></h1>
-    <button disabled={starting || !providers.length} onClick={onStart}>＋ New session</button>
-    <select aria-label="Provider" value={selected} onChange={e => onSelect(e.target.value)}>
+  const selectedProvider=providers.find(p=>p.id===selected);
+  return <><aside id="workspace-sidebar" className={collapsed?'collapsed':undefined} aria-label="Workspace sidebar">
+    <div className="sidebar-heading">
+      {!collapsed&&<h1>Agent Desk<span>LOCAL WORKSPACE</span></h1>}
+      <button className="sidebar-toggle" aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} title={collapsed?'Expand sidebar':'Collapse sidebar'} aria-expanded={!collapsed} aria-controls="workspace-sidebar" onClick={()=>{setMenu(null);onToggle?.()}}><span aria-hidden="true">{collapsed?'»':'«'}</span></button>
+    </div>
+    <button className="new-session" aria-label="New session" title={`New session${selectedProvider?` · ${selectedProvider.name}`:''}`} disabled={starting || !providers.length} onClick={onStart}><span aria-hidden="true">＋</span>{!collapsed&&' New session'}</button>
+    {!collapsed&&<select aria-label="Provider" value={selected} onChange={e => onSelect(e.target.value)}>
       {providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-    </select>
-    <h3>History</h3>
+    </select>}
+    <h3 className={collapsed?'sr-only':undefined}>History</h3>
     <nav aria-label="Conversation history">{!past.length && <small>No conversations yet.</small>}{past.map(s => <div className={'history-entry '+(panes.includes(s.id)?'selected':'')} key={s.id}>
       <div className="history-row">
-        <button className="history-open" title={chatTitle(s)} onClick={() => {setMenu(null);onOpen(s)}}>
-          <span className="history-title">{chatTitle(s)}</span>
+        <button className="history-open" aria-label={`${chatTitle(s)} · ${s.provider}`} title={`${chatTitle(s)} · ${s.provider} · ${s.cwd}`} onClick={() => {setMenu(null);onOpen(s)}}>
+          {collapsed?<span className="provider-icon" aria-hidden="true">{s.provider.trim().slice(0,2).toUpperCase()||'?'}</span>:<><span className="history-title">{chatTitle(s)}</span>
           <small>{s.provider} · {s.cwd.split(/[\\/]/).pop()}</small>
-          <small>{[historyDate(s.updatedAt),!s.canResume?'Saved only':''].filter(Boolean).join(' · ')}</small>
+          <small>{[historyDate(s.updatedAt),!s.canResume?'Saved only':''].filter(Boolean).join(' · ')}</small></>}
         </button>
-        <button className="history-more" aria-label={`Options for ${chatTitle(s)}`} aria-expanded={menu===s.id} onClick={() => setMenu(menu===s.id?null:s.id)}>⋯</button>
+        {!collapsed&&<button className="history-more" aria-label={`Options for ${chatTitle(s)}`} aria-expanded={menu===s.id} onClick={() => setMenu(menu===s.id?null:s.id)}>⋯</button>}
       </div>
-      {menu===s.id && <div className="history-options">
+      {!collapsed && menu===s.id && <div className="history-options">
         <button onClick={() => action('rename',s)}>Rename</button>
         <button className="danger-text" disabled={busyIds.includes(s.id)} title={busyIds.includes(s.id)?'Stop the response or wait for reconnection before deleting.':undefined} onClick={() => action('delete',s)}>Delete chat…</button>
       </div>}

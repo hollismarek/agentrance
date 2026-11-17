@@ -232,3 +232,15 @@ windows. Visibility resets to expanded when the app restarts.
 Validation: frontend tests, TypeScript and production build pass. The Development
 launch command completed; native small-screen appearance and toggling still need
 a hands-on check. Stable was not restarted or upgraded.
+
+
+## Compact sidebar rail
+
+Collapsing now retains a 64-pixel sidebar rail. The sidebar itself owns the
+« / » toggle; New session becomes a plus button using the last selected provider,
+and provider selection is hidden until expanded. History shows provider-initial
+icons with accessible conversation labels and title/provider/project tooltips.
+Expand to access rename/delete controls. Help describes the updated controls.
+
+Validation: frontend tests, TypeScript and production build pass. Native visual
+verification remains a hands-on Development check; Stable is unchanged.
