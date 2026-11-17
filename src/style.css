@@ -205,7 +205,9 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 .layout-label{display:flex;align-items:center;gap:6px;font-size:12px}
 .layout-label select{padding:7px}
 .workspace footer{padding:10px 14px;flex-shrink:0}
-.workspace footer textarea{min-height:65px;max-height:150px}
+/* Three initial lines, growing to ten; larger prompts scroll within the editor.
+   Heights include 20px padding and the two 1px borders (border-box). */
+.workspace footer textarea{resize:none;line-height:20px;min-height:82px;max-height:222px;overflow-y:auto}
 .workspace footer .composer-actions{margin-top:5px}
 .workspace .pane-title{padding:8px 14px}
 .workspace .activity-panel{max-height:35%}

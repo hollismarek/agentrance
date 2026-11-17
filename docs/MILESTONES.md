@@ -268,3 +268,15 @@ Validation: frontend tests, TypeScript/production build, offline Cargo check and
 all 18 Rust tests, plus six Python installer tests pass. Existing CSS rule order
 and contents were compared mechanically. Development launch completed; native
 visual checks remain manual. Stable was not restarted or upgraded.
+
+## Auto-growing prompt editor
+
+Each composer starts at three lines and grows with typed, pasted or restored text
+up to ten visible lines. Longer prompts scroll inside the editor. Clearing text
+shrinks it again; pane-width changes recalculate wrapped text height. A scoped
+ResizeObserver is disconnected when the editor ref changes or unmounts. Drafts,
+sending and keyboard behavior remain per conversation.
+
+Validation: frontend tests, TypeScript and production build pass. Development was
+launched for the native check; paste/wrapping and native visual sizing still need
+a hands-on check. Stable was not restarted or upgraded.
