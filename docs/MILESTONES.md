@@ -14,7 +14,7 @@ Validation: activity reducer tests, database migration/replay tests, TypeScript 
 2. **Read-only code viewer:** file tabs with syntax highlighting, line numbers, search, and bounded reads. Handle binary, large, missing, and non-UTF-8 files explicitly. Open tool-reported locations only after root validation; require an explicit choice for files outside the project. No save/edit commands.
 3. **Diff viewer:** unified/side-by-side read-only comparison of ACP diff content and explicitly requested local Git changes. Distinguish provider-proposed changes from filesystem changes, mark stale snapshots, and link validated paths back to the code viewer. No apply, stage, or revert actions.
 
-Use the existing single window: collapsible project sidebar, conversation area, and a resizable inspection area; retain per-session project context in split panes. Test containment and symlink escapes, large/binary files, line navigation, diff additions/deletions, and independent pane selection before committing this milestone.
+Use the existing single window: separate collapsible project panel alongside the conversation area, and a resizable inspection area; retain the conversation/provider rail for history and follow the focused conversation’s project in split panes. Test containment and symlink escapes, large/binary files, line navigation, diff additions/deletions, and independent pane selection before committing this milestone.
 
 ## Remaining original v0.1 scope
 
@@ -244,3 +244,27 @@ Expand to access rename/delete controls. Help describes the updated controls.
 
 Validation: frontend tests, TypeScript and production build pass. Native visual
 verification remains a hands-on Development check; Stable is unchanged.
+
+
+## Preparation for repository inspection
+
+Provider startup, channel loading, legacy import and settings persistence now live
+in useProviders. WorkspaceLayout owns pane rendering and divider sizing; App keeps
+navigation and draft state. Existing provider, draft and permission behavior is
+preserved. CSS is formatted into named sections with its original rule order and
+cascade unchanged.
+
+New session's accessible label includes the selected provider. Conversation
+headers show separate wrapping Provider, Status, Agent and Model fields, with a
+wrapping project path. Resume errors include the unavailable original path and
+explain restoring it or starting a new session at a relocated project; changing
+provider settings does not relocate saved conversations.
+
+The planned file browser will use a separate collapsible project panel, following
+the focused conversation's root. The existing conversation rail retains history
+and provider controls. The project browser itself remains a future milestone.
+
+Validation: frontend tests, TypeScript/production build, offline Cargo check and
+all 18 Rust tests, plus six Python installer tests pass. Existing CSS rule order
+and contents were compared mechanically. Development launch completed; native
+visual checks remain manual. Stable was not restarted or upgraded.

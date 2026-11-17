@@ -15,7 +15,13 @@ export function SessionPane({session:s, onPermission, onCancel, onResume, resume
   const turns=useMemo(()=>conversationTurns(s.items,s.busy),[s.items,s.busy]);
   return <article>
     <div className="pane-title"><strong>{chatTitle(s)}</strong>
-      <small>{s.provider} · {s.resuming ? 'Reconnecting…' : s.live ? 'Connected' : 'Saved history'}{activeAgent?` · ${activeAgent}`:''}{activeModel?` · Model: ${activeModel}`:''}</small><small>{s.cwd}</small>
+      <div className="session-status">
+        <small><span className="status-label">Provider:</span> {s.provider}</small>
+        <small><span className="status-label">Status:</span> {s.resuming ? 'Reconnecting…' : s.live ? 'Connected' : 'Saved history'}</small>
+        {activeAgent&&<small><span className="status-label">Agent:</span> {activeAgent}</small>}
+        {activeModel&&<small><span className="status-label">Model:</span> {activeModel}</small>}
+      </div>
+      <small className="session-project">{s.cwd}</small>
     </div>
     <div className="messages">{turns.map(turn=><section className="chat-turn" key={turn.key}>
       {turn.question!==null&&<div className="message user"><div className="message-heading"><label>You</label><CopyButton text={turn.question} label="Copy question"/></div><div>{turn.question}</div></div>}

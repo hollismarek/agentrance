@@ -199,7 +199,7 @@ async fn resume_session(
     if !std::path::Path::new(&provider.cwd).is_absolute()
         || !std::path::Path::new(&provider.cwd).is_dir()
     {
-        return Err("The conversation's original project directory is unavailable".into());
+        return Err(format!("The conversation's original project directory '{}' is unavailable. Restore the directory at this path to continue this chat. If the project moved, update Provider settings and start a new session there; changing settings does not relocate saved conversations.", provider.cwd));
     }
     let client = acp::Client::start(app.clone(), id.clone(), &provider).await?;
     let init=client.request("initialize",json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agent-desk","version":"0.1.0"}})).await?;
