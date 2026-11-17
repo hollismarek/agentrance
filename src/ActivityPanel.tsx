@@ -1,10 +1,13 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {activityKinds, commandText, elapsed, operationOutput, reduceActivity, type ActivityEvent} from './activity';
+import {PermissionDetails} from './components/PermissionDetails';
 const labels: Record<string,string> = {pending:'Pending', running:'Running', awaiting:'Awaiting approval', completed:'Completed', failed:'Failed', interrupted:'No final result', declined:'Declined'};
 export function ActivityPanel({events, live, provider, onPermission, agentControl}: {
   events: ActivityEvent[]; live: boolean; provider: string; agentControl?: React.ReactNode;
   onPermission: (request: any, option: string | null) => Promise<void>;
 }) {
+  const scrollBody=useRef<HTMLDivElement>(null);
+  const followLatest=useRef(true);
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [sending, setSending] = useState<string[]>([]);
@@ -13,6 +16,14 @@ export function ActivityPanel({events, live, provider, onPermission, agentContro
   const operations = useMemo(() => reduceActivity(activity, live), [activity, live]);
   const awaiting = operations.reduce((n, op) => n + op.approvals.filter(a => !a.decision && !a.expired).length, 0);
   const running = operations.filter(op => op.status === 'running').length;
+  function latest(){
+    followLatest.current=true;
+    const body=scrollBody.current;
+    if(body)body.scrollTop=body.scrollHeight;
+  }
+  useLayoutEffect(()=>{
+    if(open&&followLatest.current)latest();
+  },[activity,open]);
   useEffect(() => {if (awaiting) setOpen(true)}, [awaiting]);
   useEffect(() => {
     if (!open || !operations.some(op => op.started !== undefined && ['running','awaiting','pending'].includes(op.status))) return;
@@ -26,11 +37,14 @@ export function ActivityPanel({events, live, provider, onPermission, agentContro
     finally {setSending(a => a.filter(x => x !== key))}
   }
   return <section className="activity-panel" aria-label={`${provider} activity inspector`}>
-    <div className="activity-toolbar"><button className="activity-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+    <div className="activity-toolbar"><button className="activity-toggle" aria-expanded={open} onClick={() => {followLatest.current=true;setOpen(!open)}}>
       <span>{open ? '▾' : '▸'} Activity <span className="activity-count">{operations.length}</span></span>
       <span>{awaiting > 0 && <span className="status awaiting">{awaiting} awaiting approval</span>} {running > 0 && <span className="status running">{running} running</span>}</span>
-    </button>{agentControl}</div>
-    {open && <div className="activity-body">
+    </button>{open&&<button className="activity-latest" onClick={latest}>Latest activity ↓</button>}{agentControl}</div>
+    {open && <div className="activity-body" ref={scrollBody} onScroll={e=>{
+      const body=e.currentTarget;
+      followLatest.current=body.scrollHeight-body.clientHeight-body.scrollTop<=8;
+    }}>
       {error && <p role="alert" className="error">{error}</p>}
       {!operations.length && <p className="muted">No tool activity reported yet.</p>}
       {operations.map(op => {
@@ -50,7 +64,7 @@ export function ActivityPanel({events, live, provider, onPermission, agentContro
             <small>Exit code: {output.exitCode ?? 'not reported'} · {elapsed(op, now)}</small>
             {op.approvals.map((a, i) => <div className="approval-record" key={i}>
               <h4>{a.decision ? 'Permission decision' : a.expired ? 'Past permission request' : 'Permission required'}</h4>
-              <pre>{JSON.stringify(a.params.toolCall, null, 2)}</pre>
+              <PermissionDetails params={a.params} provider={provider}/>
               {a.decision ? <p>{a.decision.optionName || (a.decision.option == null ? 'Denied / cancelled' : a.decision.option)}{a.decision.optionKind ? ` (${a.decision.optionKind})` : ''} · sent to provider</p> : a.expired ? <p className="muted">Request is no longer active.</p> : <div className="approval-buttons">{(a.params.options || []).map((o: any) => <button key={o.optionId} disabled={sending.includes(JSON.stringify(a.request))} onClick={() => decide(a.request,o.optionId)}>{o.name}<small>{o.kind}</small></button>)}<button disabled={sending.includes(JSON.stringify(a.request))} onClick={() => decide(a.request,null)}>Deny</button></div>}
             </div>)}
             <details><summary>Provider details and update history ({op.updates.length})</summary>

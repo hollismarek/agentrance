@@ -280,3 +280,26 @@ sending and keyboard behavior remain per conversation.
 Validation: frontend tests, TypeScript and production build pass. Development was
 launched for the native check; paste/wrapping and native visual sizing still need
 a hands-on check. Stable was not restarted or upgraded.
+
+
+## Readable ACP permissions and activity scrolling
+
+Permission cards now render standard ACP request snapshots as provider, optional
+tool category/status, full agent-authored description, paths, raw input and
+supported text/diff content. Missing descriptions get an explicit fallback.
+Original request JSON remains in a closed Technical details disclosure. Requests
+are not reconstructed from later updates; provider option names/IDs and explicit
+approval behavior are unchanged. No Kiro-specific metadata interpretation added.
+
+The inspector now permits flex shrinking, clips its outer bounds, and keeps a
+single list scroll area with minimum height zero and browser scroll anchoring
+disabled. Nested output blocks allow wheel scrolling to continue into the list
+at their boundary rather than trapping it. It follows new activity when already at the bottom, preserves the
+reader's position when scrolled up, and offers Latest activity to return directly
+to the bottom without reopening the inspector.
+
+Validation: frontend tests and TypeScript/production build pass. New rendering
+coverage checks full descriptions, closed raw details, sparse/malformed requests,
+paths, inputs and diffs. Development launch completed. Native scrolling under
+streaming load remains a hands-on verification; no live user conversation was
+used to force tool or permission events. Stable was not restarted or upgraded.

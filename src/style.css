@@ -54,12 +54,12 @@ footer{padding:12px}
 
 
 /* Each conversation owns its inspector; it never accepts terminal input. */
-.activity-panel{border-top:1px solid #3b4a50;background:#161f24;flex-shrink:0;max-height:48%;display:flex;flex-direction:column}
+.activity-panel{border-top:1px solid #3b4a50;background:#161f24;flex:0 1 auto;min-height:0;overflow:hidden;max-height:48%;display:flex;flex-direction:column}
 
 .activity-toggle{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;border:0;border-radius:0;text-align:left;background:#202c32;padding:5px 8px;min-height:28px;flex-shrink:0}
 
 .activity-count{color:#a7b8bd;font-size:12px;margin-left:5px}
-.activity-body{min-height:0;overflow:auto;padding:0 14px 12px}
+.activity-body{flex:1 1 auto;min-height:0;overflow:auto;overflow-anchor:none;padding:0 14px 12px}
 .activity-note{font-size:12px;color:#93a7ad}
 .operation{border:1px solid #3b4a50;border-radius:8px;margin:10px 0;overflow:hidden}
 .operation>summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px;cursor:pointer}
@@ -287,3 +287,11 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 .session-status small{margin-top:0;min-width:0;overflow-wrap:anywhere}
 .status-label{color:#b8c8cc}
 .session-project{overflow-wrap:anywhere}
+
+/* Keep the inspector body as the only list scroll area as entries grow. */
+/* Long output blocks hand wheel scrolling back to the inspector at their edge. */
+.activity-body .operation-body pre{overscroll-behavior:auto}
+.activity-latest{font-size:11px;padding:4px 7px;min-height:28px}
+.permission-location{overflow-wrap:anywhere}
+.permission-technical>summary{cursor:pointer;color:#b1c4cb;margin:10px 0}
+.permission-details .permission-description{max-height:none;overflow:visible}
