@@ -1,4 +1,4 @@
-// Agent Desk's Linux webview already uses GTK. Write only; no clipboard-read API.
+// Agentrance's Linux webview already uses GTK. Write only; no clipboard-read API.
 #[tauri::command]
 pub async fn copy_text(app: tauri::AppHandle, text: String) -> Result<(), String> {
     if text.contains('\0') {

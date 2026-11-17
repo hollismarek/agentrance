@@ -24,7 +24,7 @@ export function Sidebar({collapsed=false, onToggle, providers, selected, past, p
   const selectedProvider=providers.find(p=>p.id===selected);
   return <><aside id="workspace-sidebar" className={collapsed?'collapsed':undefined} aria-label="Workspace sidebar">
     <div className="sidebar-heading">
-      {!collapsed&&<h1>Agent Desk<span>LOCAL WORKSPACE</span></h1>}
+      {!collapsed&&<h1>Agentrance<span>LOCAL WORKSPACE</span></h1>}
       <button className="sidebar-toggle" aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} title={collapsed?'Expand sidebar':'Collapse sidebar'} aria-expanded={!collapsed} aria-controls="workspace-sidebar" onClick={()=>{setMenu(null);onToggle?.()}}><span aria-hidden="true">{collapsed?'»':'«'}</span></button>
     </div>
     <button className="new-session" aria-label={selectedProvider?`New session with ${selectedProvider.name}`:'New session'} title={`New session${selectedProvider?` · ${selectedProvider.name}`:''}`} disabled={starting || !providers.length} onClick={onStart}><span aria-hidden="true">＋</span>{!collapsed&&' New session'}</button>
@@ -50,7 +50,7 @@ export function Sidebar({collapsed=false, onToggle, providers, selected, past, p
     <form className="history-dialog" role="dialog" aria-modal="true" aria-labelledby="history-dialog-title" onSubmit={e => {e.preventDefault();void confirm()}}>
       <h2 id="history-dialog-title">{dialog.kind==='rename'?'Rename conversation':'Delete conversation?'}</h2>
       {dialog.kind==='rename'?<><label htmlFor="chat-title">One-line title</label><input id="chat-title" autoFocus value={title} maxLength={120} onChange={e => setTitle(e.target.value)}/></>:
-        <><p><strong>{chatTitle(dialog.chat)}</strong></p><p>This removes the conversation and activity history from Agent Desk and closes its connection. This cannot be undone. The provider’s own saved session stays with the provider.</p></>}
+        <><p><strong>{chatTitle(dialog.chat)}</strong></p><p>This removes the conversation and activity history from Agentrance and closes its connection. This cannot be undone. The provider’s own saved session stays with the provider.</p></>}
       {error && <p className="error" role="alert">{error}</p>}
       <div className="dialog-actions"><button type="button" autoFocus={dialog.kind==='delete'} disabled={working} onClick={() => setDialog(null)}>Cancel</button>
         <button className={dialog.kind==='delete'?'danger':'primary'} disabled={working||(dialog.kind==='rename'&&!title.trim())} type="submit">{working?'Saving…':dialog.kind==='rename'?'Save title':'Delete conversation'}</button>

@@ -70,7 +70,7 @@ def promote(root, binary, data, rollback=False):
 def register_dev(root, data):
     # Hidden metadata gives Wayland the correct DEV icon; npm starts the dev app.
     return desktop.install(root, root / 'src-tauri/target/debug/agent-desk', data,
-                           'local.agentdesk.app.dev', name='Agent Desk Development',
+                           'local.agentdesk.app.dev', name='Agentrance Development',
                            hidden=True, icon_dir=root / 'src-tauri/icons/dev')
 
 

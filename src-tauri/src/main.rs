@@ -477,5 +477,5 @@ fn main() {
             rename_session
         ])
         .run(context)
-        .expect("Agent Desk failed");
+        .expect("Agentrance failed");
 }

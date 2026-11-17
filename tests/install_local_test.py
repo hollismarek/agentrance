@@ -64,7 +64,7 @@ class StableInstallTests(unittest.TestCase):
             for name in ('32x32.png','128x128.png','icon.png'):(icons/name).write_text('dev')
             installer.register_dev(root,data)
             entry=(data / 'applications/local.agentdesk.app.dev.desktop').read_text()
-            self.assertIn('Name=Agent Desk Development',entry)
+            self.assertIn('Name=Agentrance Development',entry)
             self.assertIn('NoDisplay=true',entry)
             self.assertIn('Icon=local.agentdesk.app.dev',entry)
             self.assertEqual(stable.read_text(),before)

@@ -44,4 +44,4 @@ function App() {
     {settings && <ProviderSettings providers={providers} onSave={async providers=>{await save(providers);setSettings(false)}} onClose={() => setSettings(false)}/>}
   </div>;
 }
-createRoot(document.getElementById('root')!).render(<ErrorBoundary label="Agent Desk"><App/></ErrorBoundary>);
+createRoot(document.getElementById('root')!).render(<ErrorBoundary label="Agentrance"><App/></ErrorBoundary>);

@@ -9,7 +9,7 @@ export function useProviders(setError:(message:string)=>void) {
   const [selected,setSelected]=useState('');
   useEffect(() => {
     Promise.all([invoke<string>('app_channel'),invoke<string>('startup_directory'),invoke<string|null>('load_provider_settings')]).then(async([value,cwd,stored])=>{
-      setChannel(value);document.title=`Agent Desk — ${value}`;
+      setChannel(value);document.title=`Agentrance — ${value}`;
       let loaded=defaultProviders(cwd);
       try {
         // Only Stable may import the original shared webview configuration.

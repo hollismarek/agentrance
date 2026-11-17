@@ -1,7 +1,7 @@
-# Continuing development in Agent Desk
+# Continuing development in Agentrance
 
 Repository: `/home/hollis/Documents/Codex/agent-desk` on the current workstation.
-Use the installed Stable Agent Desk to talk to Codex. Set its provider working
+Use the installed Stable Agentrance to talk to Codex. Set its provider working
 directory to this repository. Run `npm run tauri dev` separately to test changes.
 Development restarts must not interrupt the Stable app's coding conversation.
 

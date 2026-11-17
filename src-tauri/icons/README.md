@@ -1,4 +1,4 @@
-# Agent Desk icon
+# Agentrance icon
 
 `icon-source.png` is the original artwork supplied by the user. Tauri uses PNGs
 for Linux, `icon.ico` for Windows, and `icon.icns` for macOS. `public/favicon.png`

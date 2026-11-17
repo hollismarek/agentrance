@@ -1,4 +1,4 @@
-# Agent Desk milestones
+# Agentrance milestones
 
 ## Activity inspector
 
@@ -18,7 +18,7 @@ Use the existing single window: separate collapsible project panel alongside the
 
 ## Remaining original v0.1 scope
 
-Ollama HTTP with qwen3:4b and agent-directed read-only repository exploration, polished provider/session configuration and final desktop packaging remain separate milestones. reqwest and futures-util are reserved for Ollama. Packaging is disabled during development (bundle.active=false). Agent Desk does not store provider authentication or add application telemetry.
+Ollama HTTP with qwen3:4b and agent-directed read-only repository exploration, polished provider/session configuration and final desktop packaging remain separate milestones. reqwest and futures-util are reserved for Ollama. Packaging is disabled during development (bundle.active=false). Agentrance does not store provider authentication or add application telemetry.
 
 ## UI resilience and configuration follow-up
 
@@ -40,7 +40,7 @@ Validation: scripted ACP subprocess tests cover load/resume capability negotiati
 
 ## History labels and cleanup
 
-History entries, open tabs, and conversation headers now use a one-line preview of the first user prompt instead of Agent Desk's internal UUID. Titles are derived locally for existing chats too, without sending content to a model. Entries show provider, project, and last recorded activity, and are ordered by that activity. The per-entry options button offers Rename (a persistent custom title) and Delete chat.
+History entries, open tabs, and conversation headers now use a one-line preview of the first user prompt instead of Agentrance's internal UUID. Titles are derived locally for existing chats too, without sending content to a model. Entries show provider, project, and last recorded activity, and are ordered by that activity. The per-entry options button offers Rename (a persistent custom title) and Delete chat.
 
 Deletion requires confirmation in the app, removes the local session and activity rows in a single SQLite transaction, and closes any idle connection. Running or reconnecting conversations cannot be deleted until stopped/finished. The provider's independently saved session is not deleted. Late provider notifications and in-flight UI refreshes cannot repopulate a deleted local conversation. Closing a tab still only closes its connection; it keeps history.
 
@@ -318,3 +318,19 @@ bottom; scrolling above continues to preserve the reader's position.
 Validation: frontend tests, TypeScript and production build pass. Development
 launch completed; native expanded sizing on short/stacked windows remains a
 hands-on check. Stable was not restarted or upgraded.
+
+## Public name: Agentrance
+
+The product is now called Agentrance. Sidebar branding, Help, dialogs, runtime
+errors, HTML/native window titles, packaging product names, generated Stable and
+Development desktop-entry names, and current documentation use the new name.
+Internal package/executable names, ACP client name, application identifiers,
+release directories and app-data locations retain their existing values. No
+history/settings migration or credential copying is needed. Existing installed
+Stable snapshots are unchanged until explicitly upgraded.
+
+Validation: frontend tests, TypeScript/production build, offline Cargo check,
+18 Rust tests and six Python installer tests pass. Channel and desktop-entry
+checks verify the new display names with the existing native identifiers.
+Development launch was checked; Stable was not restarted or upgraded. Native
+packaging on Windows/macOS remains unverified on this Linux workstation.

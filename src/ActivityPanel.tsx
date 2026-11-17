@@ -61,7 +61,7 @@ export function ActivityPanel({events, live, provider, onPermission, agentContro
             {output.text && <><h5>Tool output · stream not identified by provider</h5><pre>{output.text}</pre></>}
             {output.stdout === undefined && output.stderr === undefined && <p className="muted">Raw stdout/stderr not exposed by provider.</p>}
             {!output.text && output.raw == null && <p className="muted">No output reported{['running','pending','awaiting'].includes(op.status) ? ' yet' : ''}.</p>}
-            {output.terminals.length > 0 && <p className="muted">Provider referenced terminal {output.terminals.join(', ')}. Terminal output is unavailable; Agent Desk does not offer a terminal execution capability.</p>}
+            {output.terminals.length > 0 && <p className="muted">Provider referenced terminal {output.terminals.join(', ')}. Terminal output is unavailable; Agentrance does not offer a terminal execution capability.</p>}
             <small>Exit code: {output.exitCode ?? 'not reported'} · {elapsed(op, now)}</small>
             {op.approvals.map((a, i) => <div className="approval-record" key={i}>
               <h4>{a.decision ? 'Permission decision' : a.expired ? 'Past permission request' : 'Permission required'}</h4>

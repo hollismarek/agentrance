@@ -30,6 +30,7 @@ class DesktopIntegrationTests(unittest.TestCase):
             self.assertEqual(len(paths), 4)
             launcher = data / 'applications/local.agentdesk.app.desktop'
             text = launcher.read_text()
+            self.assertIn('Name=Agentrance\n', text)
             self.assertIn('Icon=local.agentdesk.app\n', text)
             self.assertIn('StartupWMClass=local.agentdesk.app\n', text)
             self.assertIn(f'Exec="{binary}"\n', text)

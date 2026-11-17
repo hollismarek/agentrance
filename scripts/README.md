@@ -1,13 +1,13 @@
 # Stable and development builds
 
 The application remains cross-platform. Debug builds automatically use the
-`local.agentdesk.app.dev` identity, **Agent Desk — Development** window title and
+`local.agentdesk.app.dev` identity, **Agentrance — Development** window title and
 DEV icon. Release builds retain `local.agentdesk.app`. Both may run at once.
 Tauri derives each app's data directory from its identity. SQLite history and
 provider settings (`providers.json`) live there, so channel separation works
 independently of platform webview behavior. Existing history under the
 original identity belongs to Stable. Provider CLI authentication remains with
-the provider and can be shared; do not copy credentials into Agent Desk.
+the provider and can be shared; do not copy credentials into Agentrance.
 
 ## Develop on any supported desktop platform
 
@@ -51,7 +51,7 @@ python3 scripts/install-local.py --install
 Preview is read-only. Installation copies the executable and its icons into an
 immutable, content-addressed folder under
 `~/.local/share/agent-desk/releases` (or `$XDG_DATA_HOME/agent-desk/releases`).
-The **Agent Desk** application-menu launcher points at that copy, not at the
+The **Agentrance** application-menu launcher points at that copy, not at the
 checkout. It remains usable if the checkout is rebuilt or moved. The helper
 records the current and previous snapshot in `agent-desk/install.json`; installing
 the same build again preserves the rollback target. No snapshots are deleted.
@@ -77,3 +77,10 @@ the source checkout. Native CLI authentication stays external.
 `install-desktop.py` supplies the tested Linux desktop-entry utilities. Its older
 direct registration command points at a checkout binary; use `install-local.py`
 for stable snapshots instead.
+
+
+The public product name is **Agentrance** (formerly Agent Desk). Internal package
+names, executable filenames, application IDs and storage paths retain `agent-desk`
+and `local.agentdesk.app` for compatibility with existing installations. New
+builds and generated desktop entries use the new display name; an already
+installed Stable snapshot keeps its original UI until explicitly upgraded.

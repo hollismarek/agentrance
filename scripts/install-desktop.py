@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Register the built Agent Desk binary and icon in the current user's desktop.
+"""Register the built Agentrance binary and icon in the current user's desktop.
 
 Without --install, prints the proposed launcher and makes no changes.
 """
@@ -24,7 +24,7 @@ def exec_argument(value):
     return '"' + ''.join(escaped.get(c, c) for c in str(value)) + '"'
 
 
-def desktop_entry(root, binary, identifier, name="Agent Desk", hidden=False):
+def desktop_entry(root, binary, identifier, name="Agentrance", hidden=False):
     for value in (str(root), str(binary), identifier, name):
         if any(c in value for c in '\n\r\0'):
             raise ValueError('Launcher paths must not contain newlines or null characters')
@@ -38,7 +38,7 @@ def desktop_entry(root, binary, identifier, name="Agent Desk", hidden=False):
     ])
 
 
-def install(root, binary, data_dir, identifier, name="Agent Desk", hidden=False, icon_dir=None):
+def install(root, binary, data_dir, identifier, name="Agentrance", hidden=False, icon_dir=None):
     binary = binary.resolve()
     if not binary.is_file() or not os.access(binary, os.X_OK):
         raise ValueError('Build the standalone binary before installing desktop integration')
