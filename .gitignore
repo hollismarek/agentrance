@@ -3,3 +3,27 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 __pycache__/
+
+# Local settings, credentials, and app data must stay outside source control.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.sqlite
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+providers.json
+.agents/
+.codex/
+.aws/
+
+# Local OS and editor files.
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

@@ -1,6 +1,7 @@
 # Continuing development in Agentrance
 
-Repository: `/home/hollis/Documents/Codex/agent-desk` on the current workstation.
+Repository: use the root of your local clone (the checkout directory may still
+be named `agent-desk`).
 Use the installed Stable Agentrance to talk to Codex. Set its provider working
 directory to this repository. Run `npm run tauri dev` separately to test changes.
 Development restarts must not interrupt the Stable app's coding conversation.

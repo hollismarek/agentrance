@@ -18,7 +18,7 @@ Use the existing single window: separate collapsible project panel alongside the
 
 ## Remaining original v0.1 scope
 
-Ollama HTTP with qwen3:4b and agent-directed read-only repository exploration, polished provider/session configuration and final desktop packaging remain separate milestones. reqwest and futures-util are reserved for Ollama. Packaging is disabled during development (bundle.active=false). Agentrance does not store provider authentication or add application telemetry.
+Ollama HTTP with qwen3:4b and agent-directed read-only repository exploration, polished provider/session configuration and final desktop packaging remain separate milestones. reqwest and futures-util are reserved for Ollama. Native bundling is enabled; development uses the separate debug channel. Agentrance does not store provider authentication or add application telemetry.
 
 ## UI resilience and configuration follow-up
 
@@ -367,3 +367,19 @@ tests also pass with an explicitly selected Python interpreter; workflow YAML
 parses and Development launches successfully. macOS and Windows
 native compilation, clipboard/UI/provider tests and packaging remain unverified
 until those runners/machines are available. Stable was not restarted or upgraded.
+
+
+## GitHub publication preparation
+
+Added a root README covering current features, provider setup, Development,
+platform limitations, tests, packaging and local data. Expanded ignore rules for
+local settings, credentials, database files and editor/OS files, while retaining
+.env.example eligibility. The current handoff uses a clone-relative description
+instead of a workstation path. License selection remains pending.
+
+Publication review scanned 250 historical text blobs and commit messages for
+common credential patterns and found none. No tracked credential/database paths
+were found; current PNG artwork contains no text/EXIF chunks. This is a heuristic
+review. Existing author name/email and historical workstation paths remain in Git
+history; no history rewrite or push was performed. README links and ignore rules
+were checked. Application code and the installed Stable snapshot are unchanged.
