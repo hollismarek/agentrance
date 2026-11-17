@@ -84,3 +84,31 @@ names, executable filenames, application IDs and storage paths retain `agent-des
 and `local.agentdesk.app` for compatibility with existing installations. New
 builds and generated desktop entries use the new display name; an already
 installed Stable snapshot keeps its original UI until explicitly upgraded.
+
+## Platform readiness and provider setup
+
+Fresh installed builds open Provider settings with an empty project directory.
+Choose an existing absolute project folder and save before starting a session.
+Development can still suggest the repository root; existing saved configurations
+are retained. Provider settings has project fields above its advanced JSON.
+
+Use an absolute provider executable path when desktop PATH differs from your
+terminal. Bare executable names search absolute PATH entries, including a configured
+PATH override. Relative executable paths are rejected with setup guidance.
+Windows .cmd/.bat wrappers are deliberately not passed through a shell. For an
+npm-installed ACP adapter, configure the absolute `node.exe` path as `executable`
+and the adapter's JavaScript entry file as the first item in `args`, followed by
+its normal arguments. Install and authenticate each provider separately.
+
+Windows release builds hide the application's console, and provider processes
+retain piped stdio without creating a console window. Linux copying continues to
+use GTK; macOS and Windows use native text clipboard writes through arboard.
+Only the existing write command is exposed to the frontend.
+
+ACP tests require Python 3. They detect `python3` or `python`; set
+`AGENTRANCE_TEST_PYTHON` to an absolute interpreter path to choose explicitly.
+The Platform checks workflow runs frontend/Rust checks on Linux, macOS and Windows
+when pushed to GitHub. Linux desktop-installer tests only run on Linux. The
+workflow checks code; it does not publish releases or install applications.
+Native UI, CLI authentication/continuation, clipboard paste, process shutdown,
+installer upgrades and signing still require platform validation.

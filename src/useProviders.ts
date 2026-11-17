@@ -4,6 +4,7 @@ import {defaultProviders, parseProviders} from './providers';
 import type {Provider} from './types';
 
 export function useProviders(setError:(message:string)=>void) {
+  const [needsSetup,setNeedsSetup]=useState(false);
   const [channel,setChannel]=useState('');
   const [providers,setProviders]=useState<Provider[]>([]);
   const [selected,setSelected]=useState('');
@@ -16,15 +17,17 @@ export function useProviders(setError:(message:string)=>void) {
         const legacy=stored===null&&value==='Stable'?localStorage.getItem('providers'):null;
         const raw=stored??legacy;
         if(raw)loaded=parseProviders(raw);
+        else setNeedsSetup(true);
         if(legacy)await invoke('save_provider_settings',{raw:legacy});
-      } catch(e){setError(`Saved provider settings could not be loaded: ${e}. Existing saved data has been preserved; review Provider settings.`)}
+      } catch(e){setNeedsSetup(true);setError(`Saved provider settings could not be loaded: ${e}. Existing saved data has been preserved; review Provider settings.`)}
       setProviders(loaded);setSelected(loaded[0].id);
     }).catch(e=>setError(`Could not load application settings: ${e}`));
   },[]);
   async function save(providers:Provider[]) {
     await invoke('save_provider_settings',{raw:JSON.stringify(providers,null,2)});
+    setNeedsSetup(false);
     setProviders(providers);
     setSelected(providers[0].id);
   }
-  return {channel,providers,selected,setSelected,save};
+  return {channel,providers,selected,setSelected,save,needsSetup};
 }

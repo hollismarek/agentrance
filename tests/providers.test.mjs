@@ -36,3 +36,13 @@ test('connection state follows the latest lifecycle boundary after resume',async
  assert.equal(connectionIsLive([{kind:'session_closed',data:null},{kind:'connection_started',data:{}}]),true);
  assert.equal(connectionIsLive([{kind:'connection_started',data:{}},{kind:'disconnected',data:null}]),false);
 });
+
+test('fresh installed provider needs an explicit project; Windows drive and UNC settings survive JSON round trips',()=>{
+ const [fresh]=defaultProviders('');
+ assert.equal(fresh.cwd,'');
+ assert.throws(()=>parseProviders(JSON.stringify([fresh])));
+ for(const cwd of [String.raw`C:\Users\Someone\Project ü`,String.raw`\\server\share\Project`]){
+  const configured={...fresh,executable:String.raw`C:\Program Files\nodejs\node.exe`,cwd,args:[String.raw`C:\Tools\provider\index.js`]};
+  assert.deepEqual(parseProviders(JSON.stringify([configured])),[configured]);
+ }
+});

@@ -48,3 +48,10 @@ python3 tests/install_local_test.py
 Native UI interactions are checked by the user. Browser automation/downloads
 were deferred. Windows/macOS runtime and packaging still need validation on
 those operating systems. CLI processes may handle their own telemetry/networking.
+
+
+Platform preparation is implemented, not yet native-validated on macOS/Windows.
+See scripts/README.md for executable lookup, Windows npm-adapter configuration,
+first-run project setup, clipboard behavior and portable Python test selection.
+.github/workflows/check.yml will run platform checks after the repository is
+pushed to GitHub; no installers or releases are published by that workflow.

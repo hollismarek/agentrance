@@ -298,3 +298,10 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 
 /* A larger reading preset; the composer and conversation keep their own space. */
 .activity-panel.activity-expanded{max-height:60%}
+
+/* Project selection remains explicit on first launch, with advanced JSON below. */
+.settings{max-height:94vh;overflow:auto}
+.settings textarea{height:30vh;min-height:130px}
+.provider-projects{display:grid;gap:10px;margin:14px 0}
+.provider-projects label{display:block;font-size:12px}
+.provider-projects input{display:block;width:100%;margin-top:5px;padding:8px;background:#111c22;color:#e3e9e8;border:1px solid #4e6a75;border-radius:6px;font:inherit}

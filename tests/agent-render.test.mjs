@@ -16,8 +16,10 @@ import {Sidebar} from './src/components/Sidebar';
 import {Composer} from './src/components/Composer';
 import {AppMenu} from './src/components/AppMenu';
 import {PermissionDetails} from './src/components/PermissionDetails';
+import {ProviderSettings} from './src/components/ProviderSettings';
 const report={revision:1,selection:{current:'plan',choices:[{id:'plan',name:'Plan',description:'Plan before coding'}]},model:{current:'auto',choices:[{id:'auto',name:'Auto',description:'Models chosen by task',rateMultiplier:1,rateUnit:'credits'}]}};
 const session={id:'s',provider:'Kiro CLI',cwd:'/tmp/project',title:'A chat',live:true,busy:false,canResume:true,items:[{kind:'user',data:'My question',seq:1},{kind:'delta',data:'My answer',seq:2},{kind:'done',data:null,seq:3},{kind:'agent_state',data:report,seq:4}]};
+export function renderSetup(){return renderToStaticMarkup(<ProviderSettings providers={[{id:'test',name:'Test CLI',executable:'test',args:[],env:{},cwd:''}]} onSave={async()=>{}} onClose={()=>{}}/>)}
 export function renderPermission(params){return renderToStaticMarkup(<PermissionDetails params={params} provider="Generic ACP"/>)}
 export function renderDetails(topic='models'){
  return renderToStaticMarkup(<HelpDialog initialTopic={topic} sessions={[session]} onClose={()=>{}}/>);
@@ -34,7 +36,7 @@ export function render(live=true,busy=false,changing=false){
 }`},bundle:true,platform:'node',format:'cjs',write:false,logLevel:'silent'});
 const module={exports:{}};
 new Function('require','module','exports',output.outputFiles[0].text)(createRequire(import.meta.url),module,module.exports);
-const {render,renderDetails,renderSession,renderWorkspace,renderPermission}=module.exports;
+const {render,renderDetails,renderSession,renderWorkspace,renderPermission,renderSetup}=module.exports;
 test('agent selector is present beside Activity when inspector is collapsed',()=>{
  const html=render();assert.match(html,/aria-expanded="false"/);assert.doesNotMatch(html,/class="activity-body"/);
  assert.match(html,/<\/button><div class="agent-selector"/);
@@ -81,4 +83,9 @@ test('permission presentation preserves supplied input, full paths and proposed 
  const primary=html.split('<details')[0];
  assert.match(primary,/Generic ACP · Edit/);assert.match(primary,/\/project\/a.ts/);assert.match(primary,/Line 8/);
  assert.match(primary,/Tool input supplied by provider/);assert.match(primary,/Old text/);assert.match(primary,/New text/);
+});
+
+test('provider setup exposes a labeled project field and portable executable guidance',()=>{
+ const html=renderSetup();assert.match(html,/aria-label="Project directory for Test CLI"/);
+ assert.match(html,/Choose your project explicitly/);assert.match(html,/node.exe/);assert.match(html,/absolute executable path/);
 });

@@ -1,0 +1,40 @@
+name: Platform checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select Python for fake ACP providers
+        shell: bash
+        run: python -c 'import sys; print("AGENTRANCE_TEST_PYTHON=" + sys.executable)' >> "$GITHUB_ENV"
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Rust stable
+        shell: bash
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: cargo check --locked --manifest-path src-tauri/Cargo.toml
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - run: cargo check --release --locked --manifest-path src-tauri/Cargo.toml
+      - name: Linux installer tests
+        if: runner.os == 'Linux'
+        run: |
+          python tests/desktop_test.py
+          python tests/install_local_test.py

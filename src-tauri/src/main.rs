@@ -1,3 +1,6 @@
+#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
+
+mod platform;
 mod channel;
 mod settings;
 mod acp;
@@ -84,6 +87,8 @@ fn app_channel() -> &'static str {
 }
 #[tauri::command]
 fn startup_directory() -> Result<String, String> {
+    // Installed apps must ask for a project, not assume the launcher directory.
+    if !cfg!(debug_assertions) { return Ok(String::new()); }
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     // Tauri's development runner starts in src-tauri. Use the project root there.
     let project = if cwd.file_name().is_some_and(|name| name == "src-tauri")
@@ -101,12 +106,8 @@ async fn new_session(app: tauri::AppHandle, mut provider: Provider) -> Result<St
     if !cwd.is_absolute() || !cwd.is_dir() {
         return Err("Choose an existing absolute project directory in Provider settings".into());
     }
-    provider.cwd = cwd
-        .canonicalize()
-        .map_err(|e| e.to_string())?
-        .to_string_lossy()
-        .into_owned();
     let id = uuid::Uuid::new_v4().to_string();
+    provider.cwd = platform::project_directory(std::path::Path::new(&provider.cwd))?;
     let client = acp::Client::start(app.clone(), id.clone(), &provider).await?;
     let init=client.request("initialize",json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agent-desk","version":"0.1.0"}})).await?;
     if init["protocolVersion"] != 1 {
@@ -201,6 +202,7 @@ async fn resume_session(
     {
         return Err(format!("The conversation's original project directory '{}' is unavailable. Restore the directory at this path to continue this chat. If the project moved, update Provider settings and start a new session there; changing settings does not relocate saved conversations.", provider.cwd));
     }
+    provider.cwd = platform::project_directory(std::path::Path::new(&provider.cwd))?;
     let client = acp::Client::start(app.clone(), id.clone(), &provider).await?;
     let init=client.request("initialize",json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agent-desk","version":"0.1.0"}})).await?;
     if init["protocolVersion"] != 1 {

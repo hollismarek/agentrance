@@ -64,7 +64,11 @@ impl Client {
         Self::start_transport(p, Arc::new(move |kind, data| event(&app, &id, kind, data))).await
     }
     async fn start_transport(p: &Provider, emit: EventSink) -> Result<Arc<Self>, String> {
-        let mut child = Command::new(&p.executable)
+        let executable=platform::provider_executable(p)?;
+        let mut command=Command::new(executable);
+        #[cfg(windows)]
+        command.creation_flags(0x08000000); // CREATE_NO_WINDOW; stdio remains piped.
+        let mut child = command
             .args(&p.args)
             .envs(&p.env)
             .current_dir(&p.cwd)
@@ -73,7 +77,7 @@ impl Client {
             .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
-            .map_err(|e| format!("Cannot start {}: {e}", p.name))?;
+            .map_err(|e| format!("Cannot start {}: {e}. Check the executable, project directory and runtime installation in Menu → Provider settings.", p.name))?;
         let input = Arc::new(AsyncMutex::new(child.stdin.take().ok_or("No stdin")?));
         let out = child.stdout.take().ok_or("No stdout")?;
         let mut stderr = child.stderr.take().ok_or("No stderr")?;
@@ -384,6 +388,13 @@ async fn write(input: &AsyncMutex<ChildStdin>, v: Value) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn test_python() -> String {
+        if let Ok(path)=std::env::var("AGENTRANCE_TEST_PYTHON") { return path; }
+        for name in ["python3","python"] {
+            if std::process::Command::new(name).args(["-c","import sys; sys.exit(0 if sys.version_info.major == 3 else 1)"]).status().is_ok_and(|s|s.success()) { return name.into(); }
+        }
+        panic!("Install Python 3 or set AGENTRANCE_TEST_PYTHON to its absolute executable path");
+    }
     #[test]
     fn diagnostics_are_bounded_even_without_newlines() {
         let mut tail=DiagnosticTail::default();
@@ -394,7 +405,7 @@ mod tests {
     }
     #[tokio::test]
     async fn startup_exit_reports_stderr_without_tool_output() {
-        let p=Provider{id:"broken".into(),name:"Broken".into(),executable:"python3".into(),args:vec!["-u".into(),"-c".into(),"import sys; sys.stdin.readline(); sys.stderr.write('Login required: run provider login'); sys.exit(2)".into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
+        let p=Provider{id:"broken".into(),name:"Broken".into(),executable:test_python(),args:vec!["-u".into(),"-c".into(),"import sys; sys.stdin.readline(); sys.stderr.write('Login required: run provider login'); sys.exit(2)".into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
         let events=Arc::new(Mutex::new(Vec::new()));let captured=events.clone();
         let c=Client::start_transport(&p,Arc::new(move |kind,_|captured.lock().unwrap().push(kind.to_owned()))).await.unwrap();
         let error=c.request_with_timeout("initialize",json!({}),Duration::from_secs(3)).await.unwrap_err();
@@ -404,7 +415,7 @@ mod tests {
     }
     #[tokio::test]
     async fn timeout_disconnects_and_rejects_late_turns() {
-        let p=Provider{id:"timeout".into(),name:"Timeout".into(),executable:"python3".into(),args:vec!["-u".into(),"-c".into(),"import sys,time; sys.stdin.readline(); time.sleep(.15); print('{\"method\":\"session/update\",\"params\":{\"update\":{\"sessionUpdate\":\"agent_message_chunk\",\"content\":{\"text\":\"late\"}}}}'); time.sleep(1)".into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
+        let p=Provider{id:"timeout".into(),name:"Timeout".into(),executable:test_python(),args:vec!["-u".into(),"-c".into(),"import sys,time; sys.stdin.readline(); time.sleep(.15); print('{\"method\":\"session/update\",\"params\":{\"update\":{\"sessionUpdate\":\"agent_message_chunk\",\"content\":{\"text\":\"late\"}}}}'); time.sleep(1)".into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
         let events=Arc::new(Mutex::new(Vec::new()));let captured=events.clone();
         let c=Client::start_transport(&p,Arc::new(move |kind,data|captured.lock().unwrap().push((kind.to_owned(),data)))).await.unwrap();
         assert!(c.request_with_timeout("session/prompt",json!({}),Duration::from_millis(30)).await.unwrap_err().contains("timed out"));
@@ -447,7 +458,7 @@ for line in sys.stdin:
             let mut clients=Vec::new();
             for (remote,method) in [("saved-a","session/load"),("saved-b","session/resume")] {
                 let cwd=std::env::temp_dir().to_string_lossy().into_owned();
-                let p=Provider{id:remote.into(),name:"Fake ACP".into(),executable:"python3".into(),
+                let p=Provider{id:remote.into(),name:"Fake ACP".into(),executable:test_python(),
                     args:vec!["-u".into(),"-c".into(),script.into(),remote.into(),method.into(),cwd.clone()],env:HashMap::new(),cwd:cwd.clone()};
                 let events=Arc::new(Mutex::new(Vec::<(String,Value)>::new()));
                 let sink=events.clone();
@@ -499,7 +510,7 @@ for line in sys.stdin:
 "#;
             for kind in ["modes","config"]{
                 let events=Arc::new(Mutex::new(Vec::<(String,Value)>::new()));let sink=events.clone();
-                let p=Provider{id:"mock".into(),name:"Mock".into(),executable:"python3".into(),args:vec!["-u".into(),"-c".into(),script.into(),kind.into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
+                let p=Provider{id:"mock".into(),name:"Mock".into(),executable:test_python(),args:vec!["-u".into(),"-c".into(),script.into(),kind.into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
                 let c=Client::start_transport(&p,Arc::new(move|kind,data|sink.lock().unwrap().push((kind.into(),data)))).await.unwrap();
                 let setup=c.request("session/new",json!({})).await.unwrap();
                 *c.remote.lock().await="remote-agent".into();assert!(setup.is_object());
@@ -539,7 +550,7 @@ for line in sys.stdin:
  else:raise AssertionError(method)
  send({'jsonrpc':'2.0','id':m['id'],'result':result})
 "#;
-            let p=Provider{id:"mock".into(),name:"Mock".into(),executable:"python3".into(),args:vec!["-u".into(),"-c".into(),script.into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
+            let p=Provider{id:"mock".into(),name:"Mock".into(),executable:test_python(),args:vec!["-u".into(),"-c".into(),script.into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
             let c=Client::start_transport(&p,Arc::new(|_,_|{})).await.unwrap();
             c.request("session/new",json!({})).await.unwrap();*c.remote.lock().await="r".into();
             assert!(c.set_model("plan").await.is_err());

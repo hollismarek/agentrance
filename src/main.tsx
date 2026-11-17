@@ -21,7 +21,8 @@ function App() {
   const [help,setHelp]=useState<{topic:HelpTopic;sessionId?:string}|null>(null);
   const [settings,setSettings] = useState(false);
   const desk = useSessions(setError);
-  const {channel,providers,selected,setSelected,save}=useProviders(setError);
+  const {channel,providers,selected,setSelected,save,needsSetup}=useProviders(setError);
+  useEffect(()=>{if(needsSetup)setSettings(true)},[needsSetup]);
   useEffect(()=>{if(desk.panes.length)dispatch({type:'open',ids:desk.panes})},[desk.panes]);
   const sessionIds=desk.sessions.map(s=>s.id).join(',');
   useEffect(()=>{dispatch({type:'retain',ids:desk.sessions.map(s=>s.id)});setDrafts(d=>Object.fromEntries(Object.entries(d).filter(([id])=>desk.sessions.some(s=>s.id===id))))},[sessionIds]);
@@ -29,11 +30,11 @@ function App() {
   return <div className="app">
     <Sidebar collapsed={sidebarCollapsed} onToggle={()=>setSidebarCollapsed(value=>!value)} providers={providers} selected={selected} past={desk.past} panes={visible} starting={desk.starting}
       busyIds={desk.sessions.filter(s=>s.busy||s.resuming||s.changingAgent||s.changingModel).map(s=>s.id)} onRename={desk.rename} onDelete={desk.remove}
-      onStart={() => {const provider=providers.find(p => p.id === selected);if(provider)void desk.start(provider)}}
+      onStart={() => {const provider=providers.find(p => p.id === selected);if(provider){if(!provider.cwd.trim())setSettings(true);else void desk.start(provider)}}}
       onSelect={setSelected} onOpen={s => void desk.open(s)}/>
     <main>
       <header><div className="workspace-heading"><strong>Conversations {channel==='Development'&&<span className="development-badge">DEV</span>}</strong></div><div className="header-actions">
-        <button disabled={desk.starting||!providers.length} onClick={()=>setComparison(true)}>Compare…</button>
+        <button disabled={desk.starting||!providers.length} onClick={()=>{if(providers.some(p=>!p.cwd.trim()))setSettings(true);else setComparison(true)}}>Compare…</button>
         <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option></select></label><AppMenu onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
       </header>
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}

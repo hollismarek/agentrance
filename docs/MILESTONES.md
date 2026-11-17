@@ -334,3 +334,36 @@ Validation: frontend tests, TypeScript/production build, offline Cargo check,
 checks verify the new display names with the existing native identifiers.
 Development launch was checked; Stable was not restarted or upgraded. Native
 packaging on Windows/macOS remains unverified on this Linux workstation.
+
+## macOS and Windows portability preparation
+
+Native text clipboard writes are implemented for macOS/Windows with a
+target-specific arboard dependency, serialized on the UI thread through the
+existing write-only command. Linux keeps GTK. Windows release startup suppresses
+the application console and provider spawning sets CREATE_NO_WINDOW while keeping
+stdio piped. No provider permissions or authentication behavior changed.
+
+A platform helper resolves absolute executables or bare names on explicit,
+absolute PATH entries (honoring overrides), with actionable missing/non-executable
+errors. Relative executable paths and Windows batch wrappers receive explicit
+setup guidance; npm adapters can use node.exe plus their JavaScript entry file.
+Project roots use dunce canonicalization for provider-compatible Windows paths
+when safe; necessary verbatim paths remain intact. Saved roots are normalized
+for launch without rewriting history or selecting a different project.
+
+Fresh release defaults no longer assume the launcher directory is a project.
+Missing configuration opens settings, with explicit project fields plus advanced
+JSON. Empty roots route New session/Compare to settings. Development retains its
+repository suggestion; valid saved settings and Stable's legacy import remain.
+
+Fake ACP tests accept AGENTRANCE_TEST_PYTHON or detect a Python 3 interpreter.
+Added native path/executable tests and frontend setup/Windows-path coverage. A
+GitHub Actions workflow is prepared for Linux, macOS and Windows checks, without
+release publication. It has not run remotely because no remote is configured.
+
+Validation: frontend tests, TypeScript/production build, offline debug/release
+Cargo checks, 20 Rust tests and six Python installer cases pass on Linux. ACP
+tests also pass with an explicitly selected Python interpreter; workflow YAML
+parses and Development launches successfully. macOS and Windows
+native compilation, clipboard/UI/provider tests and packaging remain unverified
+until those runners/machines are available. Stable was not restarted or upgraded.
