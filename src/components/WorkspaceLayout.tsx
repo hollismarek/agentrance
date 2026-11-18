@@ -4,7 +4,7 @@ import {resumeProvider} from '../providers';
 import type {Provider} from '../types';
 import type {useSessions} from '../useSessions';
 import {initialWorkspace,workspaceReducer,paneCount} from '../workspace';
-import {editDraft,restoreDraft,type Drafts} from '../drafts';
+import {editDraft,restoreDraft,clearDraft,setAttachments,type Drafts} from '../drafts';
 import {chatTitle} from '../history';
 import {SessionPane} from './SessionPane';
 import {Composer} from './Composer';
@@ -19,6 +19,7 @@ export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDra
   setDrafts:React.Dispatch<React.SetStateAction<Drafts>>;
   onHelp:(id:string)=>void;
 }) {
+  const [fileLoading,setFileLoading]=useState<Record<string,boolean>>({});
   const [maximized,setMaximized]=useState(false);
   const count=paneCount(workspace.mode);
   const focusedPane=maximized?workspace.focus:null;
@@ -36,7 +37,7 @@ export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDra
         {paneIndices.map(p=>{
           const id=workspace.selected[p],session=desk.sessions.find(s=>s.id===id);
           const text=id?drafts[id]?.text??'':'';
-          const canSend=!!session?.live&&!session.busy&&!session.resuming&&!session.changingAgent&&!session.changingModel&&!!text.trim();
+          const canSend=!fileLoading[id??'']&&!!session?.live&&!session.busy&&!session.resuming&&!session.changingAgent&&!session.changingModel&&(!!text.trim()||!!drafts[id??'']?.attachments?.length);
           return <React.Fragment key={p}>
             {count===2&&focusedPane===null&&p===1&&<div className="pane-divider" role="separator" tabIndex={0} aria-label="Resize conversation panes" aria-orientation={workspace.mode==='rows'?'horizontal':'vertical'} aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(ratio)}
               onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);resize(e)}} onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))resize(e)}} onPointerUp={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId)}}
@@ -54,7 +55,7 @@ export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDra
                 <ErrorBoundary key={id} label={`${session.provider} conversation`}>
                   <SessionPane session={session} onHelp={()=>onHelp(id)} onModel={modelId=>void desk.setModel(id,modelId)} onAgent={agentId=>void desk.setAgent(id,agentId)} resumeAvailable={!!resumeProvider(providers,session)}
                     onResume={()=>{const provider=resumeProvider(providers,session);if(provider)void desk.resume(session,provider)}} onPermission={async(request,option)=>{await invoke('permission',{id,request,option})}} onCancel={()=>void desk.cancel(id)}>
-                    <Composer text={text} onText={value=>setDrafts(d=>editDraft(d,id,value))} canSend={canSend} label={`Message to ${session.provider}`} onSend={()=>{if(canSend){const clearedRevision=(drafts[id]?.revision??0)+1;setDrafts(d=>editDraft(d,id,''));void desk.send([id],text).then(results=>{if(!results[0])setDrafts(d=>restoreDraft(d,id,text,clearedRevision))})}}}/>
+                    <Composer onAttachmentBusy={busy=>setFileLoading(all=>{const next={...all};if(busy)next[id]=true;else delete next[id];return next})} attachments={drafts[id]?.attachments??[]} onAttachments={files=>setDrafts(d=>setAttachments(d,id,files))} text={text} onText={value=>setDrafts(d=>editDraft(d,id,value))} canSend={canSend} label={`Message to ${session.provider}`} onSend={()=>{if(canSend){const clearedRevision=(drafts[id]?.revision??0)+1;const attachments=drafts[id]?.attachments??[];setDrafts(d=>clearDraft(d,id));void desk.send([id],text,attachments).then(results=>{if(!results[0])setDrafts(d=>restoreDraft(d,id,text,clearedRevision,attachments))})}}}/>
                   </SessionPane>
                 </ErrorBoundary></>:<div className="empty"><h2>{desk.sessions.length?'Choose a conversation':'A second perspective starts here.'}</h2><p>{workspace.mode==='single'?'Start a session or open a chat from history.':'Click this pane, then start a session or open a chat from history.'}</p></div>}
             </section>

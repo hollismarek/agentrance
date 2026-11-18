@@ -41,6 +41,7 @@ pub struct Client {
     input: Arc<AsyncMutex<ChildStdin>>,
     pending: Arc<AsyncMutex<HashMap<u64, Pending>>>,
     permissions: Arc<AsyncMutex<HashMap<String, Value>>>,
+    pub prompt_caps: Mutex<Value>,
     pub remote: AsyncMutex<String>,
     pub turn: AsyncMutex<()>,
     next: AtomicU64,
@@ -108,6 +109,7 @@ impl Client {
         };
         let agents = Arc::new(Mutex::new(crate::agents::State::default()));
         let client = Arc::new(Self {
+            prompt_caps:Mutex::new(Value::Null),
             agents: agents.clone(),
             replaying: replaying.clone(),
             stopped: stopped.clone(),

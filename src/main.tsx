@@ -28,7 +28,7 @@ function App() {
   useEffect(()=>{if(needsSetup)setSettings(true)},[needsSetup]);
   useEffect(()=>{if(desk.panes.length)dispatch({type:'open',ids:desk.panes})},[desk.panes]);
   const sessionIds=desk.sessions.map(s=>s.id).join(',');
-  useEffect(()=>{dispatch({type:'retain',ids:desk.sessions.map(s=>s.id)});setDrafts(d=>Object.fromEntries(Object.entries(d).filter(([id])=>desk.sessions.some(s=>s.id===id))))},[sessionIds]);
+  useEffect(()=>{dispatch({type:'retain',ids:desk.sessions.map(s=>s.id)});setDrafts(d=>Object.fromEntries(desk.sessions.map(s=>[s.id,d[s.id]??{text:'',revision:0,attachments:[]}])))},[sessionIds]);
   const visible=workspace.selected.filter((id,p)=>id&&(p<paneCount(workspace.mode))) as string[];
   return <div className="app">
     <Sidebar collapsed={sidebarCollapsed} onToggle={()=>setSidebarCollapsed(value=>!value)} providers={providers} selected={selected} past={desk.past} panes={visible} starting={desk.starting}

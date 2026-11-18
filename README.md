@@ -33,7 +33,9 @@ implemented.
   the provider's saved-session capabilities.
 - Activity inspection with reported tool input/output, elapsed time, readable
   permission cards, and an expanded reading preset.
-- Explicit permission decisions; historical requests cannot be approved.
+- Active approvals directly above the composer; historical requests cannot be approved.
+- Per-conversation image/file attachments with a removable thumbnail strip; image
+  and binary input depend on advertised provider capabilities.
 - Agent and model selection from provider-advertised choices.
 - Copy question, answer, or Q&A; collapsible sidebar; integrated Help.
 - Separate Stable and Development identities, history, and provider settings.

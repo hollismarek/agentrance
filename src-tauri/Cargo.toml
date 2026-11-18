@@ -14,6 +14,7 @@ uuid = { version = "1", features = ["v4"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 futures-util = "0.3"
 dunce = "1.0.5"
+base64 = "0.22"
 
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 arboard = { version = "3.6", default-features = false }

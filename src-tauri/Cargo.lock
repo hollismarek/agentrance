@@ -13,6 +13,7 @@ name = "agent-desk"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "base64 0.22.1",
  "dunce",
  "futures-util",
  "gtk",

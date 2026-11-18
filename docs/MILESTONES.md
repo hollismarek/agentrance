@@ -532,3 +532,36 @@ Validation: all 11 frontend test files and the production build pass. Regression
 coverage exercises repeated unsaved attempts, comparison submission, startup
 loading and the saved-configuration path. Development launch testing is used;
 Stable remains untouched.
+
+## Direct approvals and prompt attachments
+
+Active permission requests now appear in an always-visible, independently
+scrollable approval area above the composer, outside Activity and tool-details
+collapsers. Provider-supplied options remain explicit per-request decisions;
+resolved/expired requests remain in the inspector. Similar requests from multiple
+providers are not silently combined. A future explicitly selected multi-request
+response could consolidate clicks while retaining each provider's scope.
+
+Conversation composers have an Attach files plus button using the webview's
+user-initiated file picker. A removable image/file strip appears only when files
+are present. Draft attachments belong to the session across layout/tab changes,
+are cleared with a successful send, and restore on failure only if no newer draft
+edits superseded them. Sending is disabled while file reads are pending. Limits:
+eight files, 5 MB each, 15 MB total. Attachments are in-memory; history records
+filenames, not original attachment bytes. Comparison-dialog attachments are not
+included in this first pass.
+
+Rust validates encoded data, metadata/count/size limits and the current
+connection's advertised prompt capabilities before recording/sending the prompt.
+PNG/JPEG/WebP/GIF use ACP image blocks only with image capability. UTF-8 text
+files use labeled text blocks. PDFs/binary files require embeddedContext and use
+embedded resources. Unsupported inputs report an error rather than omission.
+Binary resource acceptance does not guarantee a provider understands its format.
+No arbitrary-path read command, provider authentication or approval-policy change
+was introduced. Shared approvals remain a design discussion.
+
+Validation: frontend tests/build and Rust tests pass, with coverage for directly
+visible pending approvals, historical approval suppression, attachment isolation,
+failed-send restoration, text blocks and rejected image/invalid data. Development
+launch and native file-picker/real-provider image tests remain hands-on checks.
+Stable is not restarted or upgraded.

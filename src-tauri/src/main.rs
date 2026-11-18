@@ -2,6 +2,7 @@
 
 mod platform;
 mod discovery;
+mod attachments;
 mod channel;
 mod settings;
 mod acp;
@@ -121,6 +122,7 @@ async fn new_session(app: tauri::AppHandle, mut provider: Provider) -> Result<St
     provider.cwd = platform::project_directory(std::path::Path::new(&provider.cwd))?;
     let client = acp::Client::start(app.clone(), id.clone(), &provider).await?;
     let init=client.request("initialize",json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agent-desk","version":"0.1.0"}})).await?;
+    *client.prompt_caps.lock().map_err(|e|e.to_string())?=init["agentCapabilities"]["promptCapabilities"].clone();
     if init["protocolVersion"] != 1 {
         return Err("Provider did not negotiate ACP v1".into());
     }
@@ -216,6 +218,7 @@ async fn resume_session(
     provider.cwd = platform::project_directory(std::path::Path::new(&provider.cwd))?;
     let client = acp::Client::start(app.clone(), id.clone(), &provider).await?;
     let init=client.request("initialize",json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agent-desk","version":"0.1.0"}})).await?;
+    *client.prompt_caps.lock().map_err(|e|e.to_string())?=init["agentCapabilities"]["promptCapabilities"].clone();
     if init["protocolVersion"] != 1 {
         return Err("Provider did not negotiate ACP v1".into());
     }
@@ -287,7 +290,7 @@ async fn set_model(app: tauri::AppHandle, id: String, model_id: String) -> Resul
     Ok(())
 }
 #[tauri::command]
-async fn prompt(app: tauri::AppHandle, id: String, text: String) -> Result<(), String> {
+async fn prompt(app: tauri::AppHandle, id: String, text: String, attachments: Option<Vec<attachments::Attachment>>) -> Result<(), String> {
     let client = app
         .state::<AppState>()
         .clients
@@ -301,12 +304,16 @@ async fn prompt(app: tauri::AppHandle, id: String, text: String) -> Result<(), S
         .try_lock()
         .map_err(|_| "A response is already running")?;
     if !client.is_connected() { return Err("Provider disconnected; continue the conversation to reconnect".into()); }
-    event(&app, &id, "user", json!(text));
+    let files=attachments.unwrap_or_default();
+    let caps=client.prompt_caps.lock().map_err(|e|e.to_string())?.clone();
+    let blocks=attachments::prompt(&text,&files,&caps)?;
+    let display=if files.is_empty(){text.clone()}else{format!("{}\n\nAttached: {}",text,files.iter().map(|f|f.name.as_str()).collect::<Vec<_>>().join(", "))};
+    event(&app, &id, "user", json!(display));
     let remote = client.remote.lock().await.clone();
     let result = client
         .request(
             "session/prompt",
-            json!({"sessionId":remote,"prompt":[{"type":"text","text":text}]}),
+            json!({"sessionId":remote,"prompt":blocks}),
         )
         .await;
     // Closing/reconnecting may replace this process while a prompt unwinds.

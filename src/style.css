@@ -364,3 +364,18 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 html,body,#root{overflow:clip}
 .app,main,.workspace-frame{overflow:clip}
 .workspace-pane,.workspace-pane article,.workspace.single{overflow:clip}
+
+.pending-approvals{flex:0 1 auto;min-height:70px;max-height:38%;overflow:auto;overscroll-behavior:contain;padding:8px 14px;border-top:2px solid var(--warning-border);background:var(--approval-bg)}
+.pending-approvals>h4{margin:0 0 6px}
+.pending-approvals .approval-record{margin:6px 0}
+.pending-approvals pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}
+.pending-approvals .permission-technical pre{max-height:180px;overflow:auto}
+.workspace footer{display:flex;flex-direction:column}
+.attachment-picker{order:-1;flex:none}
+.attachment-strip{display:flex;gap:8px;overflow:auto;padding:6px 0}
+.attachment{display:flex;align-items:center;gap:5px;flex:none;max-width:200px;border:1px solid var(--border);border-radius:6px;padding:4px;background:var(--control)}
+.attachment img{width:42px;height:42px;object-fit:contain}
+.attachment>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.attachment button,.attachment-controls button{padding:3px 8px}
+.attachment-controls{display:flex;gap:8px;align-items:center;margin:0 0 5px}
+.workspace footer>.attachment-picker{display:block;margin:0}

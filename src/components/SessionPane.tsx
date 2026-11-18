@@ -1,4 +1,5 @@
 import React,{useMemo} from 'react';
+import {PendingApprovals} from './PendingApprovals';
 import {ActivityPanel} from '../ActivityPanel';
 import {conversationTurns,questionAndAnswer} from '../conversation';
 import {CopyButton} from './CopyButton';
@@ -39,6 +40,7 @@ export function SessionPane({session:s, onPermission, onCancel, onResume, resume
         <small>{!resumeAvailable?'Original provider unavailable. Open Menu → Settings.':''}</small></> :
         <small>Saved chat only — no provider session ID was recorded.</small>}
     </div>}
+    <PendingApprovals events={s.items} live={s.live} provider={s.provider} onPermission={onPermission}/>
     {children}
   </article>;
 }

@@ -28,6 +28,10 @@ export function renderFourPanes(){
  return renderToStaticMarkup(<WorkspaceLayout workspace={workspace} dispatch={()=>{}} desk={desk} providers={[]} drafts={{a:{text:'First draft',revision:1},d:{text:'Fourth draft',revision:1}}} setDrafts={()=>{}} onHelp={()=>{}}/>);
 }
 export function renderLoadingMenu(){return renderToStaticMarkup(<AppMenu settingsReady={false} onSettings={()=>{}} onHelp={()=>{}}/>)}
+export function renderPending(live=true){
+ const s={...session,live,items:[{kind:'permission',data:{request:8,params:{toolCall:{toolCallId:'approval',title:'Read project'},options:[{optionId:'yes',kind:'allow_once',name:'Allow once'}]}}}]};
+ return renderToStaticMarkup(<SessionPane session={s} onHelp={()=>{}} onAgent={()=>{}} onModel={()=>{}} onPermission={async()=>{}} onCancel={()=>{}} onResume={()=>{}} resumeAvailable={true}/>);
+}
 export function renderSetup(){return renderToStaticMarkup(<ProviderSettings providers={[{id:'test',name:'Test CLI',executable:'test',args:['one argument with spaces','--flag'],env:{PATH:'/configured/bin'},cwd:''}]} onSave={async()=>{}} onClose={()=>{}}/>)}
 export function renderPermission(params){return renderToStaticMarkup(<PermissionDetails params={params} provider="Generic ACP"/>)}
 export function renderDetails(topic='models'){
@@ -45,7 +49,7 @@ export function render(live=true,busy=false,changing=false){
 }`},bundle:true,platform:'node',format:'cjs',write:false,logLevel:'silent'});
 const module={exports:{}};
 new Function('require','module','exports',output.outputFiles[0].text)(createRequire(import.meta.url),module,module.exports);
-const {render,renderDetails,renderSession,renderWorkspace,renderPermission,renderSetup,renderFourPanes,renderLoadingMenu}=module.exports;
+const {render,renderDetails,renderSession,renderWorkspace,renderPermission,renderSetup,renderFourPanes,renderLoadingMenu,renderPending}=module.exports;
 test('agent selector is present beside Activity when inspector is collapsed',()=>{
  const html=render();assert.match(html,/aria-expanded="false"/);assert.doesNotMatch(html,/class="activity-body"/);
  assert.match(html,/<\/button><div class="agent-selector"/);
@@ -131,4 +135,9 @@ test('Help uses current Settings and Appearance navigation',()=>{
  const html=renderDetails('start');
  assert.match(html,/Menu → Settings → Appearance/);assert.match(html,/Menu → Settings/);
  assert.doesNotMatch(html,/Menu → Provider settings|Menu → Appearance/);
+});
+
+test('active approvals remain actionable with Activity collapsed, but saved requests cannot approve',()=>{
+ const html=renderPending();assert.match(html,/pending-approvals/);assert.match(html,/Allow once/);assert.doesNotMatch(html,/class="activity-body"/);
+ assert.doesNotMatch(renderPending(false),/pending-approvals/);
 });

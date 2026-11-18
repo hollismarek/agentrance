@@ -25,7 +25,7 @@ export function ActivityPanel({events, live, provider, onPermission, agentContro
   useLayoutEffect(()=>{
     if(open&&followLatest.current)latest();
   },[activity,open,expanded]);
-  useEffect(() => {if (awaiting) setOpen(true)}, [awaiting]);
+  // Active approvals are presented outside the collapsible inspector.
   useEffect(() => {
     if (!open || !operations.some(op => op.started !== undefined && ['running','awaiting','pending'].includes(op.status))) return;
     const timer = setInterval(() => setNow(Date.now()), 250);
@@ -63,7 +63,7 @@ export function ActivityPanel({events, live, provider, onPermission, agentContro
             {!output.text && output.raw == null && <p className="muted">No output reported{['running','pending','awaiting'].includes(op.status) ? ' yet' : ''}.</p>}
             {output.terminals.length > 0 && <p className="muted">Provider referenced terminal {output.terminals.join(', ')}. Terminal output is unavailable; Agentrance does not offer a terminal execution capability.</p>}
             <small>Exit code: {output.exitCode ?? 'not reported'} · {elapsed(op, now)}</small>
-            {op.approvals.map((a, i) => <div className="approval-record" key={i}>
+            {op.approvals.filter(a=>a.decision||a.expired).map((a, i) => <div className="approval-record" key={i}>
               <h4>{a.decision ? 'Permission decision' : a.expired ? 'Past permission request' : 'Permission required'}</h4>
               <PermissionDetails params={a.params} provider={provider}/>
               {a.decision ? <p>{a.decision.optionName || (a.decision.option == null ? 'Denied / cancelled' : a.decision.option)}{a.decision.optionKind ? ` (${a.decision.optionKind})` : ''} · sent to provider</p> : a.expired ? <p className="muted">Request is no longer active.</p> : <div className="approval-buttons">{(a.params.options || []).map((o: any) => <button key={o.optionId} disabled={sending.includes(JSON.stringify(a.request))} onClick={() => decide(a.request,o.optionId)}>{o.name}<small>{o.kind}</small></button>)}<button disabled={sending.includes(JSON.stringify(a.request))} onClick={() => decide(a.request,null)}>Deny</button></div>}

@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
+import type {Attachment} from './attachments';
 import type {ActivityEvent} from './activity';
 import {mergeEvents,connectionIsLive} from './sessionEvents';
 import type {Provider, SavedSession, Session} from './types';
@@ -56,11 +57,11 @@ export function useSessions(onError: (message:string) => void) {
     setStarting(true);
     try{setPanes([await fresh(provider)])}catch(e){onError(String(e))}finally{setStarting(false)}
   }
-  async function send(ids:string[],text:string) {
-    if (!text.trim()) return [];
+  async function send(ids:string[],text:string,attachments:Attachment[]=[]) {
+    if (!text.trim()&&!attachments.length) return [];
     return Promise.all(ids.map(async id => {
       setSessions(a => a.map(s => s.id === id ? {...s,busy:true} : s));
-      try {await invoke('prompt',{id,text});return true}
+      try {await invoke('prompt',{id,text,attachments});return true}
       catch(e){onError(String(e));setSessions(a => a.map(s => s.id === id ? {...s,busy:false} : s));return false}
     }));
   }
