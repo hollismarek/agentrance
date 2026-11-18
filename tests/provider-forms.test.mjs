@@ -19,9 +19,16 @@ test('duplicate environment names and invalid provider fields fail before persis
 });
 test('adding presets or discoveries allocates new IDs without replacing saved settings',()=>{
  const detected=providerPreset('kiro');const copy=uniqueProvider(detected,[{id:'kiro'},{id:'kiro-2'}],'/chosen');
- assert.equal(copy.id,'kiro-3');assert.equal(copy.cwd,'/chosen');assert.equal(detected.cwd,'');
+ assert.ok(!['kiro','kiro-2'].includes(copy.id));assert.equal(copy.cwd,'/chosen');assert.equal(detected.cwd,'');
  assert.equal(providerIsConfigured(copy,[toProviderForm(detected)]),true);
  assert.equal(providerPreset('codex').executable,'codex-acp');
  assert.deepEqual(providerPreset('kiro').args,['acp','--agent-engine=v3']);
  assert.equal(providerPreset('custom').executable,'');
+});
+
+test('removed configurations cannot donate their identity to a different backend',()=>{
+ const old=uniqueProvider(providerPreset('custom'),[],'/old-project');
+ const replacement=uniqueProvider({...providerPreset('custom'),executable:'/different-backend'},[],'/new-project');
+ assert.notEqual(old.id,replacement.id);
+ assert.equal(toProviderForm(old).id,old.id);
 });

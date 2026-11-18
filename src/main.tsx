@@ -22,7 +22,7 @@ function App() {
   const [help,setHelp]=useState<{topic:HelpTopic;sessionId?:string}|null>(null);
   const [settings,setSettings] = useState(false);
   const desk = useSessions(setError);
-  const {channel,providers,selected,setSelected,save,needsSetup,detected,detecting,discoveryError,discover}=useProviders(setError);
+  const {ready,channel,providers,selected,setSelected,save,needsSetup,detected,detecting,discoveryError,discover}=useProviders(setError);
   const theme=useTheme(channel);
   useEffect(()=>{if(needsSetup)setSettings(true)},[needsSetup]);
   useEffect(()=>{if(desk.panes.length)dispatch({type:'open',ids:desk.panes})},[desk.panes]);
@@ -37,14 +37,14 @@ function App() {
     <main>
       <header><div className="workspace-heading"><strong>Conversations {channel==='Development'&&<span className="development-badge">DEV</span>}</strong></div><div className="header-actions">
         <button disabled={desk.starting||!providers.length} onClick={()=>{if(providers.some(p=>!p.cwd.trim()))setSettings(true);else setComparison(true)}}>Compare…</button>
-        <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option><option value="three">Three panes</option><option value="grid">Four panes (grid)</option></select></label><AppMenu onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
+        <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option><option value="three">Three panes</option><option value="grid">Four panes (grid)</option></select></label><AppMenu settingsReady={ready} onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
       </header>
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
       <WorkspaceLayout workspace={workspace} dispatch={dispatch} desk={desk} providers={providers} drafts={drafts} setDrafts={setDrafts} onHelp={id=>setHelp({topic:'models',sessionId:id})}/>
     </main>
     {comparison&&<CompareDialog providers={providers} onClose={()=>setComparison(false)} onCompare={text=>{setComparison(false);void desk.compare(providers,text)}}/>}
     {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={desk.sessions} onClose={()=>setHelp(null)}/>}
-    {settings && <ProviderSettings providers={providers} detected={detected} detecting={detecting} discoveryError={discoveryError} onDiscover={discover} theme={theme.preference} onTheme={theme.choose} onSave={async providers=>{await save(providers);setSettings(false)}} onClose={() => setSettings(false)}/>}
+    {settings && ready && <ProviderSettings providers={providers} detected={detected} detecting={detecting} discoveryError={discoveryError} onDiscover={discover} theme={theme.preference} onTheme={theme.choose} onSave={async providers=>{await save(providers);setSettings(false)}} onClose={() => setSettings(false)}/>}
   </div>;
 }
 createRoot(document.getElementById('root')!).render(<ErrorBoundary label="Agentrance"><App/></ErrorBoundary>);

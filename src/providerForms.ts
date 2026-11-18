@@ -19,8 +19,8 @@ export function providersFromForms(forms:ProviderForm[]):Provider[]{
   return parseProviders(JSON.stringify(values));
 }
 export function uniqueProvider(p:Provider,existing:{id:string}[],cwd:string):Provider{
-  let id=p.id;let suffix=2;
-  while(existing.some(value=>value.id===id))id=`${p.id}-${suffix++}`;
+  let id:string;
+  do{id=`${p.id}-${crypto.randomUUID()}`}while(existing.some(value=>value.id===id));
   return {...p,id,args:[...p.args],env:{...p.env},cwd};
 }
 export function providerIsConfigured(candidate:Provider,providers:ProviderForm[]):boolean{

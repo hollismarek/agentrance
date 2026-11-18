@@ -1,9 +1,11 @@
 import {useCallback,useEffect, useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {defaultProviders, parseProviders} from './providers';
+import {uniqueProvider} from './providerForms';
 import type {Provider} from './types';
 
 export function useProviders(setError:(message:string)=>void) {
+  const [ready,setReady]=useState(false);
   const [detected,setDetected]=useState<Provider[]>([]);
   const [detecting,setDetecting]=useState(false);
   const [discoveryError,setDiscoveryError]=useState('');
@@ -21,16 +23,16 @@ export function useProviders(setError:(message:string)=>void) {
     const scan=discover();
     Promise.all([invoke<string>('app_channel'),invoke<string>('startup_directory'),invoke<string|null>('load_provider_settings')]).then(async([value,cwd,stored])=>{
       setChannel(value);document.title=`Agentrance — ${value}`;
-      let loaded=defaultProviders(cwd);
+      let loaded=defaultProviders(cwd).map(p=>uniqueProvider(p,[],cwd));
       try {
         // Only Stable may import the original shared webview configuration.
         const legacy=stored===null&&value==='Stable'?localStorage.getItem('providers'):null;
         const raw=stored??legacy;
         if(raw)loaded=parseProviders(raw);
-        else {const found=await scan;if(found.length)loaded=found.map(p=>({...p,cwd}));setNeedsSetup(true)}
+        else {const found=await scan;if(found.length)loaded=found.map(p=>uniqueProvider(p,[],cwd));setNeedsSetup(true)}
         if(legacy)await invoke('save_provider_settings',{raw:legacy});
       } catch(e){setNeedsSetup(true);setError(`Saved provider settings could not be loaded: ${e}. Existing saved data has been preserved; review Settings.`)}
-      setProviders(loaded);setSelected(loaded[0].id);
+      setProviders(loaded);setSelected(loaded[0].id);setReady(true);
     }).catch(e=>setError(`Could not load application settings: ${e}`));
   },[]);
   async function save(providers:Provider[]) {
@@ -39,5 +41,5 @@ export function useProviders(setError:(message:string)=>void) {
     setProviders(providers);
     setSelected(current=>providers.some(p=>p.id===current)?current:providers[0].id);
   }
-  return {channel,providers,selected,setSelected,save,needsSetup,detected,detecting,discoveryError,discover};
+  return {ready,channel,providers,selected,setSelected,save,needsSetup,detected,detecting,discoveryError,discover};
 }

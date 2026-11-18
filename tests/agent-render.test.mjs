@@ -27,6 +27,7 @@ export function renderFourPanes(){
  const desk={sessions};
  return renderToStaticMarkup(<WorkspaceLayout workspace={workspace} dispatch={()=>{}} desk={desk} providers={[]} drafts={{a:{text:'First draft',revision:1},d:{text:'Fourth draft',revision:1}}} setDrafts={()=>{}} onHelp={()=>{}}/>);
 }
+export function renderLoadingMenu(){return renderToStaticMarkup(<AppMenu settingsReady={false} onSettings={()=>{}} onHelp={()=>{}}/>)}
 export function renderSetup(){return renderToStaticMarkup(<ProviderSettings providers={[{id:'test',name:'Test CLI',executable:'test',args:['one argument with spaces','--flag'],env:{PATH:'/configured/bin'},cwd:''}]} onSave={async()=>{}} onClose={()=>{}}/>)}
 export function renderPermission(params){return renderToStaticMarkup(<PermissionDetails params={params} provider="Generic ACP"/>)}
 export function renderDetails(topic='models'){
@@ -44,7 +45,7 @@ export function render(live=true,busy=false,changing=false){
 }`},bundle:true,platform:'node',format:'cjs',write:false,logLevel:'silent'});
 const module={exports:{}};
 new Function('require','module','exports',output.outputFiles[0].text)(createRequire(import.meta.url),module,module.exports);
-const {render,renderDetails,renderSession,renderWorkspace,renderPermission,renderSetup,renderFourPanes}=module.exports;
+const {render,renderDetails,renderSession,renderWorkspace,renderPermission,renderSetup,renderFourPanes,renderLoadingMenu}=module.exports;
 test('agent selector is present beside Activity when inspector is collapsed',()=>{
  const html=render();assert.match(html,/aria-expanded="false"/);assert.doesNotMatch(html,/class="activity-body"/);
  assert.match(html,/<\/button><div class="agent-selector"/);
@@ -121,4 +122,13 @@ test('provider settings offers named fields, individual arguments and environmen
  assert.match(html,/one argument with spaces/);assert.match(html,/value="PATH"/);
  assert.doesNotMatch(html,/<textarea|Provider configuration/);
  assert.match(html,/Installed providers/);assert.match(html,/Save settings/);
+});
+
+test('Settings is unavailable until initial provider configuration is ready',()=>{
+ assert.match(renderLoadingMenu(),/<button disabled="">Settings \(loading…\)<\/button>/);
+});
+test('Help uses current Settings and Appearance navigation',()=>{
+ const html=renderDetails('start');
+ assert.match(html,/Menu → Settings → Appearance/);assert.match(html,/Menu → Settings/);
+ assert.doesNotMatch(html,/Menu → Provider settings|Menu → Appearance/);
 });

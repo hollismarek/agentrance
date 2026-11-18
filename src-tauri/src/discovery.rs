@@ -279,6 +279,29 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
     #[test]
+    fn gemini_and_copilot_npm_bin_keys_and_args_are_preserved() {
+        let root =
+            std::env::temp_dir().join(format!("agentrance-npm-extra-{}", uuid::Uuid::new_v4()));
+        let bin = root.join("bin");
+        fake(&binary(&bin, "node"), "not executable code");
+        for (package, command, entry) in [
+            ("@google/gemini-cli", "gemini", "dist/index.js"),
+            ("@github/copilot", "copilot", "npm-loader.js"),
+        ] {
+            let dir = root.join("lib/node_modules").join(package);
+            fake(&dir.join(entry), "not executable code");
+            let manifest = serde_json::json!({"name":package,"bin":{command:entry}});
+            fake(&dir.join("package.json"), &manifest.to_string());
+        }
+        let found = discover_in(&[bin]);
+        assert_eq!(found.len(), 2);
+        assert!(found[0].args[0].ends_with("index.js"));
+        assert_eq!(found[0].args[1], "--acp");
+        assert!(found[1].args[0].ends_with("npm-loader.js"));
+        assert_eq!(&found[1].args[1..], ["--acp", "--stdio"]);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn npm_detection_requires_node_and_a_contained_documented_entry() {
         let root = std::env::temp_dir().join(format!("agentrance-npm-{}", uuid::Uuid::new_v4()));
         let bin = root.join("bin");

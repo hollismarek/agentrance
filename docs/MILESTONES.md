@@ -494,3 +494,25 @@ required to confirm CSS-only containment on the user's WebKit build.
 Validation: frontend tests, TypeScript/production build and all 24 Rust tests pass.
 Development launches successfully. Stable remains running unchanged. Licensing
 remains deferred by the user while the GitHub repository is private.
+
+## Multi-agent review follow-up: configuration identity and startup gating
+
+New provider configurations now receive UUID-backed IDs, including fresh detected
+setup defaults. Removing and re-adding a provider cannot recycle a prior ID and
+bind its saved remote sessions to another backend. Existing configuration IDs
+remain unchanged through editing and persistence.
+
+Settings is disabled until provider initialization completes, and the form is
+only mounted once ready. This avoids capturing an empty provider list while
+first-run discovery is pending. Saved configurations still load independently
+of background discovery. Startup failures do not expose a blank editable form.
+
+The Help navigation finding was stale: current instructions already use Menu →
+Settings and Menu → Settings → Appearance. Added regression assertions. Confirmed
+Gemini's bin key is gemini and the installed Copilot package uses copilot with
+npm-loader.js; new npm fixtures test both actual shapes and preserved ACP args.
+
+Validation: frontend tests and production build pass; all 25 Rust tests pass.
+Tests cover identity non-reuse after removal, retained existing IDs, startup menu
+gating, current Help navigation and the new npm fixtures. Native CSS-only Page
+Down verification remains manual. Stable is unchanged.
