@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 pub fn project_directory(path: &Path) -> Result<String, String> {
     if !path.is_absolute() || !path.is_dir() {
-        return Err("Choose an existing absolute project directory in Provider settings".into());
+        return Err("Choose an existing absolute project directory in Settings".into());
     }
     // dunce preserves verbatim paths when necessary, normalizing them only when safe.
     dunce::canonicalize(path)
@@ -13,7 +13,7 @@ pub fn project_directory(path: &Path) -> Result<String, String> {
         .map_err(|_| "The project path is not valid Unicode".into())
 }
 
-fn runnable(path: &Path) -> bool {
+pub(crate) fn runnable(path: &Path) -> bool {
     if !path.is_file() {
         return false;
     }
@@ -37,7 +37,7 @@ pub fn provider_executable(provider: &Provider) -> Result<PathBuf, String> {
         // Relative executable paths depend on launch CWD. Require an absolute path
         // or a bare name searched only in explicit, absolute PATH directories.
         if provider.executable.contains(['/', '\\']) {
-            return Err("Provider executable must be an absolute path or a name on PATH. Update Provider settings.".into());
+            return Err("Provider executable must be an absolute path or a name on PATH. Update Settings.".into());
         }
         let path = provider
             .env
@@ -73,7 +73,7 @@ pub fn provider_executable(provider: &Provider) -> Result<PathBuf, String> {
                 break;
             }
         }
-        found.ok_or_else(|| format!("Cannot find provider executable '{}'. Install the provider CLI, then set its absolute executable path in Menu → Provider settings. Desktop apps may have a different PATH than your terminal.",provider.executable))?
+        found.ok_or_else(|| format!("Cannot find provider executable '{}'. Install the provider CLI, then set its absolute executable path in Menu → Settings. Desktop apps may have a different PATH than your terminal.",provider.executable))?
     };
     #[cfg(windows)]
     if resolved
@@ -83,7 +83,7 @@ pub fn provider_executable(provider: &Provider) -> Result<PathBuf, String> {
         return Err("Windows .cmd/.bat wrappers are not launched through a shell. For an npm-installed provider, set executable to the absolute path to node.exe and put the provider's JavaScript entry file first in args. Native .exe providers can be configured directly.".into());
     }
     if !runnable(&resolved) {
-        return Err(format!("Provider executable '{}' is missing or not executable. Update Menu → Provider settings with an installed CLI's absolute path.",resolved.display()));
+        return Err(format!("Provider executable '{}' is missing or not executable. Update Menu → Settings with an installed CLI's absolute path.",resolved.display()));
     }
     Ok(resolved)
 }

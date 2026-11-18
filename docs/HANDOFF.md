@@ -57,3 +57,9 @@ See scripts/README.md for executable lookup, Windows npm-adapter configuration,
 first-run project setup, clipboard behavior and portable Python test selection.
 .github/workflows/check.yml will run platform checks after the repository is
 pushed to GitHub; no installers or releases are published by that workflow.
+
+Settings now uses provider forms and contains Appearance. On startup, filesystem
+metadata discovery checks for Kiro CLI and Codex ACP launchers (not plain Codex).
+Fresh configurations are prefilled; existing saved providers are retained, with
+discoveries offered as additions. No provider runs during discovery. See the
+latest milestone for search limits and native verification still needed.

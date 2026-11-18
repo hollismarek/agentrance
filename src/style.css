@@ -300,12 +300,8 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 /* A larger reading preset; the composer and conversation keep their own space. */
 .activity-panel.activity-expanded{max-height:60%}
 
-/* Project selection remains explicit on first launch, with advanced JSON below. */
+/* Settings scrolls independently of the document on smaller screens. */
 .settings{max-height:94vh;overflow:auto}
-.settings textarea{height:30vh;min-height:130px}
-.provider-projects{display:grid;gap:10px;margin:14px 0}
-.provider-projects label{display:block;font-size:12px}
-.provider-projects input{display:block;width:100%;margin-top:5px;padding:8px;background:var(--input-bg);color:var(--text);border:1px solid var(--input-border);border-radius:6px;font:inherit}
 
 /* Workspace capacity follows available logical width, including OS scaling. */
 .workspace-frame{display:flex;flex:1;min-width:0;min-height:0;container:workspace / inline-size}
@@ -317,8 +313,6 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 .pane-number{margin-right:auto;color:var(--muted);font-size:11px;white-space:nowrap}
 .pane-actions{align-items:center;gap:6px;flex-wrap:wrap}
 .pane-actions select{font-size:11px;padding:3px 6px;max-width:110px}
-.theme-choice{display:grid;gap:6px;padding:8px;color:var(--muted);font-size:12px}
-.theme-choice select{width:100%;padding:5px;font-size:13px}
 @container workspace (max-width:1150px){.workspace.three{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @container workspace (max-width:760px){.workspace.multi{grid-template-columns:minmax(0,1fr)}}
 @container workspace (max-width:900px){
@@ -331,3 +325,36 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
   .workspace .messages{padding:10px}
   .session-status{gap:0 10px}
 }
+
+/* Form-based settings; provider launch data never requires JSON editing. */
+.settings-overlay{z-index:25}
+.settings{width:min(860px,95vw)}
+.settings-heading,.provider-card-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.settings-heading h2{margin:0}
+.settings .settings-heading button,.settings .settings-row button,.settings .provider-card-heading button,.settings .dialog-actions button{margin:0}
+.settings-section{padding:16px 0;border-bottom:1px solid var(--border)}
+.settings h3{margin:0 0 12px;letter-spacing:1px}
+.settings p{line-height:1.5}
+.settings-field{display:grid;gap:6px;min-width:0;font-size:12px;color:var(--muted)}
+.settings input,.settings select{min-width:0;width:100%;font:inherit;padding:8px;border:1px solid var(--input-border);border-radius:6px;background:var(--input-bg);color:var(--text)}
+.settings select{background:#f4f4f4;color:#243238}
+.settings-field>select{max-width:260px}
+.settings input:focus-visible,.settings select:focus-visible,.settings button:focus-visible,.settings summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.provider-editor{border:0;padding:16px 0 0;margin:0;min-width:0}
+.provider-editor>legend{font-weight:650;padding-top:20px}
+.provider-card{border:1px solid var(--border);border-radius:9px;padding:16px;margin:16px 0;background:var(--bg)}
+.provider-card h4{margin:0;overflow-wrap:anywhere}
+.provider-card h5{margin:14px 0 4px}
+.provider-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.provider-project{grid-column:1/-1}
+.settings-row,.shared-project{display:flex;align-items:end;gap:8px;margin:8px 0;min-width:0}
+.settings-row>input,.shared-project>.settings-field{flex:1}
+.settings-row>button,.shared-project>button{flex:none}
+.environment-editor{margin-top:18px}
+.environment-editor>summary{cursor:pointer;color:var(--disclosure-text)}
+.detected-providers{list-style:none;margin:12px 0 0;padding:0}
+.detected-providers li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0}
+.detected-providers li>div{min-width:0}
+.detected-providers small{overflow-wrap:anywhere;margin-top:4px}
+.settings .dialog-actions{position:sticky;bottom:-28px;margin:12px -28px -28px;padding:16px 28px;background:var(--dialog);border-top:1px solid var(--border)}
+@media(max-width:700px){.provider-fields{grid-template-columns:1fr}.settings-row.environment-row{flex-wrap:wrap}.environment-row>input{flex:1 1 180px}.shared-project{flex-wrap:wrap}.shared-project>.settings-field{flex-basis:100%}.settings{padding:18px}.settings .dialog-actions{bottom:-18px;margin:12px -18px -18px;padding:14px 18px}}

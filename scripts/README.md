@@ -17,7 +17,7 @@ npm run tauri dev
 ```
 
 Run Stable for development conversations, pointed at the source repository in
-Provider settings. Run Development alongside it for testing. Editing Rust may
+Settings. Run Development alongside it for testing. Editing Rust may
 restart Development and interrupt its sessions, but it does not restart Stable.
 Unsent drafts are in-memory; finish responses and save needed text before closing
 or upgrading either app. No data is migrated between channels. Stable can import its own legacy
@@ -69,7 +69,7 @@ rollback. Conversation databases and provider settings are never copied or
 changed by the installer. Binary rollback does not roll back databases: future
 incompatible schema changes will need an explicit migration/backup plan.
 
-On first launch, review **Menu → Provider settings** and set the repository's
+On first launch, review **Menu → Settings** and set the repository's
 absolute path. Stable and Development may need separate provider configuration.
 The installed launcher starts in its release folder, so it has no dependency on
 the source checkout. Native CLI authentication stays external.
@@ -87,10 +87,14 @@ installed Stable snapshot keeps its original UI until explicitly upgraded.
 
 ## Platform readiness and provider setup
 
-Fresh installed builds open Provider settings with an empty project directory.
+Fresh installed builds open Settings with an empty project directory.
 Choose an existing absolute project folder and save before starting a session.
 Development can still suggest the repository root; existing saved configurations
-are retained. Provider settings has project fields above its advanced JSON.
+are retained. Settings uses provider forms for names, executables, project folders,
+argument lists and environment overrides; no JSON editing is required. Appearance
+settings are on the same screen. Known Kiro CLI / Codex ACP launchers are detected
+from PATH and common install locations without executing them. New setups are
+prefilled; existing configurations are retained with discoveries available to add.
 
 Use an absolute provider executable path when desktop PATH differs from your
 terminal. Bare executable names search absolute PATH entries, including a configured

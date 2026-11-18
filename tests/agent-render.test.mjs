@@ -27,7 +27,7 @@ export function renderFourPanes(){
  const desk={sessions};
  return renderToStaticMarkup(<WorkspaceLayout workspace={workspace} dispatch={()=>{}} desk={desk} providers={[]} drafts={{a:{text:'First draft',revision:1},d:{text:'Fourth draft',revision:1}}} setDrafts={()=>{}} onHelp={()=>{}}/>);
 }
-export function renderSetup(){return renderToStaticMarkup(<ProviderSettings providers={[{id:'test',name:'Test CLI',executable:'test',args:[],env:{},cwd:''}]} onSave={async()=>{}} onClose={()=>{}}/>)}
+export function renderSetup(){return renderToStaticMarkup(<ProviderSettings providers={[{id:'test',name:'Test CLI',executable:'test',args:['one argument with spaces','--flag'],env:{PATH:'/configured/bin'},cwd:''}]} onSave={async()=>{}} onClose={()=>{}}/>)}
 export function renderPermission(params){return renderToStaticMarkup(<PermissionDetails params={params} provider="Generic ACP"/>)}
 export function renderDetails(topic='models'){
  return renderToStaticMarkup(<HelpDialog initialTopic={topic} sessions={[session]} onClose={()=>{}}/>);
@@ -95,7 +95,7 @@ test('permission presentation preserves supplied input, full paths and proposed 
 
 test('provider setup exposes a labeled project field and portable executable guidance',()=>{
  const html=renderSetup();assert.match(html,/aria-label="Project directory for Test CLI"/);
- assert.match(html,/Choose your project explicitly/);assert.match(html,/node.exe/);assert.match(html,/absolute executable path/);
+ assert.match(html,/Choose an existing absolute project folder/);assert.match(html,/node.exe/);assert.match(html,/absolute executable path/);
 });
 
 test('four-pane workspace renders independent labeled composers and navigation controls',()=>{
@@ -109,7 +109,16 @@ test('four-pane workspace renders independent labeled composers and navigation c
  assert.equal((html.match(/Focus pane/g)||[]).length,4);
  assert.doesNotMatch(html,/Resize conversation panes/);
 });
-test('appearance menu exposes system, light and dark choices',()=>{
- const html=renderWorkspace();assert.match(html,/aria-label="Appearance"/);
+test('appearance belongs in Settings, while the menu only opens settings/help',()=>{
+ assert.doesNotMatch(renderWorkspace(),/aria-label="Appearance"/);
+ const html=renderSetup();assert.match(html,/aria-label="Appearance"/);
  for(const value of ['system','light','dark'])assert.match(html,new RegExp(`value="${value}"`));
+});
+
+test('provider settings offers named fields, individual arguments and environment rows without JSON',()=>{
+ const html=renderSetup();
+ for(const label of ['Display name for provider 1','Executable for provider 1','Argument 1 for provider 1','Environment name 1 for provider 1','Environment value 1 for provider 1'])assert.ok(html.includes(label),label);
+ assert.match(html,/one argument with spaces/);assert.match(html,/value="PATH"/);
+ assert.doesNotMatch(html,/<textarea|Provider configuration/);
+ assert.match(html,/Installed providers/);assert.match(html,/Save settings/);
 });

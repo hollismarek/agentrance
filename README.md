@@ -62,11 +62,23 @@ may interrupt sessions in Development.
 
 ### Configure a provider
 
-On first launch, open or complete **Menu → Provider settings**:
+On first launch, open or complete **Menu → Settings**:
 
-1. Set the executable, argument list, and optional environment overrides.
-2. Enter an existing absolute project directory in its project field.
-3. Save, select the provider in the sidebar, and choose **New session**.
+1. Review automatically detected Kiro CLI / Codex ACP launchers, or add a provider.
+2. Enter its display name, executable, and project folder in the form. Arguments
+   have separate fields; environment overrides are optional. **Use for all** can
+   apply one project folder to all providers.
+3. Save settings, select the provider in the sidebar, and choose **New session**.
+
+**Settings → Appearance** contains System, Light, and Dark. Appearance changes
+apply immediately; provider edits are saved with **Save settings**.
+
+Detection checks PATH and common install locations without running programs,
+installing adapters or signing in. Fresh setups are prefilled with detected
+launchers; existing saved providers are retained, with discoveries offered as
+additions. A plain `codex` installation is not enough: Codex uses `codex-acp`.
+Detection does not establish version compatibility or authentication; those are
+checked when a session starts.
 
 The initial Kiro configuration uses `kiro-cli` with arguments
 `["acp", "--agent-engine=v3"]`. To use another adapter, configure its installed

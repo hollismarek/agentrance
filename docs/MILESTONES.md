@@ -426,3 +426,39 @@ remains deferred. Stable was not restarted or upgraded.
 Renamed the three-pane option to Three panes, matching its responsive behavior:
 three columns on wide workspaces, fewer columns on narrow ones. Help and README
 use the same name. Layout behavior is unchanged. Production frontend build passes.
+
+
+## Form-based Settings and installed-provider discovery
+
+Menu → Settings replaces the JSON provider editor with display-name, executable,
+project-folder, individual argument and environment-row fields. A shared project
+can be applied explicitly to all providers. Saved provider IDs and exact argument
+boundaries/environment values survive editing; duplicate environment keys are
+rejected. Add/remove operations are staged until Save settings. Appearance moved
+onto this screen; its changes still apply immediately, as labelled. The modal
+supports Escape, focus trapping/restoration, and independent scrolling on small
+screens. Existing atomic channel-specific settings storage remains unchanged.
+
+Startup discovery reads filesystem metadata in PATH and common native/npm/Node
+manager locations, bounded to 256 directories and limited version/manifest reads.
+It finds Kiro CLI's V3 ACP launcher and Codex ACP adapters; plain codex is not
+mistaken for an ACP server. npm adapters use an explicit node executable plus a
+contained JavaScript bin entry read from package.json, including on Windows.
+The check runs off the UI thread, has a three-second UI timeout, and prevents
+concurrent scans. It never launches a CLI, installs software, authenticates,
+changes permission policy, or creates a conversation. Presence is not proof of
+version compatibility or login; session startup still performs negotiation.
+
+Fresh setup prefills detected providers and asks for project folders. Saved
+configurations, IDs and launch settings are not rewritten by discovery; Settings
+shows available additions and a Check again button. Manual presets/custom ACP
+configuration remain available when discovery finds nothing or times out.
+
+Validation: frontend tests, TypeScript/production build, offline Cargo check and
+22 Rust tests pass on Linux. New coverage checks form round trips/validation,
+settings-only Appearance, native launchers, plain-Codex exclusion, npm runtime
+requirements and manifest path containment without executing the fake launchers.
+A read-only probe of the actual discovery implementation found Kiro and Codex ACP
+on this workstation without launching either. Native Settings interaction and
+Windows/macOS discovery layouts remain hands-on checks. Development is used for
+launch testing; Stable is not restarted or upgraded.

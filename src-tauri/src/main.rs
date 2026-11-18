@@ -1,6 +1,7 @@
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 
 mod platform;
+mod discovery;
 mod channel;
 mod settings;
 mod acp;
@@ -82,6 +83,16 @@ fn save_provider_settings(app: tauri::AppHandle, raw: String) -> Result<(), Stri
     settings::save(&app.path().app_data_dir().map_err(|e| e.to_string())?, &raw)
 }
 #[tauri::command]
+async fn discover_providers(app: tauri::AppHandle) -> Result<Vec<Provider>,String> {
+    let home=app.path().home_dir().map_err(|e|e.to_string())?;
+    static GATE:tokio::sync::Semaphore=tokio::sync::Semaphore::const_new(1);
+    let permit=GATE.try_acquire().map_err(|_|"Provider detection is still running. You can configure providers manually.".to_string())?;
+    let scan=tauri::async_runtime::spawn_blocking(move||{let _permit=permit;discovery::discover(&home)});
+    tokio::time::timeout(std::time::Duration::from_secs(3),scan).await
+        .map_err(|_|"Provider detection timed out. Add a provider manually or check again.".to_string())?
+        .map_err(|e|e.to_string())
+}
+#[tauri::command]
 fn app_channel() -> &'static str {
     if cfg!(debug_assertions) { "Development" } else { "Stable" }
 }
@@ -104,7 +115,7 @@ fn startup_directory() -> Result<String, String> {
 async fn new_session(app: tauri::AppHandle, mut provider: Provider) -> Result<String, String> {
     let cwd = std::path::Path::new(&provider.cwd);
     if !cwd.is_absolute() || !cwd.is_dir() {
-        return Err("Choose an existing absolute project directory in Provider settings".into());
+        return Err("Choose an existing absolute project directory in Settings".into());
     }
     let id = uuid::Uuid::new_v4().to_string();
     provider.cwd = platform::project_directory(std::path::Path::new(&provider.cwd))?;
@@ -200,7 +211,7 @@ async fn resume_session(
     if !std::path::Path::new(&provider.cwd).is_absolute()
         || !std::path::Path::new(&provider.cwd).is_dir()
     {
-        return Err(format!("The conversation's original project directory '{}' is unavailable. Restore the directory at this path to continue this chat. If the project moved, update Provider settings and start a new session there; changing settings does not relocate saved conversations.", provider.cwd));
+        return Err(format!("The conversation's original project directory '{}' is unavailable. Restore the directory at this path to continue this chat. If the project moved, update Settings and start a new session there; changing settings does not relocate saved conversations.", provider.cwd));
     }
     provider.cwd = platform::project_directory(std::path::Path::new(&provider.cwd))?;
     let client = acp::Client::start(app.clone(), id.clone(), &provider).await?;
@@ -463,6 +474,7 @@ fn main() {
             clipboard::copy_text,
             startup_directory,
             app_channel,
+            discover_providers,
             load_provider_settings,
             save_provider_settings,
             new_session,

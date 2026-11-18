@@ -36,7 +36,7 @@ export function SessionPane({session:s, onPermission, onCancel, onResume, resume
     {s.busy && <button onClick={onCancel}>Stop response</button>}
     {!s.live && <div className="resume-conversation" role="status">
       {s.canResume ? <><button disabled={s.resuming || !resumeAvailable} onClick={onResume}>{s.resuming ? 'Reconnecting…' : 'Continue conversation'}</button>
-        <small>{!resumeAvailable?'Original provider unavailable. Open Menu → Provider settings.':''}</small></> :
+        <small>{!resumeAvailable?'Original provider unavailable. Open Menu → Settings.':''}</small></> :
         <small>Saved chat only — no provider session ID was recorded.</small>}
     </div>}
     {children}

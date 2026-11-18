@@ -77,7 +77,7 @@ impl Client {
             .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
-            .map_err(|e| format!("Cannot start {}: {e}. Check the executable, project directory and runtime installation in Menu → Provider settings.", p.name))?;
+            .map_err(|e| format!("Cannot start {}: {e}. Check the executable, project directory and runtime installation in Menu → Settings.", p.name))?;
         let input = Arc::new(AsyncMutex::new(child.stdin.take().ok_or("No stdin")?));
         let out = child.stdout.take().ok_or("No stdout")?;
         let mut stderr = child.stderr.take().ok_or("No stderr")?;
