@@ -1,5 +1,6 @@
 import React, {useEffect, useState, useReducer} from 'react';
 import {createRoot} from 'react-dom/client';
+import {useTheme} from './useTheme';
 import {useProviders} from './useProviders';
 import {WorkspaceLayout} from './components/WorkspaceLayout';
 import {useSessions} from './useSessions';
@@ -10,7 +11,7 @@ import {CompareDialog} from './components/CompareDialog';
 import {ProviderSettings} from './components/ProviderSettings';
 import {ErrorBoundary} from './components/ErrorBoundary';
 import './style.css';
-import {initialWorkspace,workspaceReducer,type LayoutMode} from './workspace';
+import {initialWorkspace,workspaceReducer,type LayoutMode,paneCount} from './workspace';
 import {type Drafts} from './drafts';
 function App() {
   const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
@@ -22,11 +23,12 @@ function App() {
   const [settings,setSettings] = useState(false);
   const desk = useSessions(setError);
   const {channel,providers,selected,setSelected,save,needsSetup}=useProviders(setError);
+  const theme=useTheme(channel);
   useEffect(()=>{if(needsSetup)setSettings(true)},[needsSetup]);
   useEffect(()=>{if(desk.panes.length)dispatch({type:'open',ids:desk.panes})},[desk.panes]);
   const sessionIds=desk.sessions.map(s=>s.id).join(',');
   useEffect(()=>{dispatch({type:'retain',ids:desk.sessions.map(s=>s.id)});setDrafts(d=>Object.fromEntries(Object.entries(d).filter(([id])=>desk.sessions.some(s=>s.id===id))))},[sessionIds]);
-  const visible=workspace.selected.filter((id,p)=>id&&(p===0||workspace.mode!=='single')) as string[];
+  const visible=workspace.selected.filter((id,p)=>id&&(p<paneCount(workspace.mode))) as string[];
   return <div className="app">
     <Sidebar collapsed={sidebarCollapsed} onToggle={()=>setSidebarCollapsed(value=>!value)} providers={providers} selected={selected} past={desk.past} panes={visible} starting={desk.starting}
       busyIds={desk.sessions.filter(s=>s.busy||s.resuming||s.changingAgent||s.changingModel).map(s=>s.id)} onRename={desk.rename} onDelete={desk.remove}
@@ -35,7 +37,7 @@ function App() {
     <main>
       <header><div className="workspace-heading"><strong>Conversations {channel==='Development'&&<span className="development-badge">DEV</span>}</strong></div><div className="header-actions">
         <button disabled={desk.starting||!providers.length} onClick={()=>{if(providers.some(p=>!p.cwd.trim()))setSettings(true);else setComparison(true)}}>Compare…</button>
-        <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option></select></label><AppMenu onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
+        <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option><option value="three">Three columns</option><option value="grid">Four panes (grid)</option></select></label><AppMenu theme={theme.preference} onTheme={theme.choose} onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
       </header>
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
       <WorkspaceLayout workspace={workspace} dispatch={dispatch} desk={desk} providers={providers} drafts={drafts} setDrafts={setDrafts} onHelp={id=>setHelp({topic:'models',sessionId:id})}/>

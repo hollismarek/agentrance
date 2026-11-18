@@ -24,7 +24,10 @@ implemented.
 ## Features
 
 - Streamed chat with independent sessions, drafts, and composers.
-- Tabbed single-pane, side-by-side, and stacked layouts with a resizable divider.
+- Up to four tabbed panes: single, side-by-side, stacked, three columns, or a
+  four-pane grid. Multi-pane grids reflow on smaller screens; Focus pane gives
+  one conversation full space. Two-pane layouts have a resizable divider.
+- Light and dark palettes, following the OS by default, with manual overrides.
 - Fresh independent provider comparisons using a shared initial prompt.
 - SQLite conversation history, rename/delete, and continuation when supported by
   the provider's saved-session capabilities.

@@ -17,8 +17,16 @@ import {Composer} from './src/components/Composer';
 import {AppMenu} from './src/components/AppMenu';
 import {PermissionDetails} from './src/components/PermissionDetails';
 import {ProviderSettings} from './src/components/ProviderSettings';
+import {WorkspaceLayout} from './src/components/WorkspaceLayout';
+import {initialWorkspace,workspaceReducer} from './src/workspace';
 const report={revision:1,selection:{current:'plan',choices:[{id:'plan',name:'Plan',description:'Plan before coding'}]},model:{current:'auto',choices:[{id:'auto',name:'Auto',description:'Models chosen by task',rateMultiplier:1,rateUnit:'credits'}]}};
 const session={id:'s',provider:'Kiro CLI',cwd:'/tmp/project',title:'A chat',live:true,busy:false,canResume:true,items:[{kind:'user',data:'My question',seq:1},{kind:'delta',data:'My answer',seq:2},{kind:'done',data:null,seq:3},{kind:'agent_state',data:report,seq:4}]};
+export function renderFourPanes(){
+ const workspace=workspaceReducer(initialWorkspace,{type:'open',ids:['a','b','c','d']});
+ const sessions=['a','b','c','d'].map((id,i)=>({...session,id,provider:'Provider '+(i+1)}));
+ const desk={sessions};
+ return renderToStaticMarkup(<WorkspaceLayout workspace={workspace} dispatch={()=>{}} desk={desk} providers={[]} drafts={{a:{text:'First draft',revision:1},d:{text:'Fourth draft',revision:1}}} setDrafts={()=>{}} onHelp={()=>{}}/>);
+}
 export function renderSetup(){return renderToStaticMarkup(<ProviderSettings providers={[{id:'test',name:'Test CLI',executable:'test',args:[],env:{},cwd:''}]} onSave={async()=>{}} onClose={()=>{}}/>)}
 export function renderPermission(params){return renderToStaticMarkup(<PermissionDetails params={params} provider="Generic ACP"/>)}
 export function renderDetails(topic='models'){
@@ -36,7 +44,7 @@ export function render(live=true,busy=false,changing=false){
 }`},bundle:true,platform:'node',format:'cjs',write:false,logLevel:'silent'});
 const module={exports:{}};
 new Function('require','module','exports',output.outputFiles[0].text)(createRequire(import.meta.url),module,module.exports);
-const {render,renderDetails,renderSession,renderWorkspace,renderPermission,renderSetup}=module.exports;
+const {render,renderDetails,renderSession,renderWorkspace,renderPermission,renderSetup,renderFourPanes}=module.exports;
 test('agent selector is present beside Activity when inspector is collapsed',()=>{
  const html=render();assert.match(html,/aria-expanded="false"/);assert.doesNotMatch(html,/class="activity-body"/);
  assert.match(html,/<\/button><div class="agent-selector"/);
@@ -88,4 +96,20 @@ test('permission presentation preserves supplied input, full paths and proposed 
 test('provider setup exposes a labeled project field and portable executable guidance',()=>{
  const html=renderSetup();assert.match(html,/aria-label="Project directory for Test CLI"/);
  assert.match(html,/Choose your project explicitly/);assert.match(html,/node.exe/);assert.match(html,/absolute executable path/);
+});
+
+test('four-pane workspace renders independent labeled composers and navigation controls',()=>{
+ const html=renderFourPanes();
+ for(let i=1;i<=4;i++){
+  assert.match(html,new RegExp(`aria-label="Conversation pane ${i}"`));
+  assert.match(html,new RegExp(`aria-label="Message to Provider ${i}"`));
+  assert.match(html,new RegExp(`aria-label="Move conversation from pane ${i}"`));
+ }
+ assert.match(html,/First draft/);assert.match(html,/Fourth draft/);
+ assert.equal((html.match(/Focus pane/g)||[]).length,4);
+ assert.doesNotMatch(html,/Resize conversation panes/);
+});
+test('appearance menu exposes system, light and dark choices',()=>{
+ const html=renderWorkspace();assert.match(html,/aria-label="Appearance"/);
+ for(const value of ['system','light','dark'])assert.match(html,new RegExp(`value="${value}"`));
 });

@@ -383,3 +383,39 @@ were found; current PNG artwork contains no text/EXIF chunks. This is a heuristi
 review. Existing author name/email and historical workstation paths remain in Git
 history; no history rewrite or push was performed. README links and ignore rules
 were checked. Application code and the installed Stable snapshot are unchanged.
+
+
+## Adaptive workspace with up to four panes
+
+Layout now supports three columns and a four-pane grid in addition to the
+existing single, side-by-side and stacked modes. Three/four-pane layouts use
+container-width breakpoints, reflowing to two or one column on narrower logical
+screen widths. Grid panes retain a 420px minimum reading height and the workspace
+scrolls when needed. Two-pane layouts retain pointer/keyboard divider resizing.
+Focus pane temporarily shows the active pane at full size; Show all panes
+restores the layout. Focused view follows history/new-session navigation, so
+opening a conversation in a different pane cannot leave it hidden.
+
+Move to selects a destination pane. Reducing the layout merges excess tabs into
+the last visible pane while preserving the focused conversation, all sessions,
+and session-owned drafts. Fresh comparisons in single-pane mode choose up to
+four panes; additional providers remain tabs. Invalid pane actions are rejected.
+
+## System-following light and dark appearance
+
+Semantic CSS tokens cover workspace, sidebar, dialogs, Help, transcript, activity,
+permission/status cards and controls in both palettes. Menu → Appearance defaults
+to System, responds to OS changes live, and offers Light/Dark overrides. The
+preference is stored under channel-specific localStorage keys; storage failures
+leave it usable for the current run. Native select faces retain the established
+light face/dark text treatment for GTK readability. No provider settings, history
+schema, permissions or authentication handling changed.
+
+Validation: frontend tests, TypeScript and production build pass. Added reducer
+coverage for three/four-pane comparisons, extra tabs, moves, reducing/reopening
+layouts, deletion and invalid actions; rendering checks cover four independent
+composers. Theme tests cover OS changes, overrides and subscription cleanup, plus
+4.5:1 minimum contrast for principal text/status combinations in both palettes.
+Development is used for launch testing. Native visual sizing across QHD/laptop
+screens and OS-theme changes still need hands-on verification; browser automation
+remains deferred. Stable was not restarted or upgraded.

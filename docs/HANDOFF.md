@@ -16,7 +16,8 @@ explicit user decisions; never auto-approve or weaken provider policy.
 
 Working features: streamed chat and activity, explicit approvals, agent/model
 choices when advertised, SQLite history/resume/rename/delete, copy Q&A, central
-Help, independent drafts/composers and tabbed resizable two-pane layouts. Compare
+Help, independent drafts/composers, up to four adaptive tabbed panes, and
+OS-following light/dark appearance. Two-pane layouts retain a resizable divider. Compare
 creates fresh independent conversations. Stable and Development have separate
 identities, history and provider settings. See scripts/README.md for builds,
 local snapshot installation and rollback; docs/MILESTONES.md records decisions.
