@@ -24,7 +24,7 @@ implemented.
 ## Features
 
 - Streamed chat with independent sessions, drafts, and composers.
-- Up to four tabbed panes: single, side-by-side, stacked, three columns, or a
+- Up to four tabbed panes: single, side-by-side, stacked, three panes, or a
   four-pane grid. Multi-pane grids reflow on smaller screens; Focus pane gives
   one conversation full space. Two-pane layouts have a resizable divider.
 - Light and dark palettes, following the OS by default, with manual overrides.

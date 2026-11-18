@@ -387,7 +387,7 @@ were checked. Application code and the installed Stable snapshot are unchanged.
 
 ## Adaptive workspace with up to four panes
 
-Layout now supports three columns and a four-pane grid in addition to the
+Layout now supports three panes and a four-pane grid in addition to the
 existing single, side-by-side and stacked modes. Three/four-pane layouts use
 container-width breakpoints, reflowing to two or one column on narrower logical
 screen widths. Grid panes retain a 420px minimum reading height and the workspace
@@ -419,3 +419,10 @@ composers. Theme tests cover OS changes, overrides and subscription cleanup, plu
 Development is used for launch testing. Native visual sizing across QHD/laptop
 screens and OS-theme changes still need hands-on verification; browser automation
 remains deferred. Stable was not restarted or upgraded.
+
+
+## Responsive layout naming
+
+Renamed the three-pane option to Three panes, matching its responsive behavior:
+three columns on wide workspaces, fewer columns on narrow ones. Help and README
+use the same name. Layout behavior is unchanged. Production frontend build passes.
