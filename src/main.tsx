@@ -43,7 +43,7 @@ function App() {
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
       <WorkspaceLayout workspace={workspace} dispatch={dispatch} desk={desk} providers={providers} drafts={drafts} setDrafts={setDrafts} onHelp={id=>setHelp({topic:'models',sessionId:id})}/>
     </main>
-    {comparison&&<CompareDialog providers={providers} onClose={()=>setComparison(false)} onCompare={text=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{void desk.compare(providers,text)})}}/>}
+    {comparison&&<CompareDialog providers={providers} onClose={()=>setComparison(false)} onCompare={(text,attachments)=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{void desk.compare(providers,text,attachments)})}}/>}
     {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={desk.sessions} onClose={()=>setHelp(null)}/>}
     {settings && ready && <ProviderSettings providers={providers} detected={detected} detecting={detecting} discoveryError={discoveryError} onDiscover={discover} theme={theme.preference} onTheme={theme.choose} onSave={async providers=>{await save(providers);setSettings(false)}} onClose={() => setSettings(false)}/>}
   </div>;

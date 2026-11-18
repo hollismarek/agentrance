@@ -14,6 +14,7 @@ import {HelpDialog} from './src/components/HelpDialog';
 import {SessionPane} from './src/components/SessionPane';
 import {Sidebar} from './src/components/Sidebar';
 import {Composer} from './src/components/Composer';
+import {CompareDialog} from './src/components/CompareDialog';
 import {AppMenu} from './src/components/AppMenu';
 import {PermissionDetails} from './src/components/PermissionDetails';
 import {ProviderSettings} from './src/components/ProviderSettings';
@@ -32,6 +33,7 @@ export function renderPending(live=true){
  const s={...session,live,items:[{kind:'permission',data:{request:8,params:{toolCall:{toolCallId:'approval',title:'Read project'},options:[{optionId:'yes',kind:'allow_once',name:'Allow once'}]}}}]};
  return renderToStaticMarkup(<SessionPane session={s} onHelp={()=>{}} onAgent={()=>{}} onModel={()=>{}} onPermission={async()=>{}} onCancel={()=>{}} onResume={()=>{}} resumeAvailable={true}/>);
 }
+export function renderCompare(){return renderToStaticMarkup(<CompareDialog providers={[]} onClose={()=>{}} onCompare={()=>{}}/>)}
 export function renderSetup(){return renderToStaticMarkup(<ProviderSettings providers={[{id:'test',name:'Test CLI',executable:'test',args:['one argument with spaces','--flag'],env:{PATH:'/configured/bin'},cwd:''}]} onSave={async()=>{}} onClose={()=>{}}/>)}
 export function renderPermission(params){return renderToStaticMarkup(<PermissionDetails params={params} provider="Generic ACP"/>)}
 export function renderDetails(topic='models'){
@@ -49,7 +51,7 @@ export function render(live=true,busy=false,changing=false){
 }`},bundle:true,platform:'node',format:'cjs',write:false,logLevel:'silent'});
 const module={exports:{}};
 new Function('require','module','exports',output.outputFiles[0].text)(createRequire(import.meta.url),module,module.exports);
-const {render,renderDetails,renderSession,renderWorkspace,renderPermission,renderSetup,renderFourPanes,renderLoadingMenu,renderPending}=module.exports;
+const {render,renderDetails,renderSession,renderWorkspace,renderPermission,renderSetup,renderFourPanes,renderLoadingMenu,renderPending,renderCompare}=module.exports;
 test('agent selector is present beside Activity when inspector is collapsed',()=>{
  const html=render();assert.match(html,/aria-expanded="false"/);assert.doesNotMatch(html,/class="activity-body"/);
  assert.match(html,/<\/button><div class="agent-selector"/);
@@ -140,4 +142,10 @@ test('Help uses current Settings and Appearance navigation',()=>{
 test('active approvals remain actionable with Activity collapsed, but saved requests cannot approve',()=>{
  const html=renderPending();assert.match(html,/pending-approvals/);assert.match(html,/Allow once/);assert.doesNotMatch(html,/class="activity-body"/);
  assert.doesNotMatch(renderPending(false),/pending-approvals/);
+});
+
+test('Compare exposes the attachment picker, hides an empty strip and starts disabled',()=>{
+ const html=renderCompare();assert.match(html,/aria-label="Attach files"/);assert.match(html,/type="file"/);
+ assert.doesNotMatch(html,/class="attachment-strip"/);assert.match(html,/sent to every provider/);
+ assert.match(html,/<button class="primary" disabled="">Start comparison<\/button>/);
 });

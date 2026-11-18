@@ -379,3 +379,7 @@ html,body,#root{overflow:clip}
 .attachment button,.attachment-controls button{padding:3px 8px}
 .attachment-controls{display:flex;gap:8px;align-items:center;margin:0 0 5px}
 .workspace footer>.attachment-picker{display:block;margin:0}
+
+.compare-dialog{max-height:94vh;overflow:auto}
+.compare-dialog footer{display:flex;flex-direction:column}
+.compare-dialog footer>.attachment-picker{display:block;margin:0;order:-1}

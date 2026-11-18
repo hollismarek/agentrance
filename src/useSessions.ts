@@ -57,23 +57,25 @@ export function useSessions(onError: (message:string) => void) {
     setStarting(true);
     try{setPanes([await fresh(provider)])}catch(e){onError(String(e))}finally{setStarting(false)}
   }
-  async function send(ids:string[],text:string,attachments:Attachment[]=[]) {
+  async function send(ids:string[],text:string,attachments:Attachment[]=[],labels:Record<string,string>={}) {
     if (!text.trim()&&!attachments.length) return [];
+    const errors:string[]=[];
     return Promise.all(ids.map(async id => {
       setSessions(a => a.map(s => s.id === id ? {...s,busy:true} : s));
       try {await invoke('prompt',{id,text,attachments});return true}
-      catch(e){onError(String(e));setSessions(a => a.map(s => s.id === id ? {...s,busy:false} : s));return false}
+      catch(e){errors.push(`${labels[id]?`${labels[id]}: `:''}${e}`);onError(errors.join('\n'));setSessions(a => a.map(s => s.id === id ? {...s,busy:false} : s));return false}
     }));
   }
-  async function compare(providers:Provider[],question:string) {
-    if(!question.trim() || !providers.length) return;
+  async function compare(providers:Provider[],question:string,attachments:Attachment[]=[]) {
+    if((!question.trim()&&!attachments.length) || !providers.length) return;
     setStarting(true);
     try {
       const results=await Promise.allSettled(providers.map(fresh));
       const ids=results.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
       const failures=results.filter(r => r.status === 'rejected');
       if(failures.length) onError(failures.map(r => r.status === 'rejected' ? String(r.reason) : '').join('\n'));
-      setPanes(ids);await send(ids,question);
+      const labels=Object.fromEntries(results.flatMap((r,i)=>r.status==='fulfilled'?[[r.value,providers[i].name]]:[]));
+      setPanes(ids);await send(ids,question,attachments,labels);
     } finally {setStarting(false)}
   }
   async function open(saved:SavedSession) {

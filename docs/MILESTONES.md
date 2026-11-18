@@ -565,3 +565,20 @@ visible pending approvals, historical approval suppression, attachment isolation
 failed-send restoration, text blocks and rejected image/invalid data. Development
 launch and native file-picker/real-provider image tests remain hands-on checks.
 Stable is not restarted or upgraded.
+
+
+## Compare attachments
+
+The Compare dialog now uses the same attachment picker, removable thumbnail
+strip and limits as conversation composers. File-only comparison prompts are
+supported. Start comparison stays disabled while files load. The selected
+attachment snapshot is sent to every successfully created session; Rust checks
+each connection's capabilities independently. One provider's rejection does not
+prevent others from receiving their prompts. Concurrent send failures are
+aggregated with provider names rather than overwriting each other. Comparison
+attachments remain independent from conversation drafts and are discarded when
+the dialog closes, as with its existing text draft.
+
+Validation: frontend tests/build pass, including Compare picker markup, hidden
+empty-strip and initial send-state coverage. Native file-picker and multi-provider
+image compatibility remain hands-on checks in Development. Stable is unchanged.
