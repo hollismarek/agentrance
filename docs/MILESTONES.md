@@ -477,3 +477,20 @@ leaving actual content scroll areas alone. This addresses the reported Page Down
 view displacement without intercepting Page Down in editors or content lists.
 Frontend tests/build and Rust tests pass; exact native Page Down reproduction and
 live added-provider checks remain manual in Development. Stable is unchanged.
+
+## Review follow-up: history order and CSS-only keyboard containment
+
+History's last-activity query excludes session_closed events, including previously
+stored closures, so closing a live connection no longer promotes a conversation.
+The lifecycle event remains persisted and replayable; permission expiry and
+interrupted-turn handling are unchanged. A regression test checks ordering,
+completion timestamps, closure-only chats, retained replay and genuine follow-ups.
+
+Removed the global capture/window/root scroll-reset listeners. Fixed layout
+shells retain overflow:clip; content areas retain their independent scrolling.
+Native Page Down/Page Up and focus-navigation testing in Development is still
+required to confirm CSS-only containment on the user's WebKit build.
+
+Validation: frontend tests, TypeScript/production build and all 24 Rust tests pass.
+Development launches successfully. Stable remains running unchanged. Licensing
+remains deferred by the user while the GitHub repository is private.

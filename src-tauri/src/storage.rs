@@ -105,7 +105,7 @@ pub fn history(db: &Connection) -> rusqlite::Result<Value> {
     let mut q = db.prepare(
         "SELECT id,provider,cwd,provider_id,remote_id,title,
       (SELECT data FROM events WHERE session=s.id AND kind='user' ORDER BY rowid LIMIT 1),
-      (SELECT MAX(at) FROM events WHERE session=s.id) AS updated_at
+      (SELECT MAX(at) FROM events WHERE session=s.id AND kind!='session_closed') AS updated_at
       FROM sessions s ORDER BY COALESCE(updated_at,0) DESC,s.rowid DESC",
     )?;
     let rows=q.query_map([],|r|{
@@ -212,6 +212,24 @@ mod tests {
         assert!(connection(&db, "b").unwrap().remote_id.is_none());
         assert!(connection(&db, "c").unwrap().remote_id.is_none());
         assert!(connection(&db, "a").unwrap().provider_id.is_none());
+    }
+    #[test]
+    fn closing_connections_preserves_history_order_and_lifecycle_replay() {
+        let db=Connection::open_in_memory().unwrap();
+        initialize(&db).unwrap();
+        db.execute_batch("INSERT INTO sessions(id,provider,cwd) VALUES('older','Kiro','/tmp'),('newer','Kiro','/tmp'),('empty','Kiro','/tmp');").unwrap();
+        append(&db,"older","user",&json!("Older prompt"),100).unwrap();
+        append(&db,"older","done",&Value::Null,120).unwrap();
+        append(&db,"newer","user",&json!("Newer prompt"),200).unwrap();
+        append(&db,"older","session_closed",&Value::Null,300).unwrap();
+        append(&db,"empty","session_closed",&Value::Null,400).unwrap();
+        let rows=history(&db).unwrap();
+        assert_eq!(rows[0]["id"],"newer");assert_eq!(rows[1]["id"],"older");
+        assert_eq!(rows[1]["updatedAt"],120);assert!(rows[2]["updatedAt"].is_null());
+        let replay=messages(&db,"older").unwrap();
+        assert_eq!(replay.as_array().unwrap().last().unwrap()["kind"],"session_closed");
+        append(&db,"older","user",&json!("Actual follow-up"),500).unwrap();
+        assert_eq!(history(&db).unwrap()[0]["id"],"older");
     }
     #[test]
     fn derives_legacy_summaries_and_keeps_manual_titles() {

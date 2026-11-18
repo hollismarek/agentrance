@@ -375,8 +375,8 @@ async fn close_session(app: tauri::AppHandle, id: String) -> Result<(), String> 
     if let Some(client) = client {
         let was_connected = client.is_connected();
         client.shutdown();
-        // Viewing and closing saved history is not conversation activity and
-        // must not change the chat's last-activity time or history ordering.
+        // Read-only tabs have no connection event. Live closure is retained for
+        // lifecycle replay, but history ordering excludes session_closed.
         if was_connected {
             event(&app, &id, "session_closed", Value::Null);
         }
