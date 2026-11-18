@@ -14,6 +14,13 @@ import './style.css';
 import {initialWorkspace,workspaceReducer,type LayoutMode,paneCount} from './workspace';
 import {type Drafts} from './drafts';
 function App() {
+  useEffect(()=>{
+    const reset=()=>{window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;const root=document.getElementById('root');if(root){root.scrollTop=0;root.scrollLeft=0}};
+    const shellScroll=(event:Event)=>{const target=event.target;if(target instanceof HTMLElement&&target.matches('.app,main,.workspace-frame,.workspace-pane,.workspace-pane article,.workspace.single,body,html')){if(target.scrollTop)target.scrollTop=0;if(target.scrollLeft)target.scrollLeft=0}};
+    document.addEventListener('scroll',shellScroll,true);
+    window.addEventListener('scroll',reset);document.getElementById('root')?.addEventListener('scroll',reset);
+    return()=>{document.removeEventListener('scroll',shellScroll,true);window.removeEventListener('scroll',reset);document.getElementById('root')?.removeEventListener('scroll',reset)};
+  },[]);
   const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
   const [drafts,setDrafts]=useState<Drafts>({});
   const [comparison,setComparison]=useState(false);

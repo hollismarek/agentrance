@@ -358,3 +358,9 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 .detected-providers small{overflow-wrap:anywhere;margin-top:4px}
 .settings .dialog-actions{position:sticky;bottom:-28px;margin:12px -28px -28px;padding:16px 28px;background:var(--dialog);border-top:1px solid var(--border)}
 @media(max-width:700px){.provider-fields{grid-template-columns:1fr}.settings-row.environment-row{flex-wrap:wrap}.environment-row>input{flex:1 1 180px}.shared-project{flex-wrap:wrap}.shared-project>.settings-field{flex-basis:100%}.settings{padding:18px}.settings .dialog-actions{bottom:-18px;margin:12px -18px -18px;padding:14px 18px}}
+
+/* Hidden overflow can still be keyboard-scrolled by WebKit. Clip the document
+   shell instead; content scrolls only in its designated transcript/pane areas. */
+html,body,#root{overflow:clip}
+.app,main,.workspace-frame{overflow:clip}
+.workspace-pane,.workspace-pane article,.workspace.single{overflow:clip}

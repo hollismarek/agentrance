@@ -462,3 +462,18 @@ A read-only probe of the actual discovery implementation found Kiro and Codex AC
 on this workstation without launching either. Native Settings interaction and
 Windows/macOS discovery layouts remain hands-on checks. Development is used for
 launch testing; Stable is not restarted or upgraded.
+
+## Additional native ACP discovery and keyboard scroll containment
+
+Added Gemini CLI (--acp), OpenCode (acp), and Copilot CLI (--acp --stdio)
+discovery and manual presets. Gemini/Copilot npm installations can use explicit
+Node plus their package's contained bin entry. Discovery does not authenticate
+or execute a provider; account availability and live compatibility remain manual
+checks. Claude adapter discovery is not included in this pass.
+
+Fixed layout shells now use overflow:clip rather than keyboard-scrollable hidden
+overflow. A capture-phase scroll recovery guard resets only fixed shell offsets,
+leaving actual content scroll areas alone. This addresses the reported Page Down
+view displacement without intercepting Page Down in editors or content lists.
+Frontend tests/build and Rust tests pass; exact native Page Down reproduction and
+live added-provider checks remain manual in Development. Stable is unchanged.

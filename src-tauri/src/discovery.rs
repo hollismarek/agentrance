@@ -77,7 +77,7 @@ fn candidate(id: &str, name: &str, executable: PathBuf, args: Vec<String>) -> Op
         cwd: String::new(),
     })
 }
-fn npm_entry(package: &Path) -> Option<PathBuf> {
+fn npm_entry_for(package: &Path, names: &[&str], command: &str) -> Option<PathBuf> {
     let manifest = package.join("package.json");
     let metadata = manifest.metadata().ok()?;
     if !metadata.is_file() || metadata.len() > 65536 {
@@ -93,15 +93,15 @@ fn npm_entry(package: &Path) -> Option<PathBuf> {
         return None;
     }
     let json: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
-    if !matches!(
-        json["name"].as_str(),
-        Some("@agentclientprotocol/codex-acp" | "@zed-industries/codex-acp")
-    ) {
+    if !json["name"]
+        .as_str()
+        .is_some_and(|name| names.contains(&name))
+    {
         return None;
     }
     let bin = json["bin"]
         .as_str()
-        .or_else(|| json["bin"]["codex-acp"].as_str())?;
+        .or_else(|| json["bin"][command].as_str())?;
     let entry = dunce::canonicalize(package.join(bin)).ok()?;
     if !entry.starts_with(dunce::canonicalize(package).ok()?) || !entry.is_file() {
         return None;
@@ -111,11 +111,67 @@ fn npm_entry(package: &Path) -> Option<PathBuf> {
         _ => None,
     }
 }
+fn npm_entry(package: &Path) -> Option<PathBuf> {
+    npm_entry_for(
+        package,
+        &[
+            "@agentclientprotocol/codex-acp",
+            "@zed-industries/codex-acp",
+        ],
+        "codex-acp",
+    )
+}
 pub fn discover(home: &Path) -> Vec<Provider> {
     discover_in(&search_dirs(home))
 }
 fn discover_in(dirs: &[PathBuf]) -> Vec<Provider> {
     let mut found = Vec::new();
+    for (id, name, args, package) in [
+        (
+            "gemini",
+            "Gemini CLI",
+            vec!["--acp"],
+            Some("@google/gemini-cli"),
+        ),
+        ("opencode", "OpenCode", vec!["acp"], None),
+        (
+            "copilot",
+            "GitHub Copilot CLI",
+            vec!["--acp", "--stdio"],
+            Some("@github/copilot"),
+        ),
+    ] {
+        let mut launch = None;
+        if let Some(package) = package {
+            for dir in dirs {
+                if let Some(runtime) = node(dirs, dir) {
+                    for base in [
+                        dir.join("node_modules"),
+                        dir.parent().unwrap_or(dir).join("lib/node_modules"),
+                    ] {
+                        if let Some(entry) = npm_entry_for(&base.join(package), &[package], id) {
+                            let mut arguments = vec![entry.to_string_lossy().into_owned()];
+                            arguments.extend(args.iter().map(|v| v.to_string()));
+                            launch = candidate(id, name, runtime.clone(), arguments);
+                            break;
+                        }
+                    }
+                }
+                if launch.is_some() {
+                    break;
+                }
+            }
+        }
+        if launch.is_none() {
+            if let Some(exe) = native(dirs, id) {
+                launch = candidate(id, name, exe, args.iter().map(|v| v.to_string()).collect())
+            }
+        }
+        if let Some(provider) = launch {
+            found.push(provider)
+        }
+    }
+
     if let Some(exe) = native(dirs, "kiro-cli") {
         if let Some(p) = candidate(
             "kiro",
@@ -207,6 +263,19 @@ mod tests {
         assert_eq!(found.len(), 2);
         assert_eq!(found[0].args, ["acp", "--agent-engine=v3"]);
         assert!(found.iter().all(|p| p.env.is_empty() && p.cwd.is_empty()));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn discovers_three_native_acp_launch_modes_without_execution() {
+        let root = std::env::temp_dir().join(format!("agentrance-native-{}", uuid::Uuid::new_v4()));
+        for name in ["gemini", "opencode", "copilot"] {
+            fake(&binary(&root, name), "not executable code")
+        }
+        let found = discover_in(&[root.clone()]);
+        assert_eq!(found.len(), 3);
+        assert_eq!(found[0].args, ["--acp"]);
+        assert_eq!(found[1].args, ["acp"]);
+        assert_eq!(found[2].args, ["--acp", "--stdio"]);
         std::fs::remove_dir_all(root).unwrap();
     }
     #[test]

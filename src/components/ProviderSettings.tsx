@@ -9,7 +9,7 @@ export function ProviderSettings({providers,onSave,onClose,theme='system',onThem
 }) {
   const [forms,setForms]=useState(()=>providers.map(toProviderForm));
   const [sharedProject,setSharedProject]=useState(providers[0]?.cwd??'');
-  const [kind,setKind]=useState<'kiro'|'codex'|'custom'>('custom');
+  const [kind,setKind]=useState<Parameters<typeof providerPreset>[0]>('custom');
   const [error,setError]=useState('');
   const [saving,setSaving]=useState(false);
   const dialog=useRef<HTMLFormElement>(null);
@@ -67,7 +67,7 @@ export function ProviderSettings({providers,onSave,onClose,theme='system',onThem
           <button type="button" onClick={()=>update(index,{env:[...p.env,{key:'',value:''}]})}>Add environment variable</button>
         </details>
       </section>)}
-      <div className="settings-row"><label className="settings-field">Provider type<select value={kind} onChange={e=>setKind(e.target.value as typeof kind)}><option value="custom">Custom ACP provider</option><option value="kiro">Kiro CLI</option><option value="codex">Codex ACP adapter</option></select></label><button type="button" onClick={()=>add(providerPreset(kind))}>Add provider</button></div>
+      <div className="settings-row"><label className="settings-field">Provider type<select value={kind} onChange={e=>setKind(e.target.value as typeof kind)}><option value="custom">Custom ACP provider</option><option value="kiro">Kiro CLI</option><option value="codex">Codex ACP adapter</option><option value="gemini">Gemini CLI</option><option value="opencode">OpenCode</option><option value="copilot">GitHub Copilot CLI</option></select></label><button type="button" onClick={()=>add(providerPreset(kind))}>Add provider</button></div>
       <p className="muted">An absolute executable path is most reliable. On Windows, use a native .exe or node.exe with the adapter’s JavaScript entry file as its first argument, rather than .cmd/.bat wrappers.</p>
     </fieldset>
     {error&&<p role="alert" className="error">{error}</p>}

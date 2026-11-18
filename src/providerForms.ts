@@ -26,7 +26,8 @@ export function uniqueProvider(p:Provider,existing:{id:string}[],cwd:string):Pro
 export function providerIsConfigured(candidate:Provider,providers:ProviderForm[]):boolean{
   return providers.some(p=>p.executable===candidate.executable&&JSON.stringify(p.args)===JSON.stringify(candidate.args));
 }
-export function providerPreset(kind:'kiro'|'codex'|'custom'):Provider {
+export function providerPreset(kind:'kiro'|'codex'|'custom'|'gemini'|'opencode'|'copilot'):Provider {
+  if(['gemini','opencode','copilot'].includes(kind))return {id:kind,name:kind==='gemini'?'Gemini CLI':kind==='opencode'?'OpenCode':'GitHub Copilot CLI',executable:kind,args:kind==='opencode'?['acp']:kind==='gemini'?['--acp']:['--acp','--stdio'],env:{},cwd:''};
   return kind==='kiro'?{id:'kiro',name:'Kiro CLI',executable:'kiro-cli',args:['acp','--agent-engine=v3'],env:{},cwd:''}:
     kind==='codex'?{id:'codex-acp',name:'Codex (ACP)',executable:'codex-acp',args:[],env:{},cwd:''}:
     {id:'custom',name:'Custom ACP provider',executable:'',args:[],env:{},cwd:''};
