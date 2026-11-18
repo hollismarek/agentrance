@@ -516,3 +516,19 @@ Validation: frontend tests and production build pass; all 25 Rust tests pass.
 Tests cover identity non-reuse after removal, retained existing IDs, startup menu
 gating, current Help navigation and the new npm fixtures. Native CSS-only Page
 Down verification remains manual. Stable is unchanged.
+
+## Require persisted provider identities before first use
+
+Start, opening Compare, and submitting a comparison now share a guard requiring
+completed initialization and a saved initial provider configuration. Dismissing
+first-run Settings cannot create conversations with ephemeral discovered IDs:
+the next launch action reopens Settings instead. Only a successful settings save
+clears needsSetup; failed saves and repeated dismissals remain gated. Existing
+saved configurations continue to start normally. Settings explains why the
+initial save is required. This prevents new affected chats; it does not rewrite
+identities in previously created conversations.
+
+Validation: all 11 frontend test files and the production build pass. Regression
+coverage exercises repeated unsaved attempts, comparison submission, startup
+loading and the saved-configuration path. Development launch testing is used;
+Stable remains untouched.

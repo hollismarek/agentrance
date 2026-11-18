@@ -49,7 +49,7 @@ export function ProviderSettings({providers,onSave,onClose,theme='system',onThem
       })}</ul>
     </section>
     <fieldset disabled={saving} className="provider-editor"><legend>Providers</legend>
-      <p>Choose an existing absolute project folder. Changes here apply when you save; existing conversations keep their original project. Removing a provider does not delete chats.</p>
+      <p>Save the initial provider configuration before starting or comparing chats, so they can be continued after restarting. Choose an existing absolute project folder. Changes here apply when you save; existing conversations keep their original project. Removing a provider does not delete chats.</p>
       <div className="shared-project"><label className="settings-field">Project folder for all providers<input value={sharedProject} placeholder="Absolute path to your project folder" onChange={e=>setSharedProject(e.target.value)}/></label><button type="button" disabled={!sharedProject.trim()} onClick={()=>setForms(all=>all.map(p=>({...p,cwd:sharedProject})))}>Use for all</button></div>
       {forms.map((p,index)=><section className="provider-card" key={p.id} aria-label={`Provider ${index+1}`}>
         <div className="provider-card-heading"><h4>{p.name||`Provider ${index+1}`}</h4><button type="button" disabled={forms.length===1} onClick={()=>setForms(all=>all.filter((_,i)=>i!==index))}>Remove provider</button></div>
