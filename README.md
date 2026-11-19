@@ -24,11 +24,16 @@ implemented.
 ## Features
 
 - Streamed chat with independent sessions, drafts, and composers.
+- Recovery of open tabs, pane layouts and text drafts after restart; restored
+  conversations stay disconnected until explicitly continued. Attachment contents
+  are not restored; recovered drafts list files that need reattaching.
 - Up to four tabbed panes: single, side-by-side, stacked, three panes, or a
   four-pane grid. Multi-pane grids reflow on smaller screens; Focus pane gives
   one conversation full space. Two-pane layouts have a resizable divider.
 - Light and dark palettes, following the OS by default, with manual overrides.
 - Fresh independent provider comparisons using a shared initial prompt.
+- Project selection for new sessions and one shared project for Compare, with
+  recent-folder suggestions and unchanged saved provider defaults.
 - SQLite conversation history, rename/delete, and continuation when supported by
   the provider's saved-session capabilities.
 - Activity inspection with reported tool input/output, elapsed time, readable
@@ -70,7 +75,9 @@ On first launch, open or complete **Menu → Settings**:
 2. Enter its display name, executable, and project folder in the form. Arguments
    have separate fields; environment overrides are optional. **Use for all** can
    apply one project folder to all providers.
-3. Save settings, select the provider in the sidebar, and choose **New session**.
+3. Save settings, select the provider in the sidebar, choose **New session**,
+   and confirm the project folder. Choose a recent folder or enter its full path.
+   **Compare…** uses one explicitly selected project for every provider.
 
 **Settings → Appearance** contains System, Light, and Dark. Appearance changes
 apply immediately; provider edits are saved with **Save settings**.
@@ -134,8 +141,11 @@ for the optional Linux immutable-snapshot installer.
 
 Conversation history and provider configuration are stored locally under the
 channel-specific app-data directory. Stable uses `local.agentdesk.app` and
-Development uses `local.agentdesk.app.dev`. Unsent drafts remain in memory and
-are not restored after exiting.
+Development uses `local.agentdesk.app.dev`. Open tabs, pane layouts, recent
+project choices and text drafts are saved locally in `workspace.json` for
+recovery. Restored conversations stay disconnected until explicitly continued.
+Attachment contents and the Compare dialog's unsent prompt are not restored.
+Closing a conversation tab discards its draft.
 
 Agentrance adds no application telemetry and does not manage provider account
 credentials. Provider CLIs handle their own authentication, network access,

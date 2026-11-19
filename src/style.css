@@ -386,3 +386,8 @@ html,body,#root{overflow:clip}
 
 /* Native WebKit file-input styling must not expose a second picker button. */
 .attachment-controls input[type="file"]{display:none!important}
+
+/* Project selection and recovered draft context */
+.project-field{display:flex;flex-direction:column;gap:6px;margin:16px 0;overflow-wrap:anywhere}
+.project-field small{color:var(--muted)}
+.draft-recovery{flex-shrink:0;margin:0;padding:8px 12px;color:var(--text);background:var(--input-bg);font-size:13px;overflow-wrap:anywhere;max-height:100px;overflow:auto}

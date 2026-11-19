@@ -19,8 +19,10 @@ npm run tauri dev
 Run Stable for development conversations, pointed at the source repository in
 Settings. Run Development alongside it for testing. Editing Rust may
 restart Development and interrupt its sessions, but it does not restart Stable.
-Unsent drafts are in-memory; finish responses and save needed text before closing
-or upgrading either app. No data is migrated between channels. Stable can import its own legacy
+New builds recover open tabs/layout and text drafts within each channel; older
+installed builds may still keep drafts only in memory. Attachment contents and
+unsent Compare prompts are not recovered. Finish responses and save needed text
+before upgrading either app. No data is migrated between channels. Stable can import its own legacy
 webview provider settings once; Development starts with separate defaults.
 
 ## Native distributions: Windows, macOS and Linux

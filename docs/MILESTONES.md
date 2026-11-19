@@ -654,3 +654,25 @@ cover preserved drafts/layout, stale IDs, disconnected restoration, no provider
 launch and no premature empty save. All frontend checks/build and 28 Rust tests
 pass, including bounded atomic storage and channel isolation. Native restart
 interaction remains a hands-on Development check; Stable is untouched.
+
+## Project selection for new sessions and Compare
+
+New session opens a project dialog for the selected provider. Enter an absolute
+folder path or select a recent/configured/history suggestion. Recent selections
+are saved with workspace recovery (up to 20). Saved provider defaults are not
+modified, and continuing history retains its original root.
+
+Compare now requires one shared project folder and passes it to every provider,
+preserving provider IDs and launch configuration. Differing provider defaults
+do not silently choose a root: without a recent selection, the field starts
+empty. Backend validation still checks that the selected directory exists and
+canonicalizes it before launching. The dialogs support Escape/focus restoration
+and keyboard focus containment. This first pass uses path entry and native
+datalist suggestions, without adding a directory-picker dependency.
+
+Validation: 19 frontend test files, the production build, 28 Rust tests and six
+Python desktop/installer-helper tests pass. Mounted dialog tests cover relative
+path rejection, full-path selection and the shared Compare root; pure tests
+verify saved provider defaults stay unchanged and suggestions are bounded.
+Native project selection/restart and Windows/macOS remain hands-on checks in
+Development. Stable is untouched.

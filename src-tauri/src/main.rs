@@ -125,7 +125,7 @@ fn startup_directory() -> Result<String, String> {
 async fn new_session(app: tauri::AppHandle, mut provider: Provider) -> Result<String, String> {
     let cwd = std::path::Path::new(&provider.cwd);
     if !cwd.is_absolute() || !cwd.is_dir() {
-        return Err("Choose an existing absolute project directory in Settings".into());
+        return Err("Choose an existing absolute project folder before starting the session".into());
     }
     let id = uuid::Uuid::new_v4().to_string();
     provider.cwd = platform::project_directory(std::path::Path::new(&provider.cwd))?;

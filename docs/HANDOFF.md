@@ -25,6 +25,9 @@ local snapshot installation and rollback; docs/MILESTONES.md records decisions.
 Workspace tabs/layout and text drafts now recover from channel-local
 workspace.json. Restored chats remain disconnected until Continue conversation.
 Attachment bytes are not persisted; restored drafts show names to reattach.
+New sessions confirm a project folder; Compare uses one explicitly selected
+folder for every provider. Recent choices recover with the workspace; saved
+provider defaults and original roots for resumed conversations are preserved.
 
 Ollama HTTP is NOT implemented. It remains a planned milestone with qwen3:4b
 and agent-directed read-only repository exploration. Project file browser,
