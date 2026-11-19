@@ -1,12 +1,16 @@
 import React,{useEffect,useRef} from 'react';
 import {createPortal} from 'react-dom';
-export function CloseRecoveryDialog({saving,error,onRetry,onKeepWorking,onQuit}:{saving:boolean;error:string;onRetry:()=>void;onKeepWorking:()=>void;onQuit:()=>void}){
+export function CloseRecoveryDialog({saving,error,onRetry,onKeepWorking,onQuit,returnFocus}:{saving:boolean;error:string;onRetry:()=>void;onKeepWorking:()=>void;onQuit:()=>void;returnFocus?:React.RefObject<HTMLElement|null>}){
  const panel=useRef<HTMLDivElement>(null);
+ const active=saving||!!error;
  useEffect(()=>{
-  if(!saving&&!error)return;
-  const previous=document.activeElement as HTMLElement|null;
+  if(!active)return;
+  const previous=returnFocus?.current??document.activeElement as HTMLElement|null;
+  return()=>{if(previous?.isConnected&&!previous.closest('[inert]'))previous.focus()};
+ },[active,returnFocus]);
+ useEffect(()=>{
+  if(!active)return;
   (panel.current?.querySelector<HTMLElement>('button')??panel.current)?.focus();
-  return()=>{if(previous?.isConnected)previous.focus()};
  },[saving,error]);
  if(!saving&&!error)return null;
  return createPortal(<div className="overlay close-recovery-overlay" onKeyDown={e=>{

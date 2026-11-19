@@ -99,9 +99,11 @@ test('normal close waits for a blocked write and flushes the final edit before e
  let finish;const pending=new Promise(resolve=>{finish=resolve});const saved=[];
  await withClosingFixture(async raw=>{saved.push(JSON.parse(raw));if(saved.length===1)await pending},async fixture=>{
   await act(async()=>fixture.state.setDrafts(all=>({...all,chat:{...all.chat,text:'final edit before closing'}})));
+  const origin=document.createElement('button');document.body.append(origin);origin.focus();
   let closing;
   await act(async()=>{closing=fixture.handlers.get('workspace-close-requested')();await Promise.resolve()});
   assert.equal(fixture.state.closing,true);
+  assert.equal(fixture.state.closeFocus.current,origin);
   assert.equal(fixture.calls.some(([command])=>command==='finish_app_exit'),false);
   await act(async()=>fixture.handlers.get('workspace-close-requested')());
   await act(async()=>{finish();await closing});

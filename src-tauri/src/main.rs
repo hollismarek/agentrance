@@ -11,6 +11,7 @@ mod agents;
 mod clipboard;
 mod resume;
 mod storage;
+mod event_delivery;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -56,7 +57,7 @@ fn record_event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) -> Op
         .unwrap_or_default()
         .as_millis() as i64;
     let state = app.state::<AppState>();
-    let mut payload = json!({"session":id,"kind":kind,"data":data,"at":at});
+    let payload = json!({"session":id,"kind":kind,"data":data,"at":at});
     // The database lock covers only persistence. Sequence numbers let the UI
     // merge concurrent emissions in database order without holding it during IPC.
     let saved = {
@@ -78,18 +79,7 @@ fn record_event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) -> Op
             Err(e) => Err(e),
         }
     };
-    let sequence = match saved {
-        Ok(seq) => { payload["seq"] = json!(seq); Some(seq) },
-        Err(e) => {
-            let _ = app.emit(
-                "history-error",
-                format!("Unable to save conversation activity: {e}"),
-            );
-            None
-        }
-    };
-    let _ = app.emit("agent-event", payload);
-    sequence
+    event_delivery::publish(kind, payload, saved, |name,payload| { let _ = app.emit(name,payload); })
 }
 #[tauri::command]
 fn load_provider_settings(app: tauri::AppHandle) -> Result<Option<String>, String> {

@@ -55,6 +55,6 @@ function App() {
     {comparison&&<CompareDialog providers={providers} projects={projects} initialProject={initialProject(providers,recovery.recentProjects)} onClose={()=>setComparison(false)} onCompare={(text,attachments,cwd)=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.compare(providersAtProject(providers,cwd),text,attachments)})}}/>}
     {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={desk.sessions} onClose={()=>setHelp(null)}/>}
     {settings && ready && <ProviderSettings providers={providers} detected={detected} detecting={detecting} discoveryError={discoveryError} onDiscover={discover} theme={theme.preference} onTheme={theme.choose} onSave={async providers=>{await save(providers);setSettings(false)}} onClose={() => setSettings(false)}/>}
-  </div><CloseRecoveryDialog saving={recovery.closing} error={recovery.closeError} onRetry={()=>void recovery.retryClose()} onKeepWorking={recovery.keepWorking} onQuit={()=>void recovery.quitWithoutSaving()}/></>;
+  </div><CloseRecoveryDialog returnFocus={recovery.closeFocus} saving={recovery.closing} error={recovery.closeError} onRetry={()=>void recovery.retryClose()} onKeepWorking={recovery.keepWorking} onQuit={()=>void recovery.quitWithoutSaving()}/></>;
 }
 createRoot(document.getElementById('root')!).render(<ErrorBoundary label="Agentrance"><App/></ErrorBoundary>);

@@ -11,6 +11,7 @@ export function useWorkspaceRecovery(workspace:Workspace,drafts:Drafts,dispatch:
  const [recentProjects,setRecentProjects]=useState<string[]>([]);
  const [closing,setClosing]=useState(false),[closeError,setCloseError]=useState('');
  const closingRef=useRef(false);
+ const closeFocus=useRef<HTMLElement|null>(null);
  const raw=useMemo(()=>serializeRecovery(workspace,drafts,recentProjects),[workspace,drafts,recentProjects]);
  const latest=useRef({ready,writable,raw:''});
  latest.current={ready,writable,raw};
@@ -19,6 +20,7 @@ export function useWorkspaceRecovery(workspace:Workspace,drafts:Drafts,dispatch:
  async function requestClose(){
   if(closingRef.current)return;
   if(!latest.current.ready){onError('Workspace recovery is still loading. Please try closing again when it finishes.');return}
+  if(!closeFocus.current)closeFocus.current=document.activeElement as HTMLElement|null;
   closingRef.current=true;setClosing(true);setCloseError('');
   try{
    if(!latest.current.writable)throw Error('Workspace recovery is unavailable; saved recovery has been preserved');
@@ -49,5 +51,5 @@ export function useWorkspaceRecovery(workspace:Workspace,drafts:Drafts,dispatch:
    .catch(e=>onError(`Could not enable save-on-close: ${e}`));
   return ()=>{active=false;unlisten?.()};
  },[]);
- return {ready,closing,closeError,retryClose:requestClose,keepWorking:()=>setCloseError(''),quitWithoutSaving:()=>invoke('finish_app_exit').catch(e=>setCloseError(`Could not quit: ${e}`)),recentProjects,rememberProject:(path:string)=>setRecentProjects(all=>[path,...all.filter(p=>p!==path)].slice(0,20))};
+ return {ready,closing,closeError,closeFocus,retryClose:requestClose,keepWorking:()=>{setCloseError('');closeFocus.current=null},quitWithoutSaving:()=>invoke('finish_app_exit').catch(e=>setCloseError(`Could not quit: ${e}`)),recentProjects,rememberProject:(path:string)=>setRecentProjects(all=>[path,...all.filter(p=>p!==path)].slice(0,20))};
 }

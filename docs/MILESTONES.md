@@ -737,3 +737,22 @@ dialog. Tab rendering tests cover live counts and lifecycle expiry. All 22
 frontend test files, production build, 28 Rust tests and six Python helper tests
 pass. Native visual/focus behavior remains a hands-on Development check; Stable
 is unchanged.
+
+## Failed prompt publication and quit focus follow-up
+
+User turns are published to the live transcript only after successful history
+recording. Failed writes still report the history error, retain the draft and
+prevent provider submission/acknowledgment. Other live provider activity retains
+its existing best-effort display when history saving fails.
+
+Quit captures the original keyboard focus before making the workspace inert.
+The recovery dialog retains that target across Saving, error and retry states;
+Keep working restores it only after the workspace is interactive again. Closed
+or still-inert targets are skipped.
+
+Validation: real SQLite write-rejection tests cover suppressed user publication,
+successful sequence-bearing publication and retained live activity. Mounted
+React tests model inert focus restrictions through Saving → error → retry →
+Keep working and verify the hook captures the original target. All 22 frontend
+test files, production build and 31 Rust tests pass. Native focus behavior remains
+a hands-on Development check; Stable is unchanged.
