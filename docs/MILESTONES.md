@@ -776,3 +776,15 @@ Python installer-helper tests pass. Release compilation, linked native libraries
 installed binary hash, launcher target, rollback snapshot and unchanged running
 Stable executable were verified. First launch of the promoted Stable remains a
 user check; macOS/Windows installers are not part of this promotion.
+
+## Deferred: Long conversations and practical limits
+
+Measure reopen time, streaming responsiveness, Activity rendering and storage
+growth with long conversations and large tool outputs. The Activity badge counts
+operations, so it does not capture the size of their updates and output.
+
+Evaluate loading older history on demand, rendering only visible Activity rows,
+and processing new events incrementally. Use those measurements to decide whether
+limits or warnings are needed and how users can retain or export older history.
+Track provider context limits separately from local history and Activity growth.
+No conversation cap is introduced by this milestone note.
