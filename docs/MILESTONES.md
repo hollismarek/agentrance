@@ -617,3 +617,15 @@ file. The native file-input CSS rule no longer depends on the hidden attribute.
 Validation: frontend tests/build pass, with deferred-read remount/overlap tests
 and a combined startup-plus-attachment-error regression. Native file-picker
 interaction remains a hands-on Development check. Stable remains untouched.
+
+## Attachment picker concurrent-edit regression test
+
+A component-level React test in jsdom holds a file read pending, removes an
+existing attachment through the rendered picker, then completes the read. It
+verifies the updated attachment list is retained, the late result is rejected
+with the retry message, and loading reservations and controls return to idle.
+jsdom is a development-only test dependency; no production behavior changed.
+
+Validation: the regression test, full frontend suite and production build pass.
+Native file-picker behavior remains a hands-on Development check; Stable is
+untouched.
