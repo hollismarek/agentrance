@@ -756,3 +756,23 @@ React tests model inert focus restrictions through Saving → error → retry �
 Keep working and verify the hook captures the original target. All 22 frontend
 test files, production build and 31 Rust tests pass. Native focus behavior remains
 a hands-on Development check; Stable is unchanged.
+
+## Local Stable promotion — 2026-11-19
+
+Built source `119647c` with the embedded release frontend and promoted immutable
+Linux snapshot `135d3810c42aae034a8a`. The application-menu launcher now targets
+that snapshot; `168ddf3aaf8a4e1156f2` is retained as the rollback target. The
+running Stable process was left on its original executable, so the upgrade takes
+effect on the user's next close/relaunch.
+
+A private pre-promotion backup under the local installer's backups directory
+(`20261119T173115Z`) contains a verified SQLite online backup, provider settings,
+the previous install manifest and desktop launcher. No database or settings were
+replaced, and no running app was stopped. Backup/promotion metadata records the
+source revision and binary hashes.
+
+Validation: all 22 frontend test files, production build, 31 Rust tests and six
+Python installer-helper tests pass. Release compilation, linked native libraries,
+installed binary hash, launcher target, rollback snapshot and unchanged running
+Stable executable were verified. First launch of the promoted Stable remains a
+user check; macOS/Windows installers are not part of this promotion.
