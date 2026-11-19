@@ -20,6 +20,25 @@ Use the existing single window: separate collapsible project panel alongside the
 
 Ollama HTTP with qwen3:4b and agent-directed read-only repository exploration, polished provider/session configuration and final desktop packaging remain separate milestones. reqwest and futures-util are reserved for Ollama. Native bundling is enabled; development uses the separate debug channel. Agentrance does not store provider authentication or add application telemetry.
 
+## Deferred: ACP session configuration and permission presets
+
+Optional follow-up, not an installer prerequisite: expose additional advertised
+ACP `configOptions` generically, preserving provider labels, descriptions,
+allowed values and updates through `session/set_config_option`. Retain existing
+agent/model controls and do not assume providers share permission-mode semantics.
+
+Where standard options do not expose the needed policy, consider an explicit
+Kiro-specific selector for documented `_meta.kiro.policyPreset` presets when
+creating/loading sessions. Explain workspace reads versus read-only shell access,
+scope and persistence before applying a user-selected preset. Keep provider-side
+policy enforcement and explicit approvals; do not infer approvals from commands.
+Existing Kiro workspace permission files remain a configuration path outside
+Agentrance. Validate unsupported providers, rejected presets, reconnect behavior
+and configuration updates before shipping.
+
+References: https://agentclientprotocol.com/protocol/v1/session-config-options
+and https://kiro.dev/docs/cli/chat/permissions/ .
+
 ## UI resilience and configuration follow-up
 
 Implemented after provider review: separate sidebar, session pane, composer, provider settings, and session orchestration; local error boundaries around activity, individual conversations, and the app. Optional malformed tool metadata is handled defensively. Fresh provider defaults resolve the runtime launch directory (the project root under the Tauri development runner), rather than a developer-specific path. Existing valid saved configuration is retained. Invalid saved JSON is reported without overwriting it; saving settings validates fields, unique IDs, argument lists, environment values, and absolute paths. Session startup also checks the directory exists.
