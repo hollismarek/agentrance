@@ -30,12 +30,22 @@ test('missing recovery starts empty and invalid snapshots are rejected',()=>{
 test('recovery writes are serialized and coalesce to the newest pending snapshot',async()=>{
  let finish;const pending=new Promise(resolve=>{finish=resolve});const writes=[],errors=[];
  const write=recoveryWriter(async raw=>{writes.push(raw);if(raw==='first')await pending},e=>errors.push(e));
- write('first');write('outdated');write('latest');assert.deepEqual(writes,['first']);
+ write('first');await Promise.resolve();write('outdated');write('latest');assert.deepEqual(writes,['first']);
  finish();await pending;await new Promise(resolve=>setImmediate(resolve));
  assert.deepEqual(writes,['first','latest']);assert.deepEqual(errors,[]);
 });
 test('a failed recovery write is reported and does not prevent later saves',async()=>{
  const writes=[],errors=[];const write=recoveryWriter(async raw=>{writes.push(raw);if(raw==='bad')throw Error('disk full')},e=>errors.push(String(e)));
- write('bad');write('retry');await new Promise(resolve=>setImmediate(resolve));
+ write('bad');await Promise.resolve();write('retry');await new Promise(resolve=>setImmediate(resolve));
  assert.deepEqual(writes,['bad','retry']);assert.match(errors[0],/disk full/);
+});
+test('flush waits for the final queued edit, reports failures and can retry',async()=>{
+ let finish;const pending=new Promise(resolve=>{finish=resolve});const writes=[];
+ const write=recoveryWriter(async raw=>{writes.push(raw);if(raw==='old')await pending;if(raw==='bad')throw Error('disk full')},()=>{});
+ write('old');await Promise.resolve();
+ let flushed=false;const closing=write.flush('last edit').then(()=>{flushed=true});
+ await Promise.resolve();assert.equal(flushed,false);
+ finish();await closing;assert.deepEqual(writes,['old','last edit']);
+ await assert.rejects(write.flush('bad'),/disk full/);
+ await write.flush('retry');assert.equal(writes.at(-1),'retry');
 });

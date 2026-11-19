@@ -676,3 +676,33 @@ path rejection, full-path selection and the shared Compare root; pure tests
 verify saved provider defaults stay unchanged and suggestions are bounded.
 Native project selection/restart and Windows/macOS remain hands-on checks in
 Development. Stable is untouched.
+
+## Native project selection, reading positions and save-on-close
+
+Project dialogs now offer Browse through the official Tauri dialog plugin, with
+permission limited to opening a picker. Recent suggestions and manual entry
+remain available. Both dialogs validate/canonicalize the folder before returning
+it to App, so invalid roots do not close the dialog, discard Compare input or
+enter the recent-project list. Compare explicitly explains that concurrent
+providers share one working tree and can affect each other's results. This does
+not introduce isolated worktrees or change provider permission policy.
+
+Conversation transcript offsets are remembered per conversation while open,
+including tab changes, pane moves and Focus pane changes. Unseen/reopened chats
+start at the latest response. Readers at the bottom follow streamed responses
+and resizes; readers of earlier text keep their position. Positions are not
+persisted across app restarts and are released when conversations close.
+
+Normal window close and app-level quit request a frontend recovery flush before
+native exit. The frontend freezes editing while the serialized queue saves the
+latest snapshot. Failed saves keep the window open for retry or explicit Quit
+without saving. The native guard activates only after the frontend listener is
+registered. Forced termination, crashes and development-runner restarts can
+still interrupt in-flight saves. Recovery is not a history/settings backup.
+
+Validation: mounted React tests cover picker selection/cancellation, invalid
+Compare roots preserving text and attachments, independent tab offsets,
+streaming/resizes, queued final edits on close and save-failure retry. All 20
+frontend test files, production build, 28 Rust tests and six Python helper tests
+pass. Development rebuilt/launched separately; native folder picking and close
+behavior on each OS remain hands-on checks. Stable is unchanged.

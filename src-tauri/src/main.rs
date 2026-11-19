@@ -29,6 +29,7 @@ struct Provider {
     cwd: String,
 }
 struct AppState {
+    recovery_guard: std::sync::atomic::AtomicBool,
     clients: tokio::sync::Mutex<HashMap<String, Arc<acp::Client>>>,
     db: Mutex<Connection>,
     connecting: Mutex<HashSet<String>>,
@@ -36,6 +37,15 @@ struct AppState {
     // synchronously join its reader task or drain in-flight command callbacks.
     // Reclamation must await all producers; removing at commit is unsafe.
     deleted: Mutex<HashSet<String>>,
+}
+#[tauri::command]
+fn enable_workspace_recovery_guard(app: tauri::AppHandle) {
+    app.state::<AppState>().recovery_guard.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+#[tauri::command]
+fn finish_app_exit(app: tauri::AppHandle) {
+    app.state::<AppState>().recovery_guard.store(false, std::sync::atomic::Ordering::SeqCst);
+    app.exit(0);
 }
 fn event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) {
     let at = std::time::SystemTime::now()
@@ -120,6 +130,10 @@ fn startup_directory() -> Result<String, String> {
         &cwd
     };
     Ok(project.to_string_lossy().into_owned())
+}
+#[tauri::command]
+fn validate_project(path: String) -> Result<String, String> {
+    platform::project_directory(std::path::Path::new(&path))
 }
 #[tauri::command]
 async fn new_session(app: tauri::AppHandle, mut provider: Provider) -> Result<String, String> {
@@ -473,12 +487,22 @@ fn main() {
     gtk::glib::set_prgname(Some(context.config().identifier.as_str()));
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.state::<AppState>().recovery_guard.load(std::sync::atomic::Ordering::SeqCst) {
+                    api.prevent_close();
+                    let _ = window.emit("workspace-close-requested", ());
+                }
+            }
+        })
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
             let db = Connection::open(dir.join("history.sqlite3"))?;
             storage::initialize(&db)?;
             app.manage(AppState {
+                recovery_guard: Default::default(),
                 clients: Default::default(),
                 db: Mutex::new(db),
                 connecting: Default::default(),
@@ -488,7 +512,10 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             clipboard::copy_text,
+            enable_workspace_recovery_guard,
+            finish_app_exit,
             startup_directory,
+            validate_project,
             app_channel,
             discover_providers,
             load_provider_settings,
@@ -508,6 +535,14 @@ fn main() {
             delete_session,
             rename_session
         ])
-        .run(context)
-        .expect("Agentrance failed");
+        .build(context)
+        .expect("Agentrance failed")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                if app.state::<AppState>().recovery_guard.load(std::sync::atomic::Ordering::SeqCst) {
+                    api.prevent_exit();
+                    let _ = app.emit("workspace-close-requested", ());
+                }
+            }
+        });
 }

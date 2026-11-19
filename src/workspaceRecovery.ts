@@ -34,11 +34,12 @@ export function serializeRecovery(workspace:Workspace,drafts:Drafts,recentProjec
 }
 // Serialize disk writes; while a write is pending, only the newest snapshot is needed.
 export function recoveryWriter(save:(raw:string)=>Promise<unknown>,onError:(error:unknown)=>void){
- let pending:string|undefined,running=false;
+ let pending:string|undefined,running:Promise<void>|null=null,lastError:unknown;
  async function drain(){
-  running=true;
-  try{while(pending!==undefined){const raw=pending;pending=undefined;try{await save(raw)}catch(e){onError(e)}}}
-  finally{running=false}
+  try{while(pending!==undefined){const raw=pending;pending=undefined;try{await save(raw);lastError=undefined}catch(e){lastError=e;onError(e)}}}
+  finally{running=null}
  }
- return (raw:string)=>{pending=raw;if(!running)void drain()};
+ const write=(raw:string)=>{pending=raw;if(!running)running=Promise.resolve().then(drain)};
+ write.flush=async(raw?:string)=>{if(raw!==undefined)write(raw);while(running)await running;if(lastError!==undefined)throw lastError};
+ return write;
 }

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 pub fn project_directory(path: &Path) -> Result<String, String> {
     if !path.is_absolute() || !path.is_dir() {
-        return Err("Choose an existing absolute project directory in Settings".into());
+        return Err("Choose an existing absolute project folder; the selected folder is missing or invalid".into());
     }
     // dunce preserves verbatim paths when necessary, normalizing them only when safe.
     dunce::canonicalize(path)

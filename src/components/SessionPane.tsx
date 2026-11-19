@@ -1,4 +1,5 @@
-import React,{useMemo} from 'react';
+import React,{useMemo,useRef} from 'react';
+import {useTranscriptScroll,type TranscriptPositions} from '../useTranscriptScroll';
 import {PendingApprovals} from './PendingApprovals';
 import {ActivityPanel} from '../ActivityPanel';
 import {conversationTurns,questionAndAnswer} from '../conversation';
@@ -8,12 +9,15 @@ import {agentSelection,agentName,modelSelection} from '../agents';
 import {AgentSelector} from './AgentSelector';
 import {chatTitle} from '../history';
 import {ErrorBoundary} from './ErrorBoundary';
-export function SessionPane({session:s, onPermission, onCancel, onResume, resumeAvailable, onAgent, onModel, onHelp, children}: {
+export function SessionPane({session:s, onPermission, onCancel, onResume, resumeAvailable, onAgent, onModel, onHelp, children,scrollPositions}: {
+  scrollPositions?:TranscriptPositions;
   children?:React.ReactNode; onHelp:()=>void; onModel:(id:string)=>void; onAgent:(id:string)=>void; session: Session; onResume: () => void; resumeAvailable: boolean; onPermission: (request: unknown, option: string | null) => Promise<void>; onCancel: () => void;
 }) {
   const {selection,model}=useMemo(()=>({selection:agentSelection(s.items),model:modelSelection(s.items)}),[s.items]);
   const activeAgent=agentName(selection),activeModel=agentName(model);
   const turns=useMemo(()=>conversationTurns(s.items,s.busy),[s.items,s.busy]);
+  const localPositions=useRef<TranscriptPositions>(new Map());
+  const scroll=useTranscriptScroll(s.id,scrollPositions??localPositions.current);
   return <article>
     <div className="pane-title"><strong>{chatTitle(s)}</strong>
       <div className="session-status">
@@ -24,11 +28,11 @@ export function SessionPane({session:s, onPermission, onCancel, onResume, resume
       </div>
       <small className="session-project">{s.cwd}</small>
     </div>
-    <div className="messages">{turns.map(turn=><section className="chat-turn" key={turn.key}>
+    <div className="messages" ref={scroll.body} onScroll={scroll.onScroll}><div ref={scroll.content}>{turns.map(turn=><section className="chat-turn" key={turn.key}>
       {turn.question!==null&&<div className="message user"><div className="message-heading"><label>You</label><CopyButton text={turn.question} label="Copy question"/></div><div>{turn.question}</div></div>}
       {turn.answer&&<div className="message delta"><div className="message-heading"><label>{s.provider}</label><div className="message-actions"><CopyButton text={turn.answer} label="Copy answer" disabled={!turn.complete}/>{turn.question!==null&&<CopyButton text={questionAndAnswer(turn,s.provider)} label="Copy Q&A" disabled={!turn.complete}/>}</div></div><div>{turn.answer}</div></div>}
       {turn.errors.map((error,i)=><div className="message error" key={i}><label>Error</label><div>{error}</div></div>)}
-    </section>)}{s.busy&&<p className="muted">Responding…</p>}</div>
+    </section>)}{s.busy&&<p className="muted">Responding…</p>}</div></div>
     <ErrorBoundary key={s.id} label="Activity inspector">
       <ActivityPanel events={s.items} live={s.live} provider={s.provider} onPermission={onPermission}
         agentControl={<><AgentSelector selection={selection} live={s.live} busy={s.busy||!!s.resuming||!!s.changingModel} changing={!!s.changingAgent} onChange={onAgent}/>

@@ -10,6 +10,7 @@ import {chatTitle} from '../history';
 import {SessionPane} from './SessionPane';
 import {Composer} from './Composer';
 import {ErrorBoundary} from './ErrorBoundary';
+import type {TranscriptPositions} from '../useTranscriptScroll';
 
 export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDrafts,onHelp}:{
   workspace:typeof initialWorkspace;
@@ -21,6 +22,8 @@ export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDra
   onHelp:(id:string)=>void;
 }) {
   const [fileLoading,setFileLoading]=useState<Record<string,number>>({});
+  const scrollPositions=useRef<TranscriptPositions>(new Map());
+  useEffect(()=>{for(const id of scrollPositions.current.keys())if(!desk.sessions.some(s=>s.id===id))scrollPositions.current.delete(id)},[desk.sessions]);
   const [maximized,setMaximized]=useState(false);
   const count=paneCount(workspace.mode);
   const focusedPane=maximized?workspace.focus:null;
@@ -54,7 +57,7 @@ export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDra
               </div>
               {session&&id?<>
                 <ErrorBoundary key={id} label={`${session.provider} conversation`}>
-                  <SessionPane session={session} onHelp={()=>onHelp(id)} onModel={modelId=>void desk.setModel(id,modelId)} onAgent={agentId=>void desk.setAgent(id,agentId)} resumeAvailable={!!resumeProvider(providers,session)}
+                  <SessionPane scrollPositions={scrollPositions.current} session={session} onHelp={()=>onHelp(id)} onModel={modelId=>void desk.setModel(id,modelId)} onAgent={agentId=>void desk.setAgent(id,agentId)} resumeAvailable={!!resumeProvider(providers,session)}
                     onResume={()=>{const provider=resumeProvider(providers,session);if(provider)void desk.resume(session,provider)}} onPermission={async(request,option)=>{await invoke('permission',{id,request,option})}} onCancel={()=>void desk.cancel(id)}>
                     {!!drafts[id]?.missingAttachments?.length&&<p className="draft-recovery" role="status">Attachments were not restored: {drafts[id].missingAttachments!.join(', ')}. Reattach them before sending. <button onClick={()=>setDrafts(all=>({...all,[id]:{...all[id],missingAttachments:[]}}))}>Dismiss</button></p>}
                     <Composer onAttachmentBusy={busy=>setFileLoading(all=>{const next={...all};const count=pendingReadCount(next[id]??0,busy);if(count)next[id]=count;else delete next[id];return next})} attachments={drafts[id]?.attachments??[]} onAttachments={files=>setDrafts(d=>setAttachments(d,id,files))} text={text} onText={value=>setDrafts(d=>editDraft(d,id,value))} canSend={canSend} label={`Message to ${session.provider}`} onSend={()=>{if(canSend){const clearedRevision=(drafts[id]?.revision??0)+1;const attachments=drafts[id]?.attachments??[];setDrafts(d=>clearDraft(d,id));void desk.send([id],text,attachments).then(results=>{if(!results[0])setDrafts(d=>restoreDraft(d,id,text,clearedRevision,attachments))})}}}/>

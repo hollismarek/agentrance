@@ -29,7 +29,7 @@ header small{margin-top:5px}
 article{flex:1;min-width:320px;display:flex;flex-direction:column;border-right:1px solid var(--border)}
 .pane-title{padding:12px 22px;border-bottom:1px solid var(--border)}
 .pane-title small{margin-top:4px}
-.messages{overflow:auto;flex:1;min-height:0;padding:20px}
+.messages{overflow:auto;overflow-anchor:none;flex:1;min-height:0;padding:20px}
 .message{margin-bottom:20px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
 .message label{display:block;font-size:11px;color:var(--accent-text);margin-bottom:5px}
 .message.user{background:var(--user-message);padding:14px;border-radius:10px}
@@ -390,4 +390,8 @@ html,body,#root{overflow:clip}
 /* Project selection and recovered draft context */
 .project-field{display:flex;flex-direction:column;gap:6px;margin:16px 0;overflow-wrap:anywhere}
 .project-field small{color:var(--muted)}
+.history-dialog fieldset{border:0;padding:0;margin:0;min-width:0}
+.project-path{display:flex;align-items:center;gap:8px}
+.project-path input{flex:1;min-width:0;margin:0}
+.project-path button{flex-shrink:0}
 .draft-recovery{flex-shrink:0;margin:0;padding:8px 12px;color:var(--text);background:var(--input-bg);font-size:13px;overflow-wrap:anywhere;max-height:100px;overflow:auto}

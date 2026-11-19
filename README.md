@@ -33,7 +33,10 @@ implemented.
 - Light and dark palettes, following the OS by default, with manual overrides.
 - Fresh independent provider comparisons using a shared initial prompt.
 - Project selection for new sessions and one shared project for Compare, with
-  recent-folder suggestions and unchanged saved provider defaults.
+  a native folder picker, recent-folder suggestions and unchanged saved provider
+  defaults. Invalid folders keep the dialog and its prompt/attachments open.
+- Conversation scroll positions survive tab/pane switches during the app run;
+  first opens start at the latest response and readers at the bottom follow updates.
 - SQLite conversation history, rename/delete, and continuation when supported by
   the provider's saved-session capabilities.
 - Activity inspection with reported tool input/output, elapsed time, readable
@@ -76,8 +79,10 @@ On first launch, open or complete **Menu → Settings**:
    have separate fields; environment overrides are optional. **Use for all** can
    apply one project folder to all providers.
 3. Save settings, select the provider in the sidebar, choose **New session**,
-   and confirm the project folder. Choose a recent folder or enter its full path.
+   and confirm the project folder. Use **Browse…**, choose a recent folder or
+   enter its full path.
    **Compare…** uses one explicitly selected project for every provider.
+   Providers share that working tree, so changes by one can affect the others.
 
 **Settings → Appearance** contains System, Light, and Dark. Appearance changes
 apply immediately; provider edits are saved with **Save settings**.
@@ -146,6 +151,9 @@ project choices and text drafts are saved locally in `workspace.json` for
 recovery. Restored conversations stay disconnected until explicitly continued.
 Attachment contents and the Compare dialog's unsent prompt are not restored.
 Closing a conversation tab discards its draft.
+Normal close/quit waits for the latest recovery save. A save failure keeps the
+window open so you can retry or explicitly quit without saving. Forced termination
+or a crash can still lose writes that have not reached disk.
 
 Agentrance adds no application telemetry and does not manage provider account
 credentials. Provider CLIs handle their own authentication, network access,

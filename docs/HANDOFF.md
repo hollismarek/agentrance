@@ -28,6 +28,11 @@ Attachment bytes are not persisted; restored drafts show names to reattach.
 New sessions confirm a project folder; Compare uses one explicitly selected
 folder for every provider. Recent choices recover with the workspace; saved
 provider defaults and original roots for resumed conversations are preserved.
+Native Browse is available in project dialogs; validation failures retain the
+dialog and Compare input. Conversation reading positions survive tab/pane
+switches in memory, and first opens start at the bottom. Normal window close and
+app quit flush recovery before exiting; save failures keep the app open with an
+explicit Quit without saving option. Backup/export is still outstanding.
 
 Ollama HTTP is NOT implemented. It remains a planned milestone with qwen3:4b
 and agent-directed read-only repository exploration. Project file browser,
