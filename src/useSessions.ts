@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
+import {startupErrors,reportSendFailure} from './comparisonErrors';
 import type {Attachment} from './attachments';
 import type {ActivityEvent} from './activity';
 import {mergeEvents,connectionIsLive} from './sessionEvents';
@@ -57,13 +58,12 @@ export function useSessions(onError: (message:string) => void) {
     setStarting(true);
     try{setPanes([await fresh(provider)])}catch(e){onError(String(e))}finally{setStarting(false)}
   }
-  async function send(ids:string[],text:string,attachments:Attachment[]=[],labels:Record<string,string>={}) {
+  async function send(ids:string[],text:string,attachments:Attachment[]=[],labels:Record<string,string>={},errors:string[]=[]) {
     if (!text.trim()&&!attachments.length) return [];
-    const errors:string[]=[];
     return Promise.all(ids.map(async id => {
       setSessions(a => a.map(s => s.id === id ? {...s,busy:true} : s));
       try {await invoke('prompt',{id,text,attachments});return true}
-      catch(e){errors.push(`${labels[id]?`${labels[id]}: `:''}${e}`);onError(errors.join('\n'));setSessions(a => a.map(s => s.id === id ? {...s,busy:false} : s));return false}
+      catch(e){reportSendFailure(errors,labels[id],e,onError);setSessions(a => a.map(s => s.id === id ? {...s,busy:false} : s));return false}
     }));
   }
   async function compare(providers:Provider[],question:string,attachments:Attachment[]=[]) {
@@ -72,10 +72,10 @@ export function useSessions(onError: (message:string) => void) {
     try {
       const results=await Promise.allSettled(providers.map(fresh));
       const ids=results.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
-      const failures=results.filter(r => r.status === 'rejected');
-      if(failures.length) onError(failures.map(r => r.status === 'rejected' ? String(r.reason) : '').join('\n'));
+      const errors=startupErrors(results,providers);
+      if(errors.length)onError(errors.join('\n'));
       const labels=Object.fromEntries(results.flatMap((r,i)=>r.status==='fulfilled'?[[r.value,providers[i].name]]:[]));
-      setPanes(ids);await send(ids,question,attachments,labels);
+      setPanes(ids);await send(ids,question,attachments,labels,errors);
     } finally {setStarting(false)}
   }
   async function open(saved:SavedSession) {

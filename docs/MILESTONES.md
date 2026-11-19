@@ -582,3 +582,19 @@ the dialog closes, as with its existing text draft.
 Validation: frontend tests/build pass, including Compare picker markup, hidden
 empty-strip and initial send-state coverage. Native file-picker and multi-provider
 image compatibility remain hands-on checks in Development. Stable is unchanged.
+
+## Attachment read lifecycle and combined Compare errors
+
+Picker unmount invalidates outstanding read tickets and releases each busy
+reservation exactly once. Late completions cannot modify a remounted picker's
+newer attachments. Conversation busy state counts reservations instead of using
+a boolean, so overlapping reads cannot clear each other's state. Switching away
+while loading cancels that selection's effect; reselect the file after returning.
+
+Compare now shares one error collection across startup and prompt submission,
+retaining provider-labelled startup failures when another provider rejects a
+file. The native file-input CSS rule no longer depends on the hidden attribute.
+
+Validation: frontend tests/build pass, with deferred-read remount/overlap tests
+and a combined startup-plus-attachment-error regression. Native file-picker
+interaction remains a hands-on Development check. Stable remains untouched.

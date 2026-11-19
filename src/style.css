@@ -385,4 +385,4 @@ html,body,#root{overflow:clip}
 .compare-dialog footer>.attachment-picker{display:block;margin:0;order:-1}
 
 /* Native WebKit file-input styling must not expose a second picker button. */
-.attachment-controls input[type="file"][hidden]{display:none!important}
+.attachment-controls input[type="file"]{display:none!important}
