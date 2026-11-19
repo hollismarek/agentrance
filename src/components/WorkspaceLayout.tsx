@@ -5,12 +5,13 @@ import {resumeProvider} from '../providers';
 import type {Provider} from '../types';
 import type {useSessions} from '../useSessions';
 import {initialWorkspace,workspaceReducer,paneCount} from '../workspace';
-import {editDraft,restoreDraft,clearDraft,setAttachments,type Drafts} from '../drafts';
+import {editDraft,clearRecordedDraft,setAttachments,type Drafts} from '../drafts';
 import {chatTitle} from '../history';
 import {SessionPane} from './SessionPane';
 import {Composer} from './Composer';
 import {ErrorBoundary} from './ErrorBoundary';
 import type {TranscriptPositions} from '../useTranscriptScroll';
+import {ConversationTab} from './ConversationTab';
 
 export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDrafts,onHelp}:{
   workspace:typeof initialWorkspace;
@@ -49,7 +50,7 @@ export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDra
             <section aria-label={`Conversation pane ${p+1}`} className={`workspace-pane ${workspace.focus===p?'focused':''}`} style={{flex:`${count!==2||focusedPane!==null?1:p===0?ratio:100-ratio} 1 0%`}} onFocusCapture={()=>dispatch({type:'focus',pane:p})} onPointerDown={()=>dispatch({type:'focus',pane:p})}>
               <div className="tabs" role="tablist" aria-label={`Pane ${p+1} conversations`}>{workspace.groups[p].map(tabId=>{
                 const tab=desk.sessions.find(s=>s.id===tabId);if(!tab)return null;
-                return <div className="session-tab" key={tabId}><button role="tab" aria-selected={tabId===id} className={tabId===id?'active':''} onClick={()=>dispatch({type:'select',pane:p,id:tabId})}>{chatTitle(tab)} {tab.busy?'◌':''}<small>{tab.provider}</small></button><button aria-label={`Close ${chatTitle(tab)}`} onClick={()=>void desk.close(tabId)}>×</button></div>;
+                return <ConversationTab key={tabId} session={tab} selected={tabId===id} onSelect={()=>dispatch({type:'select',pane:p,id:tabId})} onClose={()=>void desk.close(tabId)}/>;
               })}</div>
               <div className="pane-actions"><span className="pane-number">Pane {p+1}</span>
                 {count>1&&<button aria-pressed={maximized} onClick={()=>setMaximized(value=>!value)}>{!maximized?'Focus pane':'Show all panes'}</button>}
@@ -60,7 +61,7 @@ export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDra
                   <SessionPane scrollPositions={scrollPositions.current} session={session} onHelp={()=>onHelp(id)} onModel={modelId=>void desk.setModel(id,modelId)} onAgent={agentId=>void desk.setAgent(id,agentId)} resumeAvailable={!!resumeProvider(providers,session)}
                     onResume={()=>{const provider=resumeProvider(providers,session);if(provider)void desk.resume(session,provider)}} onPermission={async(request,option)=>{await invoke('permission',{id,request,option})}} onCancel={()=>void desk.cancel(id)}>
                     {!!drafts[id]?.missingAttachments?.length&&<p className="draft-recovery" role="status">Attachments were not restored: {drafts[id].missingAttachments!.join(', ')}. Reattach them before sending. <button onClick={()=>setDrafts(all=>({...all,[id]:{...all[id],missingAttachments:[]}}))}>Dismiss</button></p>}
-                    <Composer onAttachmentBusy={busy=>setFileLoading(all=>{const next={...all};const count=pendingReadCount(next[id]??0,busy);if(count)next[id]=count;else delete next[id];return next})} attachments={drafts[id]?.attachments??[]} onAttachments={files=>setDrafts(d=>setAttachments(d,id,files))} text={text} onText={value=>setDrafts(d=>editDraft(d,id,value))} canSend={canSend} label={`Message to ${session.provider}`} onSend={()=>{if(canSend){const clearedRevision=(drafts[id]?.revision??0)+1;const attachments=drafts[id]?.attachments??[];setDrafts(d=>clearDraft(d,id));void desk.send([id],text,attachments).then(results=>{if(!results[0])setDrafts(d=>restoreDraft(d,id,text,clearedRevision,attachments))})}}}/>
+                    <Composer onAttachmentBusy={busy=>setFileLoading(all=>{const next={...all};const count=pendingReadCount(next[id]??0,busy);if(count)next[id]=count;else delete next[id];return next})} attachments={drafts[id]?.attachments??[]} onAttachments={files=>setDrafts(d=>setAttachments(d,id,files))} text={text} onText={value=>setDrafts(d=>editDraft(d,id,value))} canSend={canSend} label={`Message to ${session.provider}`} onSend={()=>{if(canSend){const revision=drafts[id]?.revision??0;const attachments=drafts[id]?.attachments??[];void desk.send([id],text,attachments,{},[],()=>setDrafts(d=>clearRecordedDraft(d,id,revision)))}}}/>
                   </SessionPane>
                 </ErrorBoundary></>:<div className="empty"><h2>{desk.sessions.length?'Choose a conversation':'A second perspective starts here.'}</h2><p>{workspace.mode==='single'?'Start a session or open a chat from history.':'Click this pane, then start a session or open a chat from history.'}</p></div>}
             </section>

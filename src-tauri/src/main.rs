@@ -48,6 +48,9 @@ fn finish_app_exit(app: tauri::AppHandle) {
     app.exit(0);
 }
 fn event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) {
+    let _ = record_event(app, id, kind, data);
+}
+fn record_event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) -> Option<i64> {
     let at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -68,23 +71,25 @@ fn event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) {
                     .map(|ids| ids.contains(id))
                     .unwrap_or(true)
                 {
-                    return;
+                    return None;
                 }
                 storage::append(&db, id, kind, &data, at).map_err(|e| e.to_string())
             }
             Err(e) => Err(e),
         }
     };
-    match saved {
-        Ok(seq) => payload["seq"] = json!(seq),
+    let sequence = match saved {
+        Ok(seq) => { payload["seq"] = json!(seq); Some(seq) },
         Err(e) => {
             let _ = app.emit(
                 "history-error",
                 format!("Unable to save conversation activity: {e}"),
             );
+            None
         }
-    }
+    };
     let _ = app.emit("agent-event", payload);
+    sequence
 }
 #[tauri::command]
 fn load_provider_settings(app: tauri::AppHandle) -> Result<Option<String>, String> {
@@ -313,7 +318,7 @@ async fn set_model(app: tauri::AppHandle, id: String, model_id: String) -> Resul
     Ok(())
 }
 #[tauri::command]
-async fn prompt(app: tauri::AppHandle, id: String, text: String, attachments: Option<Vec<attachments::Attachment>>) -> Result<(), String> {
+async fn prompt(app: tauri::AppHandle, id: String, text: String, attachments: Option<Vec<attachments::Attachment>>, submission_id: Option<String>) -> Result<(), String> {
     let client = app
         .state::<AppState>()
         .clients
@@ -331,7 +336,13 @@ async fn prompt(app: tauri::AppHandle, id: String, text: String, attachments: Op
     let caps=client.prompt_caps.lock().map_err(|e|e.to_string())?.clone();
     let blocks=attachments::prompt(&text,&files,&caps)?;
     let display=if files.is_empty(){text.clone()}else{format!("{}\n\nAttached: {}",text,files.iter().map(|f|f.name.as_str()).collect::<Vec<_>>().join(", "))};
-    event(&app, &id, "user", json!(display));
+    record_event(&app, &id, "user", json!(display))
+        .ok_or("Could not record this prompt in history; your draft has been kept")?;
+    // Only acknowledge after validation and successful history persistence.
+    // The long-running prompt invocation itself resolves after the response.
+    if let Some(submission_id) = submission_id {
+        let _ = app.emit("prompt-accepted", json!({"id":id,"submissionId":submission_id}));
+    }
     let remote = client.remote.lock().await.clone();
     let result = client
         .request(

@@ -11,3 +11,7 @@ export function restoreDraft(drafts:Drafts,id:string,text:string,clearedRevision
 
 export function setAttachments(drafts:Drafts,id:string,attachments:Attachment[]):Drafts{return drafts[id]?{...drafts,[id]:{...drafts[id],attachments,revision:drafts[id].revision+1}}:drafts}
 export function clearDraft(drafts:Drafts,id:string):Drafts{return {...drafts,[id]:{text:'',attachments:[],revision:(drafts[id]?.revision??0)+1}}}
+// A recorded prompt may acknowledge after the user has started another draft.
+export function clearRecordedDraft(drafts:Drafts,id:string,revision:number):Drafts{
+ return drafts[id]?.revision===revision?clearDraft(drafts,id):drafts;
+}

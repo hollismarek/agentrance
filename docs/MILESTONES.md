@@ -706,3 +706,34 @@ streaming/resizes, queued final edits on close and save-failure retry. All 20
 frontend test files, production build, 28 Rust tests and six Python helper tests
 pass. Development rebuilt/launched separately; native folder picking and close
 behavior on each OS remain hands-on checks. Stable is unchanged.
+
+## Waiting-tab badges and pending-send recovery
+
+Conversation tabs show an amber `!` badge and the number of pending approvals,
+including inactive tabs. An accessible label and tooltip identify the count.
+The badge uses the same live approval reducer as the cards; resolved, expired,
+disconnected and historical requests do not decorate tabs. It is an indicator,
+not a new approval action, and does not change permission policy.
+
+Sending now keeps the existing draft until a correlated `prompt-accepted` event
+confirms validation and successful SQLite recording of the user message. The
+backend does not submit a prompt when recording fails. A delayed acknowledgment
+clears only the unchanged submitted revision, preserving newer typing and other
+conversations. Completion provides an acknowledgment fallback if the event is
+missed. Early rejections retain the original draft, so a concurrent quit flushes
+its text and attachment-name reminders. Once recorded, the prompt remains in
+history even if the provider later fails; it is not automatically resent or
+restored over newer composer input. Attachment bytes remain in-memory only.
+
+Quit saving and failures now use a portal above Settings, Compare and Help,
+outside the inert workspace. Failure offers Retry save and quit, Keep working,
+and explicit Quit without saving, with keyboard focus containment/restoration.
+An unsubmitted Compare dialog is still not persisted on quit. Portable
+history/settings backup remains outstanding.
+
+Validation: mounted tests cover pending send followed by quit and early rejection,
+acknowledgment ID matching and newer edits, plus failure actions above an open
+dialog. Tab rendering tests cover live counts and lifecycle expiry. All 22
+frontend test files, production build, 28 Rust tests and six Python helper tests
+pass. Native visual/focus behavior remains a hands-on Development check; Stable
+is unchanged.

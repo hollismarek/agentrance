@@ -11,6 +11,7 @@ import {HelpDialog,type HelpTopic} from './components/HelpDialog';
 import {Sidebar} from './components/Sidebar';
 import {CompareDialog} from './components/CompareDialog';
 import {NewSessionDialog} from './components/NewSessionDialog';
+import {CloseRecoveryDialog} from './components/CloseRecoveryDialog';
 import {projectChoices,initialProject,providersAtProject} from './projects';
 import type {Provider} from './types';
 import {ProviderSettings} from './components/ProviderSettings';
@@ -37,7 +38,7 @@ function App() {
   useEffect(()=>{if(!recovery.ready)return;dispatch({type:'retain',ids:desk.sessions.map(s=>s.id)});setDrafts(d=>Object.fromEntries(desk.sessions.map(s=>[s.id,d[s.id]??{text:'',revision:0,attachments:[]}])))},[sessionIds,recovery.ready]);
   const visible=workspace.selected.filter((id,p)=>id&&(p<paneCount(workspace.mode))) as string[];
   const projects=projectChoices(recovery.recentProjects,providers,desk.past);
-  return <div className="app" inert={recovery.closing?true:undefined}>
+  return <><div className="app" inert={recovery.closing||!!recovery.closeError?true:undefined}>
     <Sidebar collapsed={sidebarCollapsed} onToggle={()=>setSidebarCollapsed(value=>!value)} providers={providers} selected={selected} past={desk.past} panes={visible} starting={desk.starting||!recovery.ready}
       busyIds={desk.sessions.filter(s=>s.busy||s.resuming||s.changingAgent||s.changingModel).map(s=>s.id)} onRename={desk.rename} onDelete={desk.remove}
       onStart={()=>{withSavedProviders(ready&&recovery.ready,needsSetup,()=>setSettings(true),()=>{const provider=providers.find(p=>p.id===selected);if(provider)setNewSession(provider)})}}
@@ -48,14 +49,12 @@ function App() {
         <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option><option value="three">Three panes</option><option value="grid">Four panes (grid)</option></select></label><AppMenu settingsReady={ready} onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
       </header>
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
-      {recovery.closeError&&<div role="alert" className="error">{recovery.closeError}<button onClick={()=>void recovery.quitWithoutSaving()}>Quit without saving</button></div>}
-      {recovery.closing&&<p role="status">Saving workspace before closing…</p>}
       <WorkspaceLayout workspace={workspace} dispatch={dispatch} desk={desk} providers={providers} drafts={drafts} setDrafts={setDrafts} onHelp={id=>setHelp({topic:'models',sessionId:id})}/>
     </main>
     {newSession&&<NewSessionDialog provider={newSession} initialProject={initialProject([newSession],recovery.recentProjects)} projects={projects} onClose={()=>setNewSession(null)} onStart={cwd=>{setNewSession(null);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.start(providersAtProject([newSession],cwd)[0])})}}/>}
     {comparison&&<CompareDialog providers={providers} projects={projects} initialProject={initialProject(providers,recovery.recentProjects)} onClose={()=>setComparison(false)} onCompare={(text,attachments,cwd)=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.compare(providersAtProject(providers,cwd),text,attachments)})}}/>}
     {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={desk.sessions} onClose={()=>setHelp(null)}/>}
     {settings && ready && <ProviderSettings providers={providers} detected={detected} detecting={detecting} discoveryError={discoveryError} onDiscover={discover} theme={theme.preference} onTheme={theme.choose} onSave={async providers=>{await save(providers);setSettings(false)}} onClose={() => setSettings(false)}/>}
-  </div>;
+  </div><CloseRecoveryDialog saving={recovery.closing} error={recovery.closeError} onRetry={()=>void recovery.retryClose()} onKeepWorking={recovery.keepWorking} onQuit={()=>void recovery.quitWithoutSaving()}/></>;
 }
 createRoot(document.getElementById('root')!).render(<ErrorBoundary label="Agentrance"><App/></ErrorBoundary>);

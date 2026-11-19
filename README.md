@@ -42,6 +42,7 @@ implemented.
 - Activity inspection with reported tool input/output, elapsed time, readable
   permission cards, and an expanded reading preset.
 - Active approvals directly above the composer; historical requests cannot be approved.
+- Waiting tabs show an amber approval badge with the pending-request count.
 - Per-conversation image/file attachments with a removable thumbnail strip; image
   and binary input depend on advertised provider capabilities.
 - Agent and model selection from provider-advertised choices.
@@ -152,7 +153,9 @@ recovery. Restored conversations stay disconnected until explicitly continued.
 Attachment contents and the Compare dialog's unsent prompt are not restored.
 Closing a conversation tab discards its draft.
 Normal close/quit waits for the latest recovery save. A save failure keeps the
-window open so you can retry or explicitly quit without saving. Forced termination
+window open with a dialog above other screens so you can retry, keep working or
+explicitly quit without saving. Submitted drafts remain recoverable until the
+backend confirms the prompt was recorded in history. Forced termination
 or a crash can still lose writes that have not reached disk.
 
 Agentrance adds no application telemetry and does not manage provider account

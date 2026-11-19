@@ -1,8 +1,9 @@
 import React,{useMemo,useState} from 'react';
-import {reduceActivity,type ActivityEvent} from '../activity';
+import type {ActivityEvent} from '../activity';
+import {pendingApprovals} from '../approvalState';
 import {PermissionDetails} from './PermissionDetails';
 export function PendingApprovals({events,live,provider,onPermission}:{events:ActivityEvent[];live:boolean;provider:string;onPermission:(request:unknown,option:string|null)=>Promise<void>}){
- const pending=useMemo(()=>reduceActivity(events,live).flatMap(op=>op.approvals.filter(a=>!a.expired&&!a.decision)),[events,live]);
+ const pending=useMemo(()=>pendingApprovals(events,live),[events,live]);
  const [sending,setSending]=useState<string[]>([]),[error,setError]=useState('');
  if(!pending.length)return null;
  async function decide(request:unknown,option:string|null){const key=JSON.stringify(request);if(sending.includes(key))return;setSending(s=>[...s,key]);setError('');try{await onPermission(request,option)}catch(e){setError(String(e))}finally{setSending(s=>s.filter(k=>k!==key))}}

@@ -11,12 +11,14 @@ const output=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:
  import {useSessions} from './src/useSessions';
  import {useWorkspaceRecovery} from './src/useWorkspaceRecovery';
  import {initialWorkspace,workspaceReducer} from './src/workspace';
+ import {WorkspaceLayout} from './src/components/WorkspaceLayout';
  export function Harness(){
   const [workspace,dispatch]=useReducer(workspaceReducer,initialWorkspace);
   const [drafts,setDrafts]=useState({});
   const desk=useSessions(globalThis.__recoveryTest.error);
   const recovery=useWorkspaceRecovery(workspace,drafts,dispatch,setDrafts,desk.restore,globalThis.__recoveryTest.error);
-  globalThis.__recoveryTest.state={workspace,drafts,sessions:desk.sessions,...recovery,setDrafts};
+  globalThis.__recoveryTest.state={workspace,drafts,sessions:desk.sessions,desk,...recovery,setDrafts};
+  if(globalThis.__recoveryTest.renderDesk)return <WorkspaceLayout workspace={workspace} dispatch={dispatch} desk={desk} providers={[]} drafts={drafts} setDrafts={setDrafts} onHelp={()=>{}}/>;
   return <div>{recovery.ready?'Ready':'Restoring'}</div>;
  }`},bundle:true,platform:'node',format:'cjs',external:['react'],write:false,plugins:[{
  name:'fake-tauri',setup(build){
@@ -69,9 +71,9 @@ test('startup restores history and drafts without launching providers or saving 
 
 async function withClosingFixture(save,run){
  const dom=new JSDOM('<div id="root"></div>');
- const keys=['window','document','IS_REACT_ACT_ENVIRONMENT','__recoveryTest'];
+ const keys=['window','document','IS_REACT_ACT_ENVIRONMENT','__recoveryTest','ResizeObserver'];
  const old=keys.map(key=>Object.getOwnPropertyDescriptor(globalThis,key));
- Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
+ Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true,ResizeObserver:class{observe(){}disconnect(){}}});
  const calls=[],handlers=new Map(),errors=[];
  const saved={version:1,workspace:{mode:'single',groups:[['chat'],[],[],[]],selected:['chat',null,null,null],focus:0},drafts:{chat:{text:'old draft',missingAttachments:[]}},recentProjects:[]};
  const fixture={calls,handlers,errors,error:message=>errors.push(message),listen:(name,handler)=>{handlers.set(name,handler);return()=>handlers.delete(name)},invoke:async(command,args)=>{
@@ -117,5 +119,57 @@ test('save failure keeps the window open and a subsequent close retries successf
   fail=false;
   await act(async()=>fixture.handlers.get('workspace-close-requested')());
   assert.equal(fixture.calls.filter(([command])=>command==='finish_app_exit').length,1);
+ });
+});
+async function pendingSend(fixture){
+ const original=fixture.invoke;let resolve,reject,args;
+ const pending=new Promise((yes,no)=>{resolve=yes;reject=no});
+ fixture.invoke=(command,input)=>{
+  if(command==='resume_session')return Promise.resolve();
+  if(command==='prompt'){args=input;return pending}
+  return original(command,input);
+ };
+ await act(async()=>fixture.state.desk.resume(fixture.state.sessions[0],{id:'kiro',name:'Kiro',cwd:'/project'}));
+ fixture.renderDesk=true;
+ await act(async()=>fixture.state.setDrafts(all=>({...all,chat:{...all.chat,attachments:[{id:'image',name:'diagram.png',mimeType:'image/png',data:'aGk=',size:2}],revision:1}})));
+ await act(async()=>document.querySelector('button.primary').click());
+ assert.ok(args?.submissionId,'send has a correlation ID for the recorded-prompt acknowledgment');
+ return {args,resolve,reject};
+}
+test('quit preserves a pending draft when send is rejected before it is recorded',async()=>{
+ const saved=[];
+ await withClosingFixture(async raw=>saved.push(JSON.parse(raw)),async fixture=>{
+  const send=await pendingSend(fixture);
+  assert.equal(document.querySelector('textarea').value,'old draft','send must not optimistically erase the draft');
+  await act(async()=>fixture.handlers.get('workspace-close-requested')());
+  assert.equal(saved.at(-1).drafts.chat.text,'old draft');
+  assert.deepEqual(saved.at(-1).drafts.chat.missingAttachments,['diagram.png']);
+  assert.equal(fixture.calls.filter(([command])=>command==='finish_app_exit').length,1);
+  await act(async()=>send.reject(Error('Unsupported attachment')));
+  assert.equal(fixture.state.drafts.chat.text,'old draft');
+  assert.equal(fixture.state.drafts.chat.attachments[0].name,'diagram.png');
+ });
+});
+test('only the matching recorded-prompt acknowledgment clears the submitted draft',async()=>{
+ await withClosingFixture(async()=>{},async fixture=>{
+  const send=await pendingSend(fixture),accepted=fixture.handlers.get('prompt-accepted');
+  await act(async()=>accepted({payload:{id:'chat',submissionId:'unrelated'}}));
+  assert.equal(fixture.state.drafts.chat.text,'old draft');
+  await act(async()=>accepted({payload:{id:'another-chat',submissionId:send.args.submissionId}}));
+  assert.equal(fixture.state.drafts.chat.text,'old draft');
+  await act(async()=>accepted({payload:{id:'chat',submissionId:send.args.submissionId}}));
+  assert.equal(fixture.state.drafts.chat.text,'');
+  assert.deepEqual(fixture.state.drafts.chat.attachments,[]);
+  await act(async()=>send.resolve());
+ });
+});
+test('recorded-prompt acknowledgments cannot clear newer typing',async()=>{
+ await withClosingFixture(async()=>{},async fixture=>{
+  const send=await pendingSend(fixture);
+  await act(async()=>fixture.state.setDrafts(all=>({...all,chat:{...all.chat,text:'next question',revision:all.chat.revision+1}})));
+  await act(async()=>fixture.handlers.get('prompt-accepted')({payload:{id:'chat',submissionId:send.args.submissionId}}));
+  assert.equal(fixture.state.drafts.chat.text,'next question');
+  await act(async()=>send.resolve());
+  assert.equal(fixture.state.drafts.chat.text,'next question');
  });
 });

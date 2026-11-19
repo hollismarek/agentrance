@@ -15,6 +15,12 @@ export function useSessions(onError: (message:string) => void) {
   const deleted = useRef(new Set<string>());
   const reconnecting = useRef(new Set<string>());
   const earlyEvents = useRef(new Map<string, ActivityEvent[]>());
+  const pendingAcceptance=useRef(new Map<string,{id:string;accepted:()=>void}>());
+  function accept(submissionId:string,id:string){
+    const pending=pendingAcceptance.current.get(submissionId);
+    if(!pending||pending.id!==id||deleted.current.has(id))return;
+    pendingAcceptance.current.delete(submissionId);pending.accepted();
+  }
   const listenersReady = useRef<Promise<unknown>>(Promise.resolve());
   const refresh = useCallback(() => invoke<SavedSession[]>('history').then(rows => {
     const current=rows.filter(s => !deleted.current.has(s.id));
@@ -35,9 +41,10 @@ export function useSessions(onError: (message:string) => void) {
         identity:e.kind === 'identity' ? e.data : s.identity}));
     });
     const errors = listen<string>('history-error',({payload}) => onError(payload));
-    listenersReady.current = Promise.all([subscription,errors]);
+    const accepted=listen<{id:string;submissionId:string}>('prompt-accepted',({payload})=>accept(payload.submissionId,payload.id));
+    listenersReady.current = Promise.all([subscription,errors,accepted]);
     listenersReady.current.catch(e => onError(String(e)));
-    return () => {subscription.then(f => f()).catch(()=>{});errors.then(f => f()).catch(()=>{})};
+    return () => {subscription.then(f => f()).catch(()=>{});errors.then(f => f()).catch(()=>{});accepted.then(f=>f()).catch(()=>{})};
   },[refresh,onError]);
   async function fresh(provider:Provider) {
     await listenersReady.current;
@@ -58,12 +65,15 @@ export function useSessions(onError: (message:string) => void) {
     setStarting(true);
     try{setPanes([await fresh(provider)])}catch(e){onError(String(e))}finally{setStarting(false)}
   }
-  async function send(ids:string[],text:string,attachments:Attachment[]=[],labels:Record<string,string>={},errors:string[]=[]) {
+  async function send(ids:string[],text:string,attachments:Attachment[]=[],labels:Record<string,string>={},errors:string[]=[],onAccepted?:(id:string)=>void) {
     if (!text.trim()&&!attachments.length) return [];
     return Promise.all(ids.map(async id => {
       setSessions(a => a.map(s => s.id === id ? {...s,busy:true} : s));
-      try {await invoke('prompt',{id,text,attachments});return true}
+      const submissionId=crypto.randomUUID();
+      if(onAccepted)pendingAcceptance.current.set(submissionId,{id,accepted:()=>onAccepted(id)});
+      try {await listenersReady.current;await invoke('prompt',{id,text,attachments,submissionId});accept(submissionId,id);return true}
       catch(e){reportSendFailure(errors,labels[id],e,onError);setSessions(a => a.map(s => s.id === id ? {...s,busy:false} : s));return false}
+      finally{pendingAcceptance.current.delete(submissionId)}
     }));
   }
   async function compare(providers:Provider[],question:string,attachments:Attachment[]=[]) {

@@ -33,6 +33,10 @@ dialog and Compare input. Conversation reading positions survive tab/pane
 switches in memory, and first opens start at the bottom. Normal window close and
 app quit flush recovery before exiting; save failures keep the app open with an
 explicit Quit without saving option. Backup/export is still outstanding.
+Waiting tabs now show an approval-count badge based on the same live-request
+reducer as approval cards. Drafts clear only after a correlated backend
+acknowledgment that the prompt is recorded. Quit/save failures appear in a
+separate topmost dialog with Retry, Keep working and Quit without saving.
 
 Ollama HTTP is NOT implemented. It remains a planned milestone with qwen3:4b
 and agent-directed read-only repository exploration. Project file browser,
