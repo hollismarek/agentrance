@@ -1,5 +1,5 @@
 import type {Attachment} from './attachments';
-export type Draft={text:string;revision:number;attachments?:Attachment[]};
+export type Draft={text:string;revision:number;attachments?:Attachment[];missingAttachments?:string[]};
 export type Drafts=Record<string,Draft>;
 export function editDraft(drafts:Drafts,id:string,text:string):Drafts {
   return {...drafts,[id]:{...drafts[id],text,revision:(drafts[id]?.revision??0)+1}};

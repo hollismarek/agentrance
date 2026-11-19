@@ -87,6 +87,15 @@ export function useSessions(onError: (message:string) => void) {
       if(!deleted.current.has(saved.id))setPanes([saved.id]);
     } catch(e){onError(String(e))}
   }
+  async function restore(ids:string[]):Promise<string[]> {
+    if(!ids.length)return [];
+    const history=await invoke<SavedSession[]>('history');
+    const rows=history.filter(s=>ids.includes(s.id)&&!deleted.current.has(s.id));
+    const restored=await Promise.all(rows.map(async saved=>({...saved,
+      items:await invoke<ActivityEvent[]>('messages',{id:saved.id}),busy:false,live:false})));
+    setSessions(all=>[...all,...restored.filter(s=>!deleted.current.has(s.id)&&!all.some(existing=>existing.id===s.id))]);
+    return restored.filter(s=>!deleted.current.has(s.id)).map(s=>s.id);
+  }
   async function resume(saved:SavedSession,provider:Provider) {
     if(reconnecting.current.has(saved.id))return;
     reconnecting.current.add(saved.id);
@@ -129,5 +138,5 @@ export function useSessions(onError: (message:string) => void) {
     finally{switching.current.delete(id);setSessions(a=>a.map(s=>s.id===id?{...s,changingModel:false}:s))}
   }
   async function cancel(id:string) {try{await invoke('cancel',{id})}catch(e){onError(String(e))}}
-  return {sessions,past,panes,setPanes,starting,start,send,compare,open,close,cancel,resume,rename,remove,setAgent,setModel};
+  return {sessions,past,panes,setPanes,starting,start,send,compare,open,restore,close,cancel,resume,rename,remove,setAgent,setModel};
 }

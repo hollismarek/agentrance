@@ -3,13 +3,14 @@ export type Workspace={groups:string[][];selected:(string|null)[];focus:number;m
 export const initialWorkspace:Workspace={groups:[[],[],[],[]],selected:[null,null,null,null],focus:0,mode:'single'};
 export const paneCount=(mode:LayoutMode)=>mode==='single'?1:mode==='three'?3:mode==='grid'?4:2;
 export const splitMode=(count:number):LayoutMode=>count<=2?'columns':count===3?'three':'grid';
-export type WorkspaceAction={type:'open';ids:string[]}|{type:'select';pane:number;id:string}|{type:'focus';pane:number}|{type:'mode';mode:LayoutMode}|{type:'move';id:string;pane:number}|{type:'retain';ids:string[]};
+export type WorkspaceAction={type:'restore';workspace:Workspace}|{type:'open';ids:string[]}|{type:'select';pane:number;id:string}|{type:'focus';pane:number}|{type:'mode';mode:LayoutMode}|{type:'move';id:string;pane:number}|{type:'retain';ids:string[]};
 export function workspaceReducer(s:Workspace,a:WorkspaceAction):Workspace {
   const n:Workspace={...s,groups:s.groups.map(group=>[...group]),selected:[...s.selected]};
   const valid=(pane:number)=>Number.isInteger(pane)&&pane>=0&&pane<4;
   const remove=(id:string)=>{for(let p=0;p<4;p++){n.groups[p]=n.groups[p].filter(x=>x!==id);if(n.selected[p]===id)n.selected[p]=n.groups[p].at(-1)??null;}};
   const add=(id:string,p:number)=>{remove(id);n.groups[p].push(id);n.selected[p]=id;};
   switch(a.type){
+    case 'restore':return a.workspace;
     case 'open':
       if(a.ids.length>1&&n.mode==='single')n.mode=splitMode(Math.min(4,a.ids.length));
       a.ids.forEach((id,i)=>{const existing=n.groups.findIndex(g=>g.includes(id));const p=a.ids.length>1?i%paneCount(n.mode):existing>=0?existing:n.focus;add(id,p);n.focus=p;});break;

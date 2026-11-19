@@ -22,6 +22,10 @@ creates fresh independent conversations. Stable and Development have separate
 identities, history and provider settings. See scripts/README.md for builds,
 local snapshot installation and rollback; docs/MILESTONES.md records decisions.
 
+Workspace tabs/layout and text drafts now recover from channel-local
+workspace.json. Restored chats remain disconnected until Continue conversation.
+Attachment bytes are not persisted; restored drafts show names to reattach.
+
 Ollama HTTP is NOT implemented. It remains a planned milestone with qwen3:4b
 and agent-directed read-only repository exploration. Project file browser,
 syntax-highlighted read-only viewer and diff viewer are later milestones.

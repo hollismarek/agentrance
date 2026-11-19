@@ -5,6 +5,7 @@ mod discovery;
 mod attachments;
 mod channel;
 mod settings;
+mod workspace;
 mod acp;
 mod agents;
 mod clipboard;
@@ -82,6 +83,14 @@ fn load_provider_settings(app: tauri::AppHandle) -> Result<Option<String>, Strin
 #[tauri::command]
 fn save_provider_settings(app: tauri::AppHandle, raw: String) -> Result<(), String> {
     settings::save(&app.path().app_data_dir().map_err(|e| e.to_string())?, &raw)
+}
+#[tauri::command]
+fn load_workspace(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    workspace::load(&app.path().app_data_dir().map_err(|e| e.to_string())?)
+}
+#[tauri::command]
+fn save_workspace(app: tauri::AppHandle, raw: String) -> Result<(), String> {
+    workspace::save(&app.path().app_data_dir().map_err(|e| e.to_string())?, &raw)
 }
 #[tauri::command]
 async fn discover_providers(app: tauri::AppHandle) -> Result<Vec<Provider>,String> {
@@ -484,6 +493,8 @@ fn main() {
             discover_providers,
             load_provider_settings,
             save_provider_settings,
+            load_workspace,
+            save_workspace,
             new_session,
             resume_session,
             set_agent,

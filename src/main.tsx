@@ -5,6 +5,7 @@ import {useTheme} from './useTheme';
 import {useProviders} from './useProviders';
 import {WorkspaceLayout} from './components/WorkspaceLayout';
 import {useSessions} from './useSessions';
+import {useWorkspaceRecovery} from './useWorkspaceRecovery';
 import {AppMenu} from './components/AppMenu';
 import {HelpDialog,type HelpTopic} from './components/HelpDialog';
 import {Sidebar} from './components/Sidebar';
@@ -23,21 +24,22 @@ function App() {
   const [help,setHelp]=useState<{topic:HelpTopic;sessionId?:string}|null>(null);
   const [settings,setSettings] = useState(false);
   const desk = useSessions(setError);
+  const recovery=useWorkspaceRecovery(workspace,drafts,dispatch,setDrafts,desk.restore,setError);
   const {ready,channel,providers,selected,setSelected,save,needsSetup,detected,detecting,discoveryError,discover}=useProviders(setError);
   const theme=useTheme(channel);
   useEffect(()=>{if(needsSetup)setSettings(true)},[needsSetup]);
   useEffect(()=>{if(desk.panes.length)dispatch({type:'open',ids:desk.panes})},[desk.panes]);
   const sessionIds=desk.sessions.map(s=>s.id).join(',');
-  useEffect(()=>{dispatch({type:'retain',ids:desk.sessions.map(s=>s.id)});setDrafts(d=>Object.fromEntries(desk.sessions.map(s=>[s.id,d[s.id]??{text:'',revision:0,attachments:[]}])))},[sessionIds]);
+  useEffect(()=>{if(!recovery.ready)return;dispatch({type:'retain',ids:desk.sessions.map(s=>s.id)});setDrafts(d=>Object.fromEntries(desk.sessions.map(s=>[s.id,d[s.id]??{text:'',revision:0,attachments:[]}])))},[sessionIds,recovery.ready]);
   const visible=workspace.selected.filter((id,p)=>id&&(p<paneCount(workspace.mode))) as string[];
   return <div className="app">
-    <Sidebar collapsed={sidebarCollapsed} onToggle={()=>setSidebarCollapsed(value=>!value)} providers={providers} selected={selected} past={desk.past} panes={visible} starting={desk.starting}
+    <Sidebar collapsed={sidebarCollapsed} onToggle={()=>setSidebarCollapsed(value=>!value)} providers={providers} selected={selected} past={desk.past} panes={visible} starting={desk.starting||!recovery.ready}
       busyIds={desk.sessions.filter(s=>s.busy||s.resuming||s.changingAgent||s.changingModel).map(s=>s.id)} onRename={desk.rename} onDelete={desk.remove}
-      onStart={()=>{withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{const provider=providers.find(p=>p.id===selected);if(provider){if(!provider.cwd.trim())setSettings(true);else void desk.start(provider)}})}}
-      onSelect={setSelected} onOpen={s => void desk.open(s)}/>
+      onStart={()=>{withSavedProviders(ready&&recovery.ready,needsSetup,()=>setSettings(true),()=>{const provider=providers.find(p=>p.id===selected);if(provider){if(!provider.cwd.trim())setSettings(true);else void desk.start(provider)}})}}
+      onSelect={setSelected} onOpen={s => {if(recovery.ready)void desk.open(s)}}/>
     <main>
       <header><div className="workspace-heading"><strong>Conversations {channel==='Development'&&<span className="development-badge">DEV</span>}</strong></div><div className="header-actions">
-        <button disabled={desk.starting||!providers.length} onClick={()=>{withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{if(providers.some(p=>!p.cwd.trim()))setSettings(true);else setComparison(true)})}}>Compare…</button>
+        <button disabled={!recovery.ready||desk.starting||!providers.length} onClick={()=>{withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{if(providers.some(p=>!p.cwd.trim()))setSettings(true);else setComparison(true)})}}>Compare…</button>
         <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option><option value="three">Three panes</option><option value="grid">Four panes (grid)</option></select></label><AppMenu settingsReady={ready} onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
       </header>
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}

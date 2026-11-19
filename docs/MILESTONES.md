@@ -629,3 +629,28 @@ jsdom is a development-only test dependency; no production behavior changed.
 Validation: the regression test, full frontend suite and production build pass.
 Native file-picker behavior remains a hands-on Development check; Stable is
 untouched.
+
+## Recover text drafts and the last workspace
+
+Open conversation tabs, pane membership/order, selected tabs, layout mode, focused
+pane and text drafts are saved to channel-local `workspace.json`. Writes are
+serialized/coalesced, restricted to the app-data directory, size bounded to 8 MB,
+and atomically replace a synced temporary file (0600 on Unix). This is recovery
+state, not a portable conversation backup or a replacement for SQLite history.
+
+Startup reads history and restores existing conversations disconnected and idle;
+only Continue conversation starts a provider. Deleted history IDs and their
+drafts are pruned. Startup does not overwrite recovery with the initial empty
+workspace. A recovery load failure preserves the file and disables automatic
+workspace saving for that run, with an error. Save errors are reported. Latest
+changes still in flight at abrupt process termination may not reach disk.
+
+Attachment bytes are never saved. Restored drafts list missing attachment names
+and ask the user to reattach them. Temporary Focus pane mode and divider size
+are not restored. Closing a tab discards its draft as before.
+
+Validation: frontend recovery/queued-write tests and a mounted React startup test
+cover preserved drafts/layout, stale IDs, disconnected restoration, no provider
+launch and no premature empty save. All frontend checks/build and 28 Rust tests
+pass, including bounded atomic storage and channel isolation. Native restart
+interaction remains a hands-on Development check; Stable is untouched.
