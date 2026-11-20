@@ -25,7 +25,7 @@ export function Sidebar({collapsed=false, onToggle, providers, selected, past, p
   return <><aside id="workspace-sidebar" className={collapsed?'collapsed':undefined} aria-label="Workspace sidebar">
     <div className="sidebar-heading">
       {!collapsed&&<h1>Agentrance<span>LOCAL WORKSPACE</span></h1>}
-      <button className="sidebar-toggle" aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} title={collapsed?'Expand sidebar':'Collapse sidebar'} aria-expanded={!collapsed} aria-controls="workspace-sidebar" onClick={()=>{setMenu(null);onToggle?.()}}><span aria-hidden="true">{collapsed?'»':'«'}</span></button>
+      <button className="sidebar-toggle" aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} title={collapsed?'Expand sidebar':'Collapse sidebar'} aria-expanded={!collapsed} aria-controls="workspace-sidebar" onClick={()=>{setMenu(null);onToggle?.()}}><span className="sidebar-toggle-icon" aria-hidden="true"/></button>
     </div>
     <button className="new-session" aria-label={selectedProvider?`New session with ${selectedProvider.name}`:'New session'} title={`New session${selectedProvider?` · ${selectedProvider.name}`:''}`} disabled={starting || !providers.length} onClick={onStart}><span aria-hidden="true">＋</span>{!collapsed&&' New session'}</button>
     {!collapsed&&<select aria-label="Provider" value={selected} onChange={e => onSelect(e.target.value)}>
