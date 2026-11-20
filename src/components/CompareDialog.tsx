@@ -92,7 +92,7 @@ export function CompareDialog({providers,sessions=[],onClose,onCompare,onExistin
     <p className="muted">Sessions in the same project share a working tree, so changes by one can affect the others.</p>
     <p className="muted">Attached images and files are sent to every provider. Each provider must support the selected file types.</p>
     {error&&<p role="alert" className="error">{error}</p>}
-    <fieldset disabled={checking}><Composer attachments={attachments} onAttachments={setAttachments} onAttachmentBusy={setLoadingFiles} text={text} onText={setText} label="Comparison prompt" sendLabel={checking?'Checking project…':'Start comparison'} canSend={!checking&&canSend} onSend={()=>void compare()}/></fieldset>
-    <button disabled={checking} onClick={onClose}>Cancel</button>
+    <fieldset disabled={checking}><Composer attachments={attachments} onAttachments={setAttachments} onAttachmentBusy={setLoadingFiles} text={text} onText={setText} label="Comparison prompt" sendLabel={checking?'Checking project…':'Start comparison'} canSend={!checking&&canSend} onSend={()=>void compare()}
+      secondaryAction={<button type="button" disabled={checking} onClick={onClose}>Cancel</button>}/></fieldset>
   </div></div>;
 }

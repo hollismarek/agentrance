@@ -1,7 +1,8 @@
 import React from 'react';
 import {AttachmentPicker,type AttachmentPickerHandle} from './AttachmentPicker';
 import type {Attachment} from '../attachments';
-export function Composer({text,onText,onSend,canSend,label='Message',sendLabel='Send',attachments=[],onAttachments,onAttachmentBusy}: {
+export function Composer({text,onText,onSend,canSend,label='Message',sendLabel='Send',attachments=[],onAttachments,onAttachmentBusy,secondaryAction}: {
+  secondaryAction?:React.ReactNode;
   onAttachmentBusy?:(busy:boolean)=>void;attachments?:Attachment[];onAttachments?:(files:Attachment[])=>void;
   text:string;onText:(text:string)=>void;onSend:()=>void;canSend:boolean;label?:string;sendLabel?:string;
 }) {
@@ -35,6 +36,6 @@ export function Composer({text,onText,onSend,canSend,label='Message',sendLabel='
       } : undefined}
       onKeyDown={e=>{if(e.key!=='Enter'||e.shiftKey||e.nativeEvent.isComposing||e.nativeEvent.keyCode===229)return;e.preventDefault();if(canSend&&!e.repeat)onSend();}}/>
     {onAttachments&&<AttachmentPicker ref={picker} onBusy={onAttachmentBusy} files={attachments} onFiles={onAttachments}/>}
-    <div className="composer-actions"><button className="primary" disabled={!canSend} onClick={onSend}>{sendLabel}</button></div>
+    <div className="composer-actions">{secondaryAction}<button className="primary" disabled={!canSend} onClick={onSend}>{sendLabel}</button></div>
   </footer>;
 }
