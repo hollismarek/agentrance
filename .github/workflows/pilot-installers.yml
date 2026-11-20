@@ -29,6 +29,13 @@ jobs:
             config: '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
             artifact: macos-arm64
             files: '**/bundle/dmg/*.dmg'
+          - name: macOS Intel
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            bundles: dmg
+            config: '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
+            artifact: macos-intel
+            files: '**/bundle/dmg/*.dmg'
           - name: Windows x64
             runner: windows-2022
             target: x86_64-pc-windows-msvc
