@@ -6,7 +6,7 @@ import {JSDOM} from 'jsdom';
 import React,{act} from 'react';
 import {createRoot} from 'react-dom/client';
 
-const output=await build({entryPoints:['src/components/AttachmentPicker.tsx'],bundle:true,
+const output=await build({stdin:{resolveDir:process.cwd(),contents:"export {AttachmentPicker} from './src/components/AttachmentPicker'; export {Composer} from './src/components/Composer';"},bundle:true,
  platform:'node',format:'cjs',external:['react'],write:false});
 const module={exports:{}};
 new Function('require','module','exports',output.outputFiles[0].text)(createRequire(import.meta.url),module,module.exports);
@@ -54,5 +54,42 @@ test('removing an attachment during a file read preserves the newer list and rej
   await act(async()=>root.unmount());
   dom.window.close();
   globals.forEach((key,index)=>{if(previous[index])Object.defineProperty(globalThis,key,previous[index]);else delete globalThis[key]});
+ }
+});
+
+test('pasting a screenshot uses the attachment strip and leaves ordinary text paste alone',async()=>{
+ const dom=new JSDOM('<div id="root"></div>');
+ const restore=[];
+ for(const [key,value] of Object.entries({window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true,ResizeObserver:class{observe(){} disconnect(){}}})){
+  const previous=Object.getOwnPropertyDescriptor(globalThis,key);
+  Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});
+  restore.push(()=>previous?Object.defineProperty(globalThis,key,previous):delete globalThis[key]);
+ }
+ const root=createRoot(document.getElementById('root'));
+ let files=[];
+ function render(){
+  root.render(React.createElement(module.exports.Composer,{text:'Draft text',onText(){},onSend(){},canSend:false,
+   attachments:files,onAttachments(next){files=next;render()}}));
+ }
+ function paste(clipboardData){
+  const event=new dom.window.Event('paste',{bubbles:true,cancelable:true});
+  Object.defineProperty(event,'clipboardData',{value:clipboardData});
+  document.querySelector('textarea').dispatchEvent(event);
+  return event;
+ }
+ try{
+  await act(async()=>render());
+  assert.equal(paste({files:[],items:[]}).defaultPrevented,false);
+  const screenshot=new File([new Uint8Array([137,80,78,71])],'Screenshot.png',{type:'image/png'});
+  await act(async()=>assert.equal(paste({files:[],items:[{kind:'file',type:'image/png',getAsFile:()=>screenshot}]}).defaultPrevented,true));
+  assert.equal(document.querySelector('textarea').value,'Draft text');
+  assert.match(document.querySelector('[aria-label="Prompt attachments"] img').src,/^data:image\/png;base64,/);
+  assert.equal(files[0].name,'Screenshot.png');
+  const tooLarge=new File([new Uint8Array(5*1024*1024+1)],'Large.png',{type:'image/png'});
+  await act(async()=>paste({files:[tooLarge],items:[]}));
+  assert.match(document.querySelector('[role="alert"]').textContent,/maximum file size/);
+  assert.equal(files.length,1);
+ }finally{
+  await act(async()=>root.unmount());dom.window.close();restore.forEach(undo=>undo());
  }
 });

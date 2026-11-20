@@ -788,3 +788,14 @@ and processing new events incrementally. Use those measurements to decide whethe
 limits or warnings are needed and how users can retain or export older history.
 Track provider context limits separately from local history and Activity growth.
 No conversation cap is introduced by this milestone note.
+
+## Screenshot paste and Markdown replies
+
+Pasting an image into a conversation or Compare prompt adds it to the existing
+attachment strip, with the same size and count limits as file selection. Plain
+text still pastes into the prompt. Agent replies render Markdown in live and
+saved conversations. Copy actions preserve the source text. Embedded HTML and
+images are excluded from rendering, with image alt text retained.
+
+Frontend tests and the production build pass. Native clipboard image paste
+still needs a hands-on check in the macOS build.

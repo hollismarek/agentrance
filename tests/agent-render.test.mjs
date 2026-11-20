@@ -39,8 +39,9 @@ export function renderPermission(params){return renderToStaticMarkup(<Permission
 export function renderDetails(topic='models'){
  return renderToStaticMarkup(<HelpDialog initialTopic={topic} sessions={[session]} onClose={()=>{}}/>);
 }
-export function renderSession(busy=false){
- const s=busy?{...session,busy:true,items:session.items.filter(e=>e.kind!=='done')}:session;
+export function renderSession(busy=false,answer='My answer'){
+ const items=session.items.filter(e=>!busy||e.kind!=='done').map(e=>e.kind==='delta'?{...e,data:answer}:e);
+ const s={...session,busy,items};
  return renderToStaticMarkup(<SessionPane session={s} onHelp={()=>{}} onAgent={()=>{}} onModel={()=>{}} onPermission={async()=>{}} onCancel={()=>{}} onResume={()=>{}} resumeAvailable={true}/>);
 }
 export function renderWorkspace(){return renderToStaticMarkup(<><Sidebar providers={[]} selected="" past={[]} panes={[]} starting={false} busyIds={[]} onStart={()=>{}} onSelect={()=>{}} onOpen={()=>{}} onRename={async()=>{}} onDelete={async()=>{}}/><AppMenu onSettings={()=>{}} onHelp={()=>{}}/><Composer text="" onText={()=>{}} onSend={()=>{}} canSend={false}/></>)}
@@ -148,4 +149,17 @@ test('Compare exposes the attachment picker, hides an empty strip and starts dis
  const html=renderCompare();assert.match(html,/aria-label="Attach files"/);assert.match(html,/type="file"/);
  assert.doesNotMatch(html,/class="attachment-strip"/);assert.match(html,/sent to every provider/);
  assert.match(html,/<button class="primary" disabled="">Start comparison<\/button>/);
+});
+
+test('saved agent responses render Markdown without embedding HTML or fetching images',()=>{
+ const answer=['## Review','', '- **Change** this','', '```js','const item = 1 < 2;','```','',
+  '| File | Result |', '| --- | --- |', '| a.ts | Pass |','',
+  '<iframe src="https://example.com"></iframe>','', '![External image](https://example.com/pixel.png)'].join('\n');
+ const html=renderSession(false,answer);
+ assert.match(html,/<h2>Review<\/h2>/);
+ assert.match(html,/<li><strong>Change<\/strong> this<\/li>/);
+ assert.match(html,/<pre><code class="language-js">const item = 1 &lt; 2;/);
+ assert.match(html,/<table>/);
+ assert.match(html,/External image/);
+ assert.doesNotMatch(html,/<iframe|<img/);
 });

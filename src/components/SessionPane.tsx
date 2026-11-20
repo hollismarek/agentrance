@@ -4,6 +4,7 @@ import {PendingApprovals} from './PendingApprovals';
 import {ActivityPanel} from '../ActivityPanel';
 import {conversationTurns,questionAndAnswer} from '../conversation';
 import {CopyButton} from './CopyButton';
+import {AnswerMarkdown} from './AnswerMarkdown';
 import type {Session} from '../types';
 import {agentSelection,agentName,modelSelection} from '../agents';
 import {AgentSelector} from './AgentSelector';
@@ -30,7 +31,7 @@ export function SessionPane({session:s, onPermission, onCancel, onResume, resume
     </div>
     <div className="messages" ref={scroll.body} onScroll={scroll.onScroll}><div ref={scroll.content}>{turns.map(turn=><section className="chat-turn" key={turn.key}>
       {turn.question!==null&&<div className="message user"><div className="message-heading"><label>You</label><CopyButton text={turn.question} label="Copy question"/></div><div>{turn.question}</div></div>}
-      {turn.answer&&<div className="message delta"><div className="message-heading"><label>{s.provider}</label><div className="message-actions"><CopyButton text={turn.answer} label="Copy answer" disabled={!turn.complete}/>{turn.question!==null&&<CopyButton text={questionAndAnswer(turn,s.provider)} label="Copy Q&A" disabled={!turn.complete}/>}</div></div><div>{turn.answer}</div></div>}
+      {turn.answer&&<div className="message delta"><div className="message-heading"><label>{s.provider}</label><div className="message-actions"><CopyButton text={turn.answer} label="Copy answer" disabled={!turn.complete}/>{turn.question!==null&&<CopyButton text={questionAndAnswer(turn,s.provider)} label="Copy Q&A" disabled={!turn.complete}/>}</div></div><AnswerMarkdown text={turn.answer}/></div>}
       {turn.errors.map((error,i)=><div className="message error" key={i}><label>Error</label><div>{error}</div></div>)}
     </section>)}{s.busy&&<p className="muted">Responding…</p>}</div></div>
     <ErrorBoundary key={s.id} label="Activity inspector">
