@@ -124,6 +124,18 @@ test('Compare routes prompts to only the chosen providers or available existing 
   await act(async()=>groups()[0].click());
   await act(async()=>send().click());
   assert.deepEqual(existing,[['Review the changes',[],['two']],['Review the changes',[],['one','two']]]);
+  await act(async()=>root.render(React.createElement(module.exports.CompareDialog,{
+   providers:[provider],sessions:sessions.map(session=>session.id==='two'?{...session,live:false}:session),
+   onClose(){},onCompare(){},onExisting:(...args)=>existing.push(args),
+  })));
+  assert.equal(groups()[2].checked,true);
+  assert.equal(groups()[2].disabled,false);
+  assert.equal(send().disabled,true);
+  await act(async()=>document.querySelector('textarea').dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})));
+  assert.equal(existing.length,2);
+  await act(async()=>groups()[2].click());
+  await act(async()=>send().click());
+  assert.deepEqual(existing.at(-1),['Review the changes',[],['one']]);
   assert.deepEqual(validated,['validate_project']);
  }finally{await act(async()=>root.unmount())}
 });

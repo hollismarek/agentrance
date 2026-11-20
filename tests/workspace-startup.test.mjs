@@ -17,7 +17,7 @@ const output=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:
   const [drafts,setDrafts]=useState({});
   const desk=useSessions(globalThis.__recoveryTest.error);
   const recovery=useWorkspaceRecovery(workspace,drafts,dispatch,setDrafts,desk.restore,globalThis.__recoveryTest.error);
-  globalThis.__recoveryTest.state={workspace,drafts,sessions:desk.sessions,desk,...recovery,setDrafts};
+  globalThis.__recoveryTest.state={workspace,dispatch,drafts,sessions:desk.sessions,desk,...recovery,setDrafts};
   if(globalThis.__recoveryTest.renderDesk)return <WorkspaceLayout workspace={workspace} dispatch={dispatch} desk={desk} providers={[]} drafts={drafts} setDrafts={setDrafts} onHelp={()=>{}}/>;
   return <div>{recovery.ready?'Ready':'Restoring'}</div>;
  }`},bundle:true,platform:'node',format:'cjs',external:['react'],write:false,plugins:[{
@@ -173,5 +173,38 @@ test('recorded-prompt acknowledgments cannot clear newer typing',async()=>{
   assert.equal(fixture.state.drafts.chat.text,'next question');
   await act(async()=>send.resolve());
   assert.equal(fixture.state.drafts.chat.text,'next question');
+ });
+});
+
+test('stacked divider disables at the pane minimums and resizes after the workspace grows',async()=>{
+ await withClosingFixture(async()=>{},async fixture=>{
+  let height=650,measure;
+  globalThis.ResizeObserver=class{
+   constructor(callback){this.callback=callback}
+   observe(node){
+    if(!node.classList.contains('workspace'))return;
+    Object.defineProperty(node,'clientHeight',{configurable:true,get:()=>height});
+    measure=this.callback;
+    measure();
+   }
+   disconnect(){}
+  };
+  fixture.renderDesk=true;
+  await act(async()=>fixture.state.dispatch({type:'mode',mode:'rows'}));
+  const divider=document.querySelector('[role="separator"]');
+  const pane=document.querySelector('.workspace-pane');
+  const grow=()=>act(async()=>divider.dispatchEvent(new window.KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true})));
+  assert.equal(pane.style.minHeight,'360px');
+  assert.equal(divider.getAttribute('aria-disabled'),'true');
+  assert.equal(divider.hasAttribute('tabindex'),false);
+  await grow();
+  assert.equal(pane.style.flexGrow,'50');
+  height=807;
+  await act(async()=>measure());
+  assert.equal(divider.hasAttribute('aria-disabled'),false);
+  assert.equal(divider.getAttribute('aria-valuemax'),'55');
+  await grow();
+  assert.equal(divider.getAttribute('aria-valuenow'),'55');
+  assert.equal(pane.style.flexGrow,'55');
  });
 });

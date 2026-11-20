@@ -86,7 +86,9 @@ test('pasting a screenshot uses the attachment strip and leaves ordinary text pa
   assert.match(document.querySelector('[aria-label="Prompt attachments"] img').src,/^data:image\/png;base64,/);
   assert.equal(files[0].name,'Screenshot.png');
   const tooLarge=new File([new Uint8Array(5*1024*1024+1)],'Large.png',{type:'image/png'});
-  await act(async()=>paste({files:[tooLarge],items:[]}));
+  await act(async()=>assert.equal(paste({
+   files:[tooLarge],items:[],getData:type=>type==='text/plain'?'Text alongside the screenshot':'',
+  }).defaultPrevented,false,'mixed paste must allow native text insertion even if the image is rejected'));
   assert.match(document.querySelector('[role="alert"]').textContent,/maximum file size/);
   assert.equal(files.length,1);
  }finally{

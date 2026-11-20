@@ -31,7 +31,8 @@ export function Composer({text,onText,onSend,canSend,label='Message',sendLabel='
           }
         }
         if(!images.length||!picker.current)return;
-        e.preventDefault();
+        // Let the textarea handle plain text, including its selection and undo history.
+        if(!e.clipboardData.getData?.('text/plain'))e.preventDefault();
         void picker.current.addClipboardImages(images);
       } : undefined}
       onKeyDown={e=>{if(e.key!=='Enter'||e.shiftKey||e.nativeEvent.isComposing||e.nativeEvent.keyCode===229)return;e.preventDefault();if(canSend&&!e.repeat)onSend();}}/>

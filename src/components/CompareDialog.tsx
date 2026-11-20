@@ -31,7 +31,9 @@ export function CompareDialog({providers,sessions=[],onClose,onCompare,onExistin
   const freshProviders=mode==='all'?providers:providers.filter(provider=>providerIds.includes(provider.id));
   const eligible=sessions.filter(session=>!comparisonUnavailable(session));
   const recipients=eligible.filter(session=>sessionIds.includes(session.id));
-  const hasTargets=existing?!!onExisting&&recipients.length>0:freshProviders.length>0&&absoluteProject(project.trim());
+  const unavailableSelected=recipients.length!==sessionIds.length;
+  const missingIds=sessionIds.filter(id=>!sessions.some(session=>session.id===id));
+  const hasTargets=existing?!!onExisting&&recipients.length>0&&!unavailableSelected:freshProviders.length>0&&absoluteProject(project.trim());
   const canSend=hasTargets&&!loadingFiles&&(!!text.trim()||attachments.length>0);
   function toggle(ids:string[],id:string,checked:boolean){
     return checked?[...ids,id]:ids.filter(value=>value!==id);
@@ -74,16 +76,21 @@ export function CompareDialog({providers,sessions=[],onClose,onCompare,onExistin
         {providers.map(provider=><label key={provider.id}><input type="checkbox" checked={providerIds.includes(provider.id)} onChange={e=>setProviderIds(toggle(providerIds,provider.id,e.target.checked))}/>{provider.name}</label>)}
       </div>}
       {existing?<><div className="compare-targets" role="group" aria-label="Existing sessions">
-        <label><input type="checkbox" disabled={!eligible.length} checked={eligible.length>0&&recipients.length===eligible.length}
+        <label><input type="checkbox" disabled={!eligible.length} checked={eligible.length>0&&recipients.length===eligible.length&&!unavailableSelected}
           onChange={e=>setSessionIds(e.target.checked?eligible.map(session=>session.id):[])}/>Select all available sessions</label>
         {sessions.map(session=>{
           const unavailable=comparisonUnavailable(session);
+          const selected=sessionIds.includes(session.id);
           return <label key={session.id}>
-            <input type="checkbox" disabled={!!unavailable} checked={!unavailable&&sessionIds.includes(session.id)}
+            <input type="checkbox" disabled={!!unavailable&&!selected} checked={selected}
               onChange={e=>setSessionIds(toggle(sessionIds,session.id,e.target.checked))}/>
             <span>{chatTitle(session)} · {session.provider}<small>{session.cwd}{unavailable&&` · ${unavailable}`}</small></span>
           </label>;
         })}
+        {missingIds.length>0&&<button type="button" onClick={()=>setSessionIds(ids=>ids.filter(id=>!missingIds.includes(id)))}>
+          Remove {missingIds.length===1?'closed session':`${missingIds.length} closed sessions`}
+        </button>}
+        {unavailableSelected&&<p role="status">Some selected sessions are unavailable. Deselect them or wait until they are ready.</p>}
       </div><p className="muted">{eligible.length?'Each session keeps its current project and conversation history.':'Open or continue a session and wait until it is idle.'}</p></>:<>
         <ProjectField value={project} onChange={setProject} choices={projects}/>
         <p className="muted">Every provider will use this same project folder for this comparison.</p>

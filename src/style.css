@@ -204,7 +204,6 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 /* Two independent conversation areas; drafts belong to sessions, not layout slots. */
 .workspace{display:flex;flex:1;min-height:0;min-width:0;overflow:hidden}
 .workspace.rows{flex-direction:column;overflow:auto}
-.workspace.rows>.workspace-pane{min-height:360px}
 .workspace-pane{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;border-top:2px solid transparent}
 .workspace-pane.focused{border-top-color:var(--focus)}
 .workspace-pane article{min-width:0;min-height:0;overflow:hidden}
@@ -228,6 +227,7 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 .pane-divider{flex:0 0 7px;background:var(--border);cursor:col-resize;touch-action:none}
 .rows>.pane-divider{cursor:row-resize}
 .pane-divider:hover,.pane-divider:focus-visible{background:var(--focus);outline:none}
+.pane-divider[aria-disabled=true]{cursor:default;touch-action:auto;background:var(--border)}
 .layout-label{display:flex;align-items:center;gap:6px;font-size:12px}
 .workspace footer{padding:10px 14px;flex-shrink:0}
 /* Three initial lines, growing to ten; larger prompts scroll within the editor.

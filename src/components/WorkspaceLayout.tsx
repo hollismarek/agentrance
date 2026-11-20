@@ -13,6 +13,9 @@ import {ErrorBoundary} from './ErrorBoundary';
 import type {TranscriptPositions} from '../useTranscriptScroll';
 import {ConversationTab} from './ConversationTab';
 
+const stackedPaneMinimum=360;
+const dividerSize=7;
+
 export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDrafts,onHelp}:{
   workspace:typeof initialWorkspace;
   dispatch:React.Dispatch<Parameters<typeof workspaceReducer>[1]>;
@@ -30,12 +33,31 @@ export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDra
   const focusedPane=maximized?workspace.focus:null;
   useEffect(()=>setMaximized(false),[workspace.mode]);
   const paneIndices=Array.from({length:count},(_,i)=>i).filter(p=>focusedPane===null||p===focusedPane);
-  const [ratio,setRatio]=useState(50);
+  const [preferredRatio,setRatio]=useState(50);
+  const [workspaceHeight,setWorkspaceHeight]=useState(0);
   const splitRef=useRef<HTMLDivElement>(null);
+  const stacked=workspace.mode==='rows'&&focusedPane===null;
+  useEffect(()=>{
+    const frame=splitRef.current;
+    if(!stacked||!frame)return;
+    const measure=()=>setWorkspaceHeight(frame.clientHeight);
+    measure();
+    const observer=new ResizeObserver(measure);
+    observer.observe(frame);
+    return ()=>observer.disconnect();
+  },[stacked]);
+  const minimum=stacked?Math.max(25,Math.min(50,Math.ceil(100*stackedPaneMinimum/Math.max(1,workspaceHeight-dividerSize)))):25;
+  const maximum=100-minimum;
+  const clampRatio=(value:number)=>Math.max(minimum,Math.min(maximum,value));
+  const ratio=clampRatio(preferredRatio);
+  const canResize=minimum<maximum;
   function resize(e:React.PointerEvent<HTMLDivElement>){
-    const rect=splitRef.current?.getBoundingClientRect();if(!rect)return;
-    const value=workspace.mode==='rows'?(e.clientY-rect.top)/rect.height:(e.clientX-rect.left)/rect.width;
-    setRatio(Math.max(25,Math.min(75,value*100)));
+    const frame=splitRef.current;
+    if(!frame||!canResize)return;
+    const rect=frame.getBoundingClientRect();
+    const position=stacked?e.clientY-rect.top+frame.scrollTop:e.clientX-rect.left+frame.scrollLeft;
+    const length=stacked?frame.clientHeight:frame.clientWidth;
+    setRatio(clampRatio(100*(position-dividerSize/2)/Math.max(1,length-dividerSize)));
   }
   return (
       <div className="workspace-frame"><div ref={splitRef} className={`workspace ${focusedPane!==null?'single':workspace.mode} ${count>2&&focusedPane===null?'multi':''}`}>
@@ -44,10 +66,11 @@ export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDra
           const text=id?drafts[id]?.text??'':'';
           const canSend=!fileLoading[id??'']&&!!session?.live&&!session.busy&&!session.resuming&&!session.changingAgent&&!session.changingModel&&(!!text.trim()||!!drafts[id??'']?.attachments?.length);
           return <React.Fragment key={p}>
-            {count===2&&focusedPane===null&&p===1&&<div className="pane-divider" role="separator" tabIndex={0} aria-label="Resize conversation panes" aria-orientation={workspace.mode==='rows'?'horizontal':'vertical'} aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(ratio)}
-              onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);resize(e)}} onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))resize(e)}} onPointerUp={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId)}}
-              onKeyDown={e=>{if(['ArrowLeft','ArrowUp','ArrowRight','ArrowDown','Home'].includes(e.key)){e.preventDefault();setRatio(r=>e.key==='Home'?50:Math.max(25,Math.min(75,r+(['ArrowLeft','ArrowUp'].includes(e.key)?-5:5))))}}}/>}
-            <section aria-label={`Conversation pane ${p+1}`} className={`workspace-pane ${workspace.focus===p?'focused':''}`} style={{flex:`${count!==2||focusedPane!==null?1:p===0?ratio:100-ratio} 1 0%`}} onFocusCapture={()=>dispatch({type:'focus',pane:p})} onPointerDown={()=>dispatch({type:'focus',pane:p})}>
+            {count===2&&focusedPane===null&&p===1&&<div className="pane-divider" role="separator" tabIndex={canResize?0:undefined} aria-label={canResize?'Resize conversation panes':'Conversation panes are at their minimum height'} aria-orientation={stacked?'horizontal':'vertical'} aria-disabled={!canResize||undefined} aria-valuemin={canResize?minimum:undefined} aria-valuemax={canResize?maximum:undefined} aria-valuenow={canResize?Math.round(ratio):undefined}
+              style={{flexBasis:dividerSize}}
+              onPointerDown={e=>{if(canResize){e.currentTarget.setPointerCapture(e.pointerId);resize(e)}}} onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))resize(e)}} onPointerUp={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId)}}
+              onKeyDown={e=>{if(canResize&&['ArrowLeft','ArrowUp','ArrowRight','ArrowDown','Home'].includes(e.key)){e.preventDefault();setRatio(e.key==='Home'?50:clampRatio(ratio+(['ArrowLeft','ArrowUp'].includes(e.key)?-5:5)))}}}/>}
+            <section aria-label={`Conversation pane ${p+1}`} className={`workspace-pane ${workspace.focus===p?'focused':''}`} style={{flex:`${count!==2||focusedPane!==null?1:p===0?ratio:100-ratio} 1 0%`,minHeight:stacked?stackedPaneMinimum:undefined}} onFocusCapture={()=>dispatch({type:'focus',pane:p})} onPointerDown={()=>dispatch({type:'focus',pane:p})}>
               <div className="pane-tabbar">
                 <div className="tabs" role="tablist" aria-label={`Pane ${p+1} conversations`}>{workspace.groups[p].map(tabId=>{
                   const tab=desk.sessions.find(s=>s.id===tabId);if(!tab)return null;
