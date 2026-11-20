@@ -48,13 +48,15 @@ export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDra
               onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);resize(e)}} onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))resize(e)}} onPointerUp={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId)}}
               onKeyDown={e=>{if(['ArrowLeft','ArrowUp','ArrowRight','ArrowDown','Home'].includes(e.key)){e.preventDefault();setRatio(r=>e.key==='Home'?50:Math.max(25,Math.min(75,r+(['ArrowLeft','ArrowUp'].includes(e.key)?-5:5))))}}}/>}
             <section aria-label={`Conversation pane ${p+1}`} className={`workspace-pane ${workspace.focus===p?'focused':''}`} style={{flex:`${count!==2||focusedPane!==null?1:p===0?ratio:100-ratio} 1 0%`}} onFocusCapture={()=>dispatch({type:'focus',pane:p})} onPointerDown={()=>dispatch({type:'focus',pane:p})}>
-              <div className="tabs" role="tablist" aria-label={`Pane ${p+1} conversations`}>{workspace.groups[p].map(tabId=>{
-                const tab=desk.sessions.find(s=>s.id===tabId);if(!tab)return null;
-                return <ConversationTab key={tabId} session={tab} selected={tabId===id} onSelect={()=>dispatch({type:'select',pane:p,id:tabId})} onClose={()=>void desk.close(tabId)}/>;
-              })}</div>
-              <div className="pane-actions"><span className="pane-number">Pane {p+1}</span>
-                {count>1&&<button aria-pressed={maximized} onClick={()=>setMaximized(value=>!value)}>{!maximized?'Focus pane':'Show all panes'}</button>}
-                {session&&id&&<select aria-label={`Move conversation from pane ${p+1}`} value="" onChange={e=>{dispatch({type:'move',id,pane:Number(e.target.value)});setMaximized(false)}}><option value="" disabled>Move to…</option>{Array.from({length:Math.max(2,count)},(_,i)=>i).filter(i=>i!==p).map(i=><option key={i} value={i}>Pane {i+1}</option>)}</select>}
+              <div className="pane-tabbar">
+                <div className="tabs" role="tablist" aria-label={`Pane ${p+1} conversations`}>{workspace.groups[p].map(tabId=>{
+                  const tab=desk.sessions.find(s=>s.id===tabId);if(!tab)return null;
+                  return <ConversationTab key={tabId} session={tab} selected={tabId===id} onSelect={()=>dispatch({type:'select',pane:p,id:tabId})} onClose={()=>void desk.close(tabId)}/>;
+                })}</div>
+                <div className="pane-actions">
+                  {count>1&&<button aria-pressed={maximized} onClick={()=>setMaximized(value=>!value)}>{!maximized?'Focus pane':'Show all panes'}</button>}
+                  {session&&id&&<select aria-label={`Move conversation from pane ${p+1}`} value="" onChange={e=>{dispatch({type:'move',id,pane:Number(e.target.value)});setMaximized(false)}}><option value="" disabled>Move to…</option>{Array.from({length:Math.max(2,count)},(_,i)=>i).filter(i=>i!==p).map(i=><option key={i} value={i}>Pane {i+1}</option>)}</select>}
+                </div>
               </div>
               {session&&id?<>
                 <ErrorBoundary key={id} label={`${session.provider} conversation`}>

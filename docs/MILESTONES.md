@@ -799,3 +799,14 @@ images are excluded from rendering, with image alt text retained.
 
 Frontend tests and the production build pass. Native clipboard image paste
 still needs a hands-on check in the macOS build.
+
+## Compact workspace headers
+
+The top toolbar uses shorter, aligned controls. Conversation tabs show the title,
+provider and approval badge on one line, with pane actions beside the tab strip.
+The active conversation shows title, provider and connection status together.
+Details opens the full project path and any reported agent and model names.
+
+Stacked, four-pane and wrapped three-pane layouts use tighter spacing and a shorter
+scrollable composer. The transcript has a minimum height, with intentional pane
+or workspace scrolling when the content exceeds the available space.

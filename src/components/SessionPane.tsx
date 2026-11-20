@@ -20,14 +20,20 @@ export function SessionPane({session:s, onPermission, onCancel, onResume, resume
   const localPositions=useRef<TranscriptPositions>(new Map());
   const scroll=useTranscriptScroll(s.id,scrollPositions??localPositions.current);
   return <article>
-    <div className="pane-title"><strong>{chatTitle(s)}</strong>
-      <div className="session-status">
-        <small><span className="status-label">Provider:</span> {s.provider}</small>
-        <small><span className="status-label">Status:</span> {s.resuming ? 'Reconnecting…' : s.live ? 'Connected' : 'Saved history'}</small>
-        {activeAgent&&<small><span className="status-label">Agent:</span> {activeAgent}</small>}
-        {activeModel&&<small><span className="status-label">Model:</span> {activeModel}</small>}
+    <div className="pane-title">
+      <div className="session-summary">
+        <strong title={chatTitle(s)}>{chatTitle(s)}</strong>
+        <small className="session-provider" title={s.provider}>{s.provider}</small>
+        <small className="session-connection">{s.resuming ? 'Reconnecting…' : s.live ? 'Connected' : 'Saved history'}</small>
       </div>
-      <small className="session-project">{s.cwd}</small>
+      <details className="session-details">
+        <summary title="Show project, agent and model details" aria-label="Conversation details">Details</summary>
+        <div className="session-details-body">
+          <div className="session-project">Project: {s.cwd}</div>
+          {activeAgent&&<div>Agent: {activeAgent}</div>}
+          {activeModel&&<div>Model: {activeModel}</div>}
+        </div>
+      </details>
     </div>
     <div className="messages" ref={scroll.body} onScroll={scroll.onScroll}><div ref={scroll.content}>{turns.map(turn=><section className="chat-turn" key={turn.key}>
       {turn.question!==null&&<div className="message user"><div className="message-heading"><label>You</label><CopyButton text={turn.question} label="Copy question"/></div><div>{turn.question}</div></div>}

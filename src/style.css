@@ -18,7 +18,7 @@ nav{flex:1;overflow:auto}
 nav button{width:100%;text-align:left;margin:4px 0;background:transparent;border-color:transparent}
 .active{border-color:var(--focus)!important}
 main{flex:1;min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column}
-header{flex-shrink:0;height:90px;padding:24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+main>header{flex-shrink:0;min-height:44px;padding:5px 16px;display:flex;flex-wrap:wrap;gap:4px 12px;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
 header strong{font-size:18px}
 header small{margin-top:5px}
 .tabs{display:flex;gap:6px;padding:8px 16px;overflow:auto}
@@ -59,8 +59,6 @@ footer small{flex:1}
 .settings textarea{width:100%;height:45vh;font-family:monospace}
 .settings button{margin:12px 8px 0 0}
 @media(max-width:800px){aside{width:180px;padding:14px}
-header{padding:12px}
-header button{font-size:11px}
 footer{padding:12px}
 }
 
@@ -146,10 +144,10 @@ nav .history-options button{font-size:12px;padding:6px;text-align:center;backgro
 
 /* Keep standing guidance in Help; leave the workspace for conversations. */
 /* Workspace header, copying, and Help */
-header{height:64px;min-height:64px;padding:12px 24px}
 .header-actions{display:flex;align-items:center;gap:10px}
+.header-actions>button,.app-menu>summary{display:flex;align-items:center;height:28px;padding:3px 9px;font:inherit;font-size:12px}
 .app-menu{position:relative;font-size:13px}
-.app-menu>summary{cursor:pointer;list-style:none;padding:10px 14px;border:1px solid var(--control-border);border-radius:7px;background:var(--control)}
+.app-menu>summary{cursor:pointer;list-style:none;border:1px solid var(--control-border);border-radius:7px;background:var(--control)}
 .app-menu-items{position:absolute;right:0;top:calc(100% + 6px);width:190px;padding:6px;z-index:10;background:var(--menu-bg);border:1px solid var(--menu-border);border-radius:8px;box-shadow:0 10px 24px #0006}
 .app-menu-items button{display:block;width:100%;text-align:left;border:0;background:transparent}
 .composer-actions{justify-content:flex-end}
@@ -205,26 +203,32 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 
 /* Two independent conversation areas; drafts belong to sessions, not layout slots. */
 .workspace{display:flex;flex:1;min-height:0;min-width:0;overflow:hidden}
-.workspace.rows{flex-direction:column}
+.workspace.rows{flex-direction:column;overflow:auto}
+.workspace.rows>.workspace-pane{min-height:360px}
 .workspace-pane{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;border-top:2px solid transparent}
 .workspace-pane.focused{border-top-color:var(--focus)}
 .workspace-pane article{min-width:0;min-height:0;overflow:hidden}
-.workspace-pane .tabs{flex-shrink:0;padding:6px;min-height:12px}
+.pane-tabbar{display:flex;align-items:center;min-width:0;flex-shrink:0;gap:5px;padding:3px 5px;border-bottom:1px solid var(--border)}
+.workspace-pane .tabs{flex:1;min-width:0;overflow-x:auto;padding:2px;gap:4px}
+.workspace .session-tab [role="tab"]{display:flex;align-items:center;gap:5px;padding:3px 6px}
+.workspace .session-tab .tab-title{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.workspace .session-tab :is(small,.tab-approval){flex-shrink:0}
+.workspace .session-tab .tab-approval{margin-right:0}
+.workspace .session-tab button:last-child{padding:3px 5px}
 .workspace-pane .empty{padding:20px;overflow:auto}
 .workspace-pane .empty h2{font-size:20px}
-.pane-actions{display:flex;justify-content:flex-end;padding:0 8px 5px;flex-shrink:0}
+.pane-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
 .pane-actions button{font-size:11px;padding:3px 6px}
 .pane-divider{flex:0 0 7px;background:var(--border);cursor:col-resize;touch-action:none}
 .rows>.pane-divider{cursor:row-resize}
 .pane-divider:hover,.pane-divider:focus-visible{background:var(--focus);outline:none}
 .layout-label{display:flex;align-items:center;gap:6px;font-size:12px}
-.layout-label select{padding:7px}
 .workspace footer{padding:10px 14px;flex-shrink:0}
 /* Three initial lines, growing to ten; larger prompts scroll within the editor.
    Heights include 20px padding and the two 1px borders (border-box). */
 .workspace footer textarea{resize:none;line-height:20px;min-height:82px;max-height:222px;overflow-y:auto}
 .workspace footer .composer-actions{margin-top:5px}
-.workspace .pane-title{padding:8px 14px}
+.workspace .pane-title{padding:var(--pane-summary-padding,5px) 8px}
 .workspace .activity-panel{max-height:35%}
 .workspace .messages{padding:14px}
 .workspace .session-tab button:first-child{max-width:190px}
@@ -286,7 +290,7 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 .sidebar-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 @media(max-width:1000px){
-  main>header{height:auto;min-height:64px;flex-wrap:wrap;gap:8px;padding:10px 12px}
+  main>header{padding-inline:10px}
 
   .workspace-heading{gap:8px}
 
@@ -297,11 +301,17 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 }
 
 
-/* Conversation identity: independent fields wrap as whole items in narrow panes. */
-.session-status{display:flex;flex-wrap:wrap;gap:2px 14px;margin-top:4px}
-.session-status small{margin-top:0;min-width:0;overflow-wrap:anywhere}
-.status-label{color:var(--status-label)}
-.session-project{overflow-wrap:anywhere}
+/* Keep the conversation summary on one line and disclose the full project path. */
+.pane-title{position:relative;display:flex;align-items:start;gap:8px;flex-shrink:0}
+.session-summary{display:flex;flex:1;align-items:center;gap:8px;min-width:0;min-height:22px}
+.session-summary strong,.session-provider{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-summary strong{flex:1;font-size:13px}
+.session-summary small{margin:0}
+.session-provider{flex:0 0 auto;max-width:40%}
+.session-connection{white-space:nowrap}
+.session-details{flex-shrink:0}
+.session-details summary{font-size:11px;cursor:pointer;line-height:22px;color:var(--muted)}
+.session-details-body{position:absolute;z-index:2;inset:100% 8px auto;max-height:96px;overflow:auto;overflow-wrap:anywhere;padding:6px 8px;border:1px solid var(--border);border-radius:5px;background:var(--menu-bg);font-size:12px}
 
 /* Keep the inspector body as the only list scroll area as entries grow. */
 /* Long output blocks hand wheel scrolling back to the inspector at their edge. */
@@ -324,10 +334,11 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 .workspace.grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .workspace.multi>.workspace-pane{border:1px solid var(--border);border-top:2px solid transparent;background:var(--bg)}
 .workspace.multi>.workspace-pane.focused{border-top-color:var(--focus)}
-.pane-number{margin-right:auto;color:var(--muted);font-size:11px;white-space:nowrap}
-.pane-actions{align-items:center;gap:6px;flex-wrap:wrap}
 .pane-actions select{font-size:11px;padding:3px 6px;max-width:110px}
-@container workspace (max-width:1150px){.workspace.three{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.workspace:is(.rows,.grid){--pane-summary-padding:2px;--pane-composer-padding:4px;--pane-composer-max:102px}
+@container workspace (max-width:1150px){
+  .workspace.three{grid-template-columns:repeat(2,minmax(0,1fr));--pane-summary-padding:2px;--pane-composer-padding:4px;--pane-composer-max:102px}
+}
 @container workspace (max-width:760px){.workspace.multi{grid-template-columns:minmax(0,1fr)}}
 @container workspace (max-width:900px){
   .workspace.columns{overflow:auto}
@@ -335,9 +346,7 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 }
 @media(max-height:650px){
   .workspace footer textarea{min-height:62px;max-height:142px}
-  .workspace .pane-title{padding:5px 10px}
   .workspace .messages{padding:10px}
-  .session-status{gap:0 10px}
 }
 
 /* Form-based settings; provider launch data never requires JSON editing. */
@@ -377,7 +386,14 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
    shell instead; content scrolls only in its designated transcript/pane areas. */
 html,body,#root{overflow:clip}
 .app,main,.workspace-frame{overflow:clip}
-.workspace-pane,.workspace-pane article,.workspace.single{overflow:clip}
+.workspace-pane,.workspace.single{overflow:clip}
+.workspace-pane article{overflow:auto;overscroll-behavior:contain}
+.workspace-pane .messages{min-height:96px}
+.workspace footer{padding-block:var(--pane-composer-padding,10px)}
+.workspace footer textarea{max-height:var(--pane-composer-max,222px)}
+@media(max-height:650px){
+  .workspace footer textarea{max-height:var(--pane-composer-max,142px)}
+}
 
 .pending-approvals{flex:0 1 auto;min-height:70px;max-height:38%;overflow:auto;overscroll-behavior:contain;padding:8px 14px;border-top:2px solid var(--warning-border);background:var(--approval-bg)}
 .pending-approvals>h4{margin:0 0 6px}
