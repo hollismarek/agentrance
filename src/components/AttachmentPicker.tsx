@@ -45,9 +45,24 @@ export function AttachmentPicker({ref,files,onFiles,onBusy}:{ref?:React.Ref<Atta
   }
  }
  useImperativeHandle(ref,()=>({addClipboardImages:images=>addFiles(images,true)}));
- return <div className="attachment-picker">{files.length>0&&<div className="attachment-strip" aria-label="Prompt attachments">{files.map(file=><div className="attachment" key={file.id}>{file.mimeType.startsWith('image/')?<img src={`data:${file.mimeType};base64,${file.data}`} alt={file.name}/>:<span aria-hidden="true">▤</span>}<span title={file.name}>{file.name}</span><button type="button" aria-label={`Remove ${file.name}`} onClick={()=>onFiles(files.filter(f=>f.id!==file.id))}>×</button></div>)}</div>}<div className="attachment-controls"><button type="button" disabled={busy} aria-label="Attach files" title="Attach images or files" onClick={()=>input.current?.click()}>{busy?'Loading…':'＋'}</button><input ref={input} type="file" multiple hidden onChange={e=>{
-   const selected=Array.from(e.target.files??[]);
-   e.target.value='';
-   void addFiles(selected);
- }}/>{error&&<small role="alert">{error}</small>}</div></div>;
+ return <div className="attachment-picker">
+  <div className="attachment-controls">
+   <button type="button" disabled={busy} aria-label="Attach files" title={busy?'Loading attachments…':'Attach images or files'} onClick={()=>input.current?.click()}>
+    {busy?'…':'＋'}
+   </button>
+   <input ref={input} type="file" multiple hidden onChange={e=>{
+    const selected=Array.from(e.target.files??[]);
+    e.target.value='';
+    void addFiles(selected);
+   }}/>
+  </div>
+  {files.length>0&&<div className="attachment-strip" aria-label="Prompt attachments">
+   {files.map(file=><div className="attachment" key={file.id}>
+    {file.mimeType.startsWith('image/')?<img src={`data:${file.mimeType};base64,${file.data}`} alt={file.name}/>:<span aria-hidden="true">▤</span>}
+    <span title={file.name}>{file.name}</span>
+    <button type="button" aria-label={`Remove ${file.name}`} onClick={()=>onFiles(files.filter(f=>f.id!==file.id))}>×</button>
+   </div>)}
+  </div>}
+  {error&&<small className="attachment-error" role="alert">{error}</small>}
+ </div>;
 }

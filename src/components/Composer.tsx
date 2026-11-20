@@ -36,7 +36,10 @@ export function Composer({text,onText,onSend,canSend,label='Message',sendLabel='
         void picker.current.addClipboardImages(images);
       } : undefined}
       onKeyDown={e=>{if(e.key!=='Enter'||e.shiftKey||e.nativeEvent.isComposing||e.nativeEvent.keyCode===229)return;e.preventDefault();if(canSend&&!e.repeat)onSend();}}/>
-    {onAttachments&&<AttachmentPicker ref={picker} onBusy={onAttachmentBusy} files={attachments} onFiles={onAttachments}/>}
-    <div className="composer-actions">{secondaryAction}<button className="primary" disabled={!canSend} onClick={onSend}>{sendLabel}</button></div>
+    <div className="composer-actions">
+      {onAttachments&&<AttachmentPicker ref={picker} onBusy={onAttachmentBusy} files={attachments} onFiles={onAttachments}/>}
+      {secondaryAction}
+      <button className="primary" disabled={!canSend} onClick={onSend}>{sendLabel}</button>
+    </div>
   </footer>;
 }

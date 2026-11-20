@@ -151,6 +151,7 @@ nav .history-options button{font-size:12px;padding:6px;text-align:center;backgro
 .app-menu-items{position:absolute;right:0;top:calc(100% + 6px);width:190px;padding:6px;z-index:10;background:var(--menu-bg);border:1px solid var(--menu-border);border-radius:8px;box-shadow:0 10px 24px #0006}
 .app-menu-items button{display:block;width:100%;text-align:left;border:0;background:transparent}
 .composer-actions{justify-content:flex-end}
+.composer-actions>button{flex-shrink:0}
 .session-help{padding:2px 6px;min-width:28px;min-height:28px;font-size:12px;border-radius:50%;margin-right:0}
 .chat-turn{margin:0}
 .message-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;white-space:normal}
@@ -411,14 +412,14 @@ html,body,#root{overflow:clip}
 .pending-approvals pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}
 .pending-approvals .permission-technical pre{max-height:180px;overflow:auto}
 .workspace footer{display:flex;flex-direction:column}
-.attachment-picker{order:-1;flex:none}
-.attachment-strip{display:flex;gap:8px;overflow:auto;padding:6px 0}
-.attachment{display:flex;align-items:center;gap:5px;flex:none;max-width:200px;border:1px solid var(--border);border-radius:6px;padding:4px;background:var(--control)}
-.attachment img{width:42px;height:42px;object-fit:contain}
+.attachment-picker{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:4px 8px;flex:1;min-width:0}
+.attachment-error{grid-column:1 / -1;overflow-wrap:anywhere}
+.attachment-strip{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
+.attachment{display:flex;align-items:center;gap:5px;min-width:0;max-width:min(160px,100%);border:1px solid var(--border);border-radius:6px;padding:2px 4px;background:var(--control)}
+.attachment img{min-width:0;width:28px;height:28px;object-fit:contain}
 .attachment>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
 .attachment button,.attachment-controls button{padding:3px 8px}
-.attachment-controls{display:flex;gap:8px;align-items:center;margin:0 0 5px}
-.workspace footer>.attachment-picker{display:block;margin:0}
+.attachment-controls{display:flex;align-items:center}
 
 .compare-dialog{max-height:94vh;overflow:auto}
 .compare-mode{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
@@ -427,7 +428,6 @@ html,body,#root{overflow:clip}
 .compare-targets label{display:flex;align-items:baseline;gap:8px;padding:3px 2px;overflow-wrap:anywhere}
 .compare-targets input[type=checkbox]{display:inline-block;flex:none;width:auto;margin:0}
 .compare-dialog footer{display:flex;flex-direction:column}
-.compare-dialog footer>.attachment-picker{display:block;margin:0;order:-1}
 
 /* Native WebKit file-input styling must not expose a second picker button. */
 .attachment-controls input[type="file"]{display:none!important}
