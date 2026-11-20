@@ -218,7 +218,13 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 .workspace-pane .empty{padding:20px;overflow:auto}
 .workspace-pane .empty h2{font-size:20px}
 .pane-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
-.pane-actions button{font-size:11px;padding:3px 6px}
+.pane-actions button,.pane-actions select{height:24px;min-height:24px;font-size:11px;line-height:16px;padding:3px 6px}
+.pane-actions select{
+  appearance:none;-webkit-appearance:none;max-width:110px;padding-right:20px;
+  background-image:linear-gradient(45deg,transparent 50%,#35464d 50%),linear-gradient(135deg,#35464d 50%,transparent 50%);
+  background-position:calc(100% - 10px) center,calc(100% - 6px) center;
+  background-size:4px 4px;background-repeat:no-repeat;
+}
 .pane-divider{flex:0 0 7px;background:var(--border);cursor:col-resize;touch-action:none}
 .rows>.pane-divider{cursor:row-resize}
 .pane-divider:hover,.pane-divider:focus-visible{background:var(--focus);outline:none}
@@ -334,7 +340,6 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 .workspace.grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .workspace.multi>.workspace-pane{border:1px solid var(--border);border-top:2px solid transparent;background:var(--bg)}
 .workspace.multi>.workspace-pane.focused{border-top-color:var(--focus)}
-.pane-actions select{font-size:11px;padding:3px 6px;max-width:110px}
 .workspace:is(.rows,.grid){--pane-summary-padding:2px;--pane-composer-padding:4px;--pane-composer-max:102px}
 @container workspace (max-width:1150px){
   .workspace.three{grid-template-columns:repeat(2,minmax(0,1fr));--pane-summary-padding:2px;--pane-composer-padding:4px;--pane-composer-max:102px}
@@ -411,6 +416,11 @@ html,body,#root{overflow:clip}
 .workspace footer>.attachment-picker{display:block;margin:0}
 
 .compare-dialog{max-height:94vh;overflow:auto}
+.compare-mode{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.compare-mode select{max-width:100%;padding:5px 8px}
+.compare-targets{max-height:180px;overflow:auto;margin-top:8px}
+.compare-targets label{display:flex;align-items:baseline;gap:8px;padding:3px 2px;overflow-wrap:anywhere}
+.compare-targets input[type=checkbox]{display:inline-block;flex:none;width:auto;margin:0}
 .compare-dialog footer{display:flex;flex-direction:column}
 .compare-dialog footer>.attachment-picker{display:block;margin:0;order:-1}
 

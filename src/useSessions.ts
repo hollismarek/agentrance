@@ -2,6 +2,8 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
 import {startupErrors,reportSendFailure} from './comparisonErrors';
+import {comparisonUnavailable} from './compareTargets';
+import {chatTitle} from './history';
 import type {Attachment} from './attachments';
 import type {ActivityEvent} from './activity';
 import {mergeEvents,connectionIsLive} from './sessionEvents';
@@ -97,6 +99,24 @@ export function useSessions(onError: (message:string) => void) {
       if(!deleted.current.has(saved.id))setPanes([saved.id]);
     } catch(e){onError(String(e))}
   }
+  async function compareExisting(ids:string[],question:string,attachments:Attachment[]) {
+    const labels:Record<string,string>={};
+    const errors:string[]=[];
+    const available:string[]=[];
+    for(const id of new Set(ids)){
+      const session=sessions.find(candidate=>candidate.id===id);
+      if(!session||deleted.current.has(id)){
+        errors.push('A selected conversation is no longer open.');
+        continue;
+      }
+      labels[id]=`${chatTitle(session)} · ${session.provider}`;
+      const unavailable=comparisonUnavailable(session);
+      if(unavailable)errors.push(`${labels[id]}: ${unavailable}`);
+      else available.push(id);
+    }
+    if(errors.length)onError(errors.join('\n'));
+    await send(available,question,attachments,labels,errors);
+  }
   async function restore(ids:string[]):Promise<string[]> {
     if(!ids.length)return [];
     const history=await invoke<SavedSession[]>('history');
@@ -148,5 +168,5 @@ export function useSessions(onError: (message:string) => void) {
     finally{switching.current.delete(id);setSessions(a=>a.map(s=>s.id===id?{...s,changingModel:false}:s))}
   }
   async function cancel(id:string) {try{await invoke('cancel',{id})}catch(e){onError(String(e))}}
-  return {sessions,past,panes,setPanes,starting,start,send,compare,open,restore,close,cancel,resume,rename,remove,setAgent,setModel};
+  return {sessions,past,panes,setPanes,starting,start,send,compare,compareExisting,open,restore,close,cancel,resume,rename,remove,setAgent,setModel};
 }

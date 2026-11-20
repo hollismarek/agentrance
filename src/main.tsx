@@ -52,7 +52,10 @@ function App() {
       <WorkspaceLayout workspace={workspace} dispatch={dispatch} desk={desk} providers={providers} drafts={drafts} setDrafts={setDrafts} onHelp={id=>setHelp({topic:'models',sessionId:id})}/>
     </main>
     {newSession&&<NewSessionDialog provider={newSession} initialProject={initialProject([newSession],recovery.recentProjects)} projects={projects} onClose={()=>setNewSession(null)} onStart={cwd=>{setNewSession(null);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.start(providersAtProject([newSession],cwd)[0])})}}/>}
-    {comparison&&<CompareDialog providers={providers} projects={projects} initialProject={initialProject(providers,recovery.recentProjects)} onClose={()=>setComparison(false)} onCompare={(text,attachments,cwd)=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.compare(providersAtProject(providers,cwd),text,attachments)})}}/>}
+    {comparison&&<CompareDialog providers={providers} sessions={desk.sessions} projects={projects}
+      initialProject={initialProject(providers,recovery.recentProjects)} onClose={()=>setComparison(false)}
+      onCompare={(text,attachments,cwd,selected)=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.compare(providersAtProject(selected,cwd),text,attachments)})}}
+      onExisting={(text,attachments,ids)=>{setComparison(false);void desk.compareExisting(ids,text,attachments)}}/>}
     {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={desk.sessions} onClose={()=>setHelp(null)}/>}
     {settings && ready && <ProviderSettings providers={providers} detected={detected} detecting={detecting} discoveryError={discoveryError} onDiscover={discover} theme={theme.preference} onTheme={theme.choose} onSave={async providers=>{await save(providers);setSettings(false)}} onClose={() => setSettings(false)}/>}
   </div><CloseRecoveryDialog returnFocus={recovery.closeFocus} saving={recovery.closing} error={recovery.closeError} onRetry={()=>void recovery.retryClose()} onKeepWorking={recovery.keepWorking} onQuit={()=>void recovery.quitWithoutSaving()}/></>;

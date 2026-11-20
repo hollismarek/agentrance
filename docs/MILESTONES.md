@@ -810,3 +810,11 @@ Details opens the full project path and any reported agent and model names.
 Stacked, four-pane and wrapped three-pane layouts use tighter spacing and a shorter
 scrollable composer. The transcript has a minimum height, with intentional pane
 or workspace scrolling when the content exceeds the available space.
+
+## Compare recipient selection
+
+Compare can start fresh sessions for all configured providers or a chosen subset.
+Fresh sessions share the selected project folder. Existing-session comparisons
+can target one, several, or all open, connected, idle conversations. Each keeps
+its own project, history, pane placement, and composer draft. The prompt and
+attachments use the existing send path, with errors labeled by recipient.

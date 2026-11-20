@@ -83,7 +83,47 @@ test('Compare sends one explicitly chosen project with the prompt for every prov
   await type(document.querySelector('[aria-label="Project folder"]'),'/shared project');
   assert.equal(document.querySelector('button.primary').disabled,false);
   await act(async()=>document.querySelector('button.primary').click());
-  assert.deepEqual(sent,[['Review this repository',[],'/shared project']]);
+  assert.deepEqual(sent,[['Review this repository',[],'/shared project',[provider,{...provider,id:'two',cwd:'/different'}]]]);
   assert.match(document.body.textContent,/Every provider will use this same project folder/);
+ }finally{await act(async()=>root.unmount())}
+});
+
+test('Compare routes prompts to only the chosen providers or available existing sessions',async()=>{
+ const root=createRoot(document.getElementById('root'));
+ const sent=[],existing=[],validated=[];
+ const sessions=[
+  {id:'one',title:'First review',provider:'Kiro',cwd:'/one',live:true,busy:false},
+  {id:'two',title:'Second review',provider:'Codex',cwd:'/two',live:true,busy:false},
+  {id:'busy',title:'Busy review',provider:'Codex',cwd:'/two',live:true,busy:true},
+  {id:'offline',title:'Saved review',provider:'Kiro',cwd:'/one',live:false,busy:false},
+ ];
+ globalThis.__projectTest.invoke=async(command,{path})=>{validated.push(command);return path};
+ async function mode(value){
+  const select=document.querySelector('.compare-mode select');
+  await act(async()=>{select.value=value;select.dispatchEvent(new dom.window.Event('change',{bubbles:true}))});
+ }
+ const groups=()=>[...document.querySelectorAll('.compare-targets input')];
+ const send=()=>document.querySelector('button.primary');
+ try{
+  await act(async()=>root.render(React.createElement(module.exports.CompareDialog,{
+   providers:[provider,{...provider,id:'another',name:'Another provider'}],sessions,initialProject:'/new',
+   onClose(){},onCompare:(...args)=>sent.push(args),onExisting:(...args)=>existing.push(args),
+  })));
+  await type(document.querySelector('textarea'),'Review the changes');
+  await mode('selected');
+  assert.equal(send().disabled,true);
+  await act(async()=>groups()[1].click());
+  await act(async()=>send().click());
+  assert.deepEqual(sent.map(args=>args[3].map(p=>p.id)),[['another']]);
+  await mode('existing');
+  assert.equal(document.querySelector('[aria-label="Project folder"]'),null);
+  assert.equal(send().disabled,true);
+  assert.deepEqual(groups().map(input=>input.disabled),[false,false,false,true,true]);
+  await act(async()=>groups()[2].click());
+  await act(async()=>send().click());
+  await act(async()=>groups()[0].click());
+  await act(async()=>send().click());
+  assert.deepEqual(existing,[['Review the changes',[],['two']],['Review the changes',[],['one','two']]]);
+  assert.deepEqual(validated,['validate_project']);
  }finally{await act(async()=>root.unmount())}
 });
