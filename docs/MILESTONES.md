@@ -818,3 +818,12 @@ Fresh sessions share the selected project folder. Existing-session comparisons
 can target one, several, or all open, connected, idle conversations. Each keeps
 its own project, history, pane placement, and composer draft. The prompt and
 attachments use the existing send path, with errors labeled by recipient.
+
+## Backup and restore helper
+
+The cross-platform terminal helper exports history, saved provider settings and
+workspace recovery to a versioned ZIP. SQLite uses online backup, including
+committed WAL data. Restore validates the archive and database before moving
+the staged profile into a new directory. Existing profiles can be kept as a
+fallback while the restored copy is tested. An in-app backup and restore UI is
+a follow-up. See [the backup instructions](../scripts/README.md).

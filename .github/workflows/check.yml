@@ -33,6 +33,7 @@ jobs:
       - run: cargo check --locked --manifest-path src-tauri/Cargo.toml
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
       - run: cargo check --release --locked --manifest-path src-tauri/Cargo.toml
+      - run: python tests/backup_test.py
       - name: Linux installer tests
         if: runner.os == 'Linux'
         run: |

@@ -118,3 +118,36 @@ when pushed to GitHub. Linux desktop-installer tests only run on Linux. The
 workflow checks code; it does not publish releases or install applications.
 Native UI, CLI authentication/continuation, clipboard paste, process shutdown,
 installer upgrades and signing still require platform validation.
+
+## Back up and restore Agentrance data
+
+The backup helper uses Python 3 and runs from this checkout on Linux, macOS and
+Windows. Use `python` instead of `python3` if that is your Python command.
+
+```sh
+python3 scripts/backup.py backup agentrance-backup.zip
+python3 scripts/backup.py restore agentrance-backup.zip --data-dir ./restore-check
+```
+
+The ZIP contains SQLite conversation history, saved provider settings, and the
+last saved workspace recovery file, including text drafts. The SQLite online
+backup includes committed WAL changes. For the most recent drafts, quit
+Agentrance normally before backing up. Keep the ZIP private because conversations,
+drafts, and provider environment overrides may contain sensitive data.
+
+The default profile is Stable. Use `--channel development` for Development or
+`--data-dir` for a custom location. Restore requires a destination that does not
+exist. To restore into the actual app profile, quit Agentrance and move the
+existing profile folder aside before restoring without `--data-dir`. Keep the
+moved folder until you've verified the restored copy. The default locations are:
+
+- Linux: `${XDG_DATA_HOME:-~/.local/share}/local.agentdesk.app`
+- macOS: `~/Library/Application Support/local.agentdesk.app`
+- Windows: `%APPDATA%\local.agentdesk.app`
+
+Development appends `.dev` to the folder name. Restore only backups you trust.
+Project files, attached image bytes, provider authentication stores, and the
+provider's own conversation state are managed separately. Restored conversations
+can be read locally. Continuing them depends on access to the original provider
+session and project directory. Review provider executable and project paths
+when moving a backup to another computer.
