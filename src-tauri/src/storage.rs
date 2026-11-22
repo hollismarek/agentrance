@@ -18,7 +18,7 @@ pub fn initialize(db: &Connection) -> rusqlite::Result<()> {
         .prepare("PRAGMA table_info(sessions)")?
         .query_map([], |r| r.get::<_, String>(1))?
         .collect::<Result<Vec<_>, _>>()?;
-    for column in ["remote_id", "provider_id", "title"] {
+    for column in ["remote_id", "provider_id", "title", "agent_preferences"] {
         if !columns.iter().any(|c| c == column) {
             db.execute(
                 &format!("ALTER TABLE sessions ADD COLUMN {column} TEXT"),
@@ -86,6 +86,46 @@ pub fn connection(db: &Connection, id: &str) -> rusqlite::Result<SavedConnection
         },
     )
 }
+#[derive(Debug, Default, serde::Deserialize, serde::Serialize, PartialEq)]
+pub struct AgentPreferences {
+    pub agent: Option<String>,
+    pub model: Option<String>,
+}
+
+impl AgentPreferences {
+    pub fn from_snapshot(snapshot: &Value) -> Self {
+        Self {
+            agent: snapshot["selection"]["current"].as_str().map(str::to_owned),
+            model: snapshot["model"]["current"].as_str().map(str::to_owned),
+        }
+    }
+}
+
+pub fn save_agent_preferences(db: &Connection, id: &str, preferences: &AgentPreferences) -> rusqlite::Result<()> {
+    let raw = json!(preferences).to_string();
+    db.execute("UPDATE sessions SET agent_preferences=?1 WHERE id=?2", params![raw,id])?;
+    Ok(())
+}
+
+pub fn agent_preferences(db: &Connection, id: &str) -> rusqlite::Result<AgentPreferences> {
+    use rusqlite::OptionalExtension;
+    let saved: Option<String> = db.query_row(
+        "SELECT agent_preferences FROM sessions WHERE id=?1", [id], |row| row.get(0),
+    )?;
+    if let Some(saved) = saved {
+        if let Ok(preferences) = serde_json::from_str(&saved) {
+            return Ok(preferences);
+        }
+    }
+    // Older installations already recorded provider-confirmed selections.
+    let legacy: Option<String> = db.query_row(
+        "SELECT data FROM events WHERE session=?1 AND kind='agent_state' ORDER BY rowid DESC LIMIT 1",
+        [id], |row| row.get(0),
+    ).optional()?;
+    Ok(legacy.and_then(|raw| serde_json::from_str(&raw).ok())
+        .map(|snapshot| AgentPreferences::from_snapshot(&snapshot)).unwrap_or_default())
+}
+
 pub fn one_line(text: &str, limit: usize) -> String {
     let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if normalized.chars().count() > limit {
@@ -144,6 +184,23 @@ pub fn delete(db: &mut Connection, id: &str) -> rusqlite::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saved_agent_preferences_survive_provider_defaults_and_are_per_conversation() {
+        let db = Connection::open_in_memory().unwrap();
+        initialize(&db).unwrap();
+        db.execute_batch("INSERT INTO sessions(id,provider,cwd) VALUES ('a','Test','/tmp'), ('b','Test','/tmp');").unwrap();
+        let legacy = json!({"selection":{"current":"review"},"model":{"current":"sonnet"}});
+        append(&db, "a", "agent_state", &legacy, 1).unwrap();
+        let preferences = agent_preferences(&db, "a").unwrap();
+        assert_eq!(preferences.agent.as_deref(), Some("review"));
+        assert_eq!(preferences.model.as_deref(), Some("sonnet"));
+        save_agent_preferences(&db, "a", &preferences).unwrap();
+        let defaults = json!({"selection":{"current":"plan"},"model":{"current":"auto"}});
+        append(&db, "a", "agent_state", &defaults, 2).unwrap();
+        assert_eq!(agent_preferences(&db, "a").unwrap(), preferences);
+        assert_eq!(agent_preferences(&db, "b").unwrap(), AgentPreferences::default());
+    }
     #[test]
     fn migrates_old_history_without_inventing_timestamps() {
         let db = Connection::open_in_memory().unwrap();

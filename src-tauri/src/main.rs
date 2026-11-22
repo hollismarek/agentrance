@@ -231,9 +231,11 @@ async fn resume_session(
         state: &state,
         id: id.clone(),
     };
-    let saved = {
+    let (saved, preferences) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        storage::connection(&db, &id).map_err(|e| e.to_string())?
+        let saved = storage::connection(&db, &id).map_err(|e| e.to_string())?;
+        let preferences = storage::agent_preferences(&db, &id).map_err(|e| e.to_string())?;
+        (saved, preferences)
     };
     let remote=saved.remote_id.ok_or("This older conversation has no saved provider session ID. It remains readable, but cannot be continued. New chats now save the information needed to resume.")?;
     if let Some(provider_id) = saved.provider_id {
@@ -262,6 +264,11 @@ async fn resume_session(
         return Err(format!("The conversation's original project directory '{}' is unavailable. Restore the directory at this path to continue this chat. If the project moved, update Settings and start a new session there; changing settings does not relocate saved conversations.", provider.cwd));
     }
     provider.cwd = platform::project_directory(std::path::Path::new(&provider.cwd))?;
+    // Keep the preference separate from transient defaults reported during reconnect.
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        storage::save_agent_preferences(&db, &id, &preferences).map_err(|e| e.to_string())?;
+    }
     let client = acp::Client::start(app.clone(), id.clone(), &provider).await?;
     let init=client.request("initialize",json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agent-desk","version":"0.1.0"}})).await?;
     *client.prompt_caps.lock().map_err(|e|e.to_string())?=init["agentCapabilities"]["promptCapabilities"].clone();
@@ -272,6 +279,7 @@ async fn resume_session(
         .restore(&init, &remote, &provider.cwd)
         .await
         .map_err(|e| format!("Could not continue this conversation: {e}"))?;
+    let selection_warnings = client.restore_preferences(&preferences).await;
     state
         .db
         .lock()
@@ -285,7 +293,22 @@ async fn resume_session(
     state.clients.lock().await.insert(id.clone(), client);
     event(&app, &id, "connection_started", init);
     event(&app, &id, "agent_state", agent_state);
+    if !selection_warnings.is_empty() {
+        let _ = app.emit("history-error", selection_warnings.join("\n"));
+    }
     Ok(())
+}
+fn remember_selection(app: &tauri::AppHandle, id: &str, snapshot: &Value, model: bool) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let db = state.db.lock().map_err(|error| error.to_string())?;
+    let mut preferences = storage::agent_preferences(&db, id).map_err(|error| error.to_string())?;
+    let confirmed = storage::AgentPreferences::from_snapshot(snapshot);
+    if model {
+        preferences.model = confirmed.model;
+    } else {
+        preferences.agent = confirmed.agent;
+    }
+    storage::save_agent_preferences(&db, id, &preferences).map_err(|error| error.to_string())
 }
 #[tauri::command]
 async fn set_agent(app: tauri::AppHandle, id: String, agent_id: String) -> Result<(), String> {
@@ -308,8 +331,9 @@ async fn set_agent(app: tauri::AppHandle, id: String, agent_id: String) -> Resul
     {
         return Err("The conversation connection closed during the agent switch".into());
     }
+    let saved = remember_selection(&app, &id, &snapshot, false);
     event(&app, &id, "agent_state", snapshot);
-    Ok(())
+    saved.map_err(|e| format!("The provider changed its selection, but Agentrance could not save it: {e}"))
 }
 #[tauri::command]
 async fn set_model(app: tauri::AppHandle, id: String, model_id: String) -> Result<(), String> {
@@ -332,8 +356,9 @@ async fn set_model(app: tauri::AppHandle, id: String, model_id: String) -> Resul
     {
         return Err("The conversation connection closed during the model switch".into());
     }
+    let saved = remember_selection(&app, &id, &snapshot, true);
     event(&app, &id, "agent_state", snapshot);
-    Ok(())
+    saved.map_err(|e| format!("The provider changed its selection, but Agentrance could not save it: {e}"))
 }
 #[tauri::command]
 async fn prompt(app: tauri::AppHandle, id: String, text: String, attachments: Option<Vec<attachments::Attachment>>, submission_id: Option<String>) -> Result<(), String> {

@@ -271,6 +271,23 @@ impl Client {
     pub async fn set_model(&self, id: &str) -> Result<Value, String> {
         self.set_selection(id, true).await
     }
+    pub async fn restore_preferences(&self, preferences: &crate::storage::AgentPreferences) -> Vec<String> {
+        let mut warnings = Vec::new();
+        // Changing the agent can reset its model or change the list of models.
+        for (kind, key, wanted) in [("agent", "selection", &preferences.agent), ("model", "model", &preferences.model)] {
+            let Some(id) = wanted else { continue };
+            if self.agent_snapshot().is_ok_and(|state| state[key]["current"].as_str() == Some(id.as_str())) {
+                continue;
+            }
+            let result = if kind == "agent" { self.set_agent(id).await } else { self.set_model(id).await };
+            match result {
+                Ok(state) if state[key]["current"].as_str() == Some(id.as_str()) => {}
+                Ok(_) => warnings.push(format!("The provider did not confirm the saved {kind} '{id}'. Check the conversation's selection before sending.")),
+                Err(error) => warnings.push(format!("Could not restore saved {kind} '{id}': {error}")),
+            }
+        }
+        warnings
+    }
     async fn set_selection(&self, id: &str, model: bool) -> Result<Value, String> {
         if !self.is_connected() {
             return Err("Reconnect this conversation before changing its agent or model".into());
@@ -535,18 +552,23 @@ for line in sys.stdin:
             let script=r#"
 import sys,json
 model='auto'
+agent='plan'
+restoring=False
 def config():return [{'id':'model','category':'model','type':'select','currentValue':model,'options':[{'value':'auto','name':'Auto'},{'value':'sonnet','name':'Claude Sonnet'},{'value':'unavailable','name':'Unavailable'}]}]
 def send(v):print(json.dumps(v),flush=True)
 for line in sys.stdin:
  m=json.loads(line);p=m.get('params',{});method=m['method']
- if method=='session/new': result={'sessionId':'r','modes':{'currentModeId':'plan','availableModes':[{'id':'plan','name':'Plan'},{'id':'code','name':'Code'}]},'configOptions':config()}
+ if method in ('session/new','session/resume'):
+  restoring=method=='session/resume'
+  if restoring: assert p['sessionId']=='r'
+  result={'sessionId':'r','modes':{'currentModeId':agent,'availableModes':[{'id':'plan','name':'Plan'},{'id':'code','name':'Code'}]},'configOptions':config()}
  elif method=='session/set_config_option':
   assert p['sessionId']=='r' and p['configId']=='model'
   if p['value']=='unavailable':
    send({'jsonrpc':'2.0','id':m['id'],'error':{'code':-32602,'message':'Model unavailable'}});continue
-  assert p['value']=='sonnet';model='sonnet';result={'configOptions':config()}
+  assert p['value']=='sonnet' and (not restoring or agent=='code');model='sonnet';result={'configOptions':config()}
  elif method=='session/set_mode':
-  assert p['modeId']=='code';model='auto'
+  assert p['modeId']=='code';agent='code';model='auto'
   send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'r','update':{'sessionUpdate':'config_option_update','configOptions':config()}}})
   result={}
  else:raise AssertionError(method)
@@ -561,6 +583,16 @@ for line in sys.stdin:
             let snapshot=c.set_model("sonnet").await.unwrap();assert_eq!(snapshot["model"]["current"],"sonnet");assert_eq!(snapshot["selection"]["current"],"plan");
             let snapshot=c.set_agent("code").await.unwrap();assert_eq!(snapshot["model"]["current"],"auto");assert_eq!(snapshot["selection"]["current"],"code");
             let idle=c.turn.lock().await;assert!(c.set_model("sonnet").await.is_err());drop(idle);c.shutdown();
+            let resumed=Client::start_transport(&p,Arc::new(|_,_|{})).await.unwrap();
+            resumed.restore(&json!({"agentCapabilities":{"sessionCapabilities":{"resume":{}}}}),"r",&p.cwd).await.unwrap();
+            let preferences=crate::storage::AgentPreferences{agent:Some("code".into()),model:Some("sonnet".into())};
+            assert!(resumed.restore_preferences(&preferences).await.is_empty());
+            let state=resumed.agent_snapshot().unwrap();
+            assert_eq!(crate::storage::AgentPreferences::from_snapshot(&state),preferences);
+            let warnings=resumed.restore_preferences(&crate::storage::AgentPreferences{agent:None,model:Some("unavailable".into())}).await;
+            assert_eq!(warnings.len(),1);
+            assert!(warnings[0].contains("Model unavailable"));
+            resumed.shutdown();
         }).await.expect("model selection timed out");
     }
 }

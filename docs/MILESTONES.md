@@ -844,3 +844,12 @@ workspace layout and draft fields against startup's requirements. The CLI
 enforces archive entry limits before and during extraction. The workspace shows
 pending profile changes with a cancel action. After reopening, the backup menu
 can stage a switch to the previous profile.
+
+## Remember agent and model per conversation
+
+Agentrance saves the provider-confirmed agent and model as conversation
+preferences. On Continue, it reuses matching values or reapplies the saved
+agent before the model, since changing agents can affect model choices.
+The chat stays usable if a provider refuses a saved choice, with a warning
+to check the active selection. Transient defaults do not overwrite the
+saved preference. Older chats use their last recorded selection when present.
