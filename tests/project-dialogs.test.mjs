@@ -11,9 +11,9 @@ const old=keys.map(key=>Object.getOwnPropertyDescriptor(globalThis,key));
 Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true,ResizeObserver:class{observe(){}disconnect(){}}});
 const {createRoot}=await import('react-dom/client');
 test.after(()=>{dom.window.close();keys.forEach((key,i)=>{if(old[i])Object.defineProperty(globalThis,key,old[i]);else delete globalThis[key]})});
-const out=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`export {NewSessionDialog} from './src/components/NewSessionDialog';export {CompareDialog} from './src/components/CompareDialog';`},bundle:true,platform:'node',format:'cjs',external:['react'],write:false,plugins:[{name:'fake-tauri',setup(build){
+const out=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`export {BackupDialog} from './src/components/BackupDialog';export {NewSessionDialog} from './src/components/NewSessionDialog';export {CompareDialog} from './src/components/CompareDialog';`},bundle:true,platform:'node',format:'cjs',external:['react'],write:false,plugins:[{name:'fake-tauri',setup(build){
  build.onResolve({filter:/^@tauri-apps\//},args=>({path:args.path,namespace:'fake-tauri'}));
- build.onLoad({filter:/.*/,namespace:'fake-tauri'},()=>({contents:`export const invoke=(...args)=>globalThis.__projectTest.invoke(...args);export const open=(...args)=>globalThis.__projectTest.open(...args);`}));
+ build.onLoad({filter:/.*/,namespace:'fake-tauri'},()=>({contents:`export const invoke=(...args)=>globalThis.__projectTest.invoke(...args);export const open=(...args)=>globalThis.__projectTest.open(...args);export const save=(...args)=>globalThis.__projectTest.save(...args);`}));
 }}]});
 const module={exports:{}};
 new Function('require','module','exports',out.outputFiles[0].text)(createRequire(import.meta.url),module,module.exports);
@@ -137,5 +137,40 @@ test('Compare routes prompts to only the chosen providers or available existing 
   await act(async()=>send().click());
   assert.deepEqual(existing.at(-1),['Review the changes',[],['one']]);
   assert.deepEqual(validated,['validate_project']);
+ }finally{await act(async()=>root.unmount())}
+});
+
+test('backup flushes workspace before export and restore requires explicit confirmation',async()=>{
+ const root=createRoot(document.getElementById('root'));
+ const calls=[];
+ Object.assign(globalThis.__projectTest,{
+  invoke:async(command,args)=>{
+   if(command==='backup_restore_pending')return false;
+   calls.push([command,args]);
+  },
+  save:async()=>'/backup-new.zip',
+  open:async()=>'/backup-existing.zip',
+ });
+ async function click(label){
+  const button=[...document.querySelectorAll('button')].find(node=>node.textContent===label);
+  assert.ok(button,label);
+  assert.equal(button.disabled,false);
+  await act(async()=>button.click());
+ }
+ try{
+  await act(async()=>root.render(React.createElement(module.exports.BackupDialog,{
+   onClose(){},flushWorkspace:async()=>{calls.push(['flush'])},
+  })));
+  await click('Create backup…');
+  assert.deepEqual(calls,[['flush'],['create_backup',{destination:'/backup-new.zip'}]]);
+  await click('Restore backup…');
+  assert.match(document.body.textContent,/backup-existing\.zip/);
+  assert.equal(calls.length,2);
+  await click('Cancel');
+  assert.equal(calls.length,2);
+  await click('Restore backup…');
+  await click('Restore on next launch');
+  assert.deepEqual(calls.at(-1),['stage_backup_restore',{archive:'/backup-existing.zip'}]);
+  assert.match(document.body.textContent,/Quit and reopen Agentrance/);
  }finally{await act(async()=>root.unmount())}
 });

@@ -1,5 +1,5 @@
 import React,{useEffect,useRef} from 'react';
-export function AppMenu({onSettings,onHelp,settingsReady=true}:{settingsReady?:boolean;onSettings:()=>void;onHelp:()=>void}){
+export function AppMenu({onSettings,onHelp,onBackup,settingsReady=true}:{settingsReady?:boolean;onSettings:()=>void;onHelp:()=>void;onBackup?:()=>void}){
   const menu=useRef<HTMLDetailsElement>(null);
   useEffect(()=>{
     function outside(e:PointerEvent){if(!menu.current?.contains(e.target as Node)&&menu.current)menu.current.open=false}
@@ -10,6 +10,7 @@ export function AppMenu({onSettings,onHelp,settingsReady=true}:{settingsReady?:b
   function choose(action:()=>void){if(menu.current){menu.current.open=false;menu.current.querySelector('summary')?.focus()}action()}
   return <details className="app-menu" ref={menu}><summary>Menu</summary><div className="app-menu-items">
     <button disabled={!settingsReady} onClick={()=>choose(onSettings)}>{settingsReady?'Settings':'Settings (loading…)'}</button>
+    {onBackup&&<button onClick={()=>choose(onBackup)}>Backup &amp; Restore</button>}
     <button onClick={()=>choose(onHelp)}>Help &amp; About</button>
   </div></details>;
 }

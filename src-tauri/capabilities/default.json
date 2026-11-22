@@ -1,1 +1,1 @@
-{"identifier":"default","windows":["main"],"permissions":["core:default","core:window:allow-set-size","core:window:allow-maximize","core:window:allow-unmaximize","dialog:allow-open"]}
+{"identifier":"default","windows":["main"],"permissions":["core:default","core:window:allow-set-size","core:window:allow-maximize","core:window:allow-unmaximize","dialog:allow-open","dialog:allow-save"]}

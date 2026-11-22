@@ -10,6 +10,7 @@ import shutil
 import sqlite3
 import sys
 import tempfile
+import uuid
 import zipfile
 
 HISTORY = "history.sqlite3"
@@ -27,6 +28,14 @@ def profile_path(channel):
     else:
         base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share")
     return base / identifier
+
+
+def selected_profile(root):
+    try:
+        marker = (root / "active-profile").read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return root
+    return root / "profiles" / str(uuid.UUID(marker.strip()))
 
 
 def validate_database(path):
@@ -140,7 +149,7 @@ def main():
     archive = args.archive.expanduser().absolute()
     try:
         if args.action == "backup":
-            backup_profile(profile, archive)
+            backup_profile(selected_profile(profile), archive)
             print(f"Backup saved to {archive}")
         else:
             restore_profile(archive, profile)

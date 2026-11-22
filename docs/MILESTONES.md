@@ -825,5 +825,13 @@ The cross-platform terminal helper exports history, saved provider settings and
 workspace recovery to a versioned ZIP. SQLite uses online backup, including
 committed WAL data. Restore validates the archive and database before moving
 the staged profile into a new directory. Existing profiles can be kept as a
-fallback while the restored copy is tested. An in-app backup and restore UI is
-a follow-up. See [the backup instructions](../scripts/README.md).
+fallback while the restored copy is tested. See [the backup instructions](../scripts/README.md).
+
+
+## Backup and restore menu
+
+Menu → Backup & Restore uses native ZIP save and open dialogs. Backup flushes
+workspace recovery and snapshots SQLite without Python. Restore verifies the
+archive, prepares a separate profile, and selects it for the next launch. The
+current process and previous profile retain their original data. The menu uses
+the same ZIP format as the terminal helper.

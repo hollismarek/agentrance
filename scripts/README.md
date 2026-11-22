@@ -151,3 +151,10 @@ provider's own conversation state are managed separately. Restored conversations
 can be read locally. Continuing them depends on access to the original provider
 session and project directory. Review provider executable and project paths
 when moving a backup to another computer.
+
+In the desktop app, open **Menu → Backup & Restore** to create the same ZIP
+without Python. To restore, choose a backup you trust, confirm **Restore on next
+launch**, and quit and reopen Agentrance. The restore is prepared in a separate
+folder under the channel's `profiles` directory. The existing profile stays
+available on disk. The terminal backup helper follows the `active-profile`
+marker when a channel uses a restored profile.

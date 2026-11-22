@@ -17,6 +17,11 @@ export function useWorkspaceRecovery(workspace:Workspace,drafts:Drafts,dispatch:
  latest.current={ready,writable,raw};
  const writer=useRef<ReturnType<typeof recoveryWriter>|null>(null);
  if(!writer.current)writer.current=recoveryWriter(raw=>invoke('save_workspace',{raw}),e=>onError(`Could not save workspace recovery: ${e}`));
+ async function flushWorkspace(){
+  if(!latest.current.ready||!latest.current.writable)return;
+  let raw:string;
+  do{raw=latest.current.raw;await writer.current!.flush(raw)}while(raw!==latest.current.raw);
+ }
  async function requestClose(){
   if(closingRef.current)return;
   if(!latest.current.ready){onError('Workspace recovery is still loading. Please try closing again when it finishes.');return}
@@ -24,8 +29,7 @@ export function useWorkspaceRecovery(workspace:Workspace,drafts:Drafts,dispatch:
   closingRef.current=true;setClosing(true);setCloseError('');
   try{
    if(!latest.current.writable)throw Error('Workspace recovery is unavailable; saved recovery has been preserved');
-   let raw:string;
-   do{raw=latest.current.raw;await writer.current!.flush(raw)}while(raw!==latest.current.raw);
+   await flushWorkspace();
    await invoke('finish_app_exit');
   }catch(e){setCloseError(`Could not save the latest workspace: ${e}. The window has been kept open.`);closingRef.current=false;setClosing(false)}
  }
@@ -51,5 +55,5 @@ export function useWorkspaceRecovery(workspace:Workspace,drafts:Drafts,dispatch:
    .catch(e=>onError(`Could not enable save-on-close: ${e}`));
   return ()=>{active=false;unlisten?.()};
  },[]);
- return {ready,closing,closeError,closeFocus,retryClose:requestClose,keepWorking:()=>{setCloseError('');closeFocus.current=null},quitWithoutSaving:()=>invoke('finish_app_exit').catch(e=>setCloseError(`Could not quit: ${e}`)),recentProjects,rememberProject:(path:string)=>setRecentProjects(all=>[path,...all.filter(p=>p!==path)].slice(0,20))};
+ return {ready,flushWorkspace,closing,closeError,closeFocus,retryClose:requestClose,keepWorking:()=>{setCloseError('');closeFocus.current=null},quitWithoutSaving:()=>invoke('finish_app_exit').catch(e=>setCloseError(`Could not quit: ${e}`)),recentProjects,rememberProject:(path:string)=>setRecentProjects(all=>[path,...all.filter(p=>p!==path)].slice(0,20))};
 }

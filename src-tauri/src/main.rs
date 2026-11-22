@@ -12,6 +12,7 @@ mod clipboard;
 mod resume;
 mod storage;
 mod event_delivery;
+mod backup;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -30,6 +31,7 @@ struct Provider {
     cwd: String,
 }
 struct AppState {
+    profile: std::path::PathBuf,
     recovery_guard: std::sync::atomic::AtomicBool,
     clients: tokio::sync::Mutex<HashMap<String, Arc<acp::Client>>>,
     db: Mutex<Connection>,
@@ -83,19 +85,37 @@ fn record_event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) -> Op
 }
 #[tauri::command]
 fn load_provider_settings(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    settings::load(&app.path().app_data_dir().map_err(|e| e.to_string())?)
+    settings::load(&app.state::<AppState>().profile)
 }
 #[tauri::command]
 fn save_provider_settings(app: tauri::AppHandle, raw: String) -> Result<(), String> {
-    settings::save(&app.path().app_data_dir().map_err(|e| e.to_string())?, &raw)
+    settings::save(&app.state::<AppState>().profile, &raw)
 }
 #[tauri::command]
 fn load_workspace(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    workspace::load(&app.path().app_data_dir().map_err(|e| e.to_string())?)
+    workspace::load(&app.state::<AppState>().profile)
 }
 #[tauri::command]
 fn save_workspace(app: tauri::AppHandle, raw: String) -> Result<(), String> {
-    workspace::save(&app.path().app_data_dir().map_err(|e| e.to_string())?, &raw)
+    workspace::save(&app.state::<AppState>().profile, &raw)
+}
+#[tauri::command]
+async fn create_backup(app: tauri::AppHandle, destination: std::path::PathBuf) -> Result<(), String> {
+    let profile = app.state::<AppState>().profile.clone();
+    tauri::async_runtime::spawn_blocking(move || backup::create(&profile, &destination))
+        .await.map_err(|error| error.to_string())?
+}
+#[tauri::command]
+async fn stage_backup_restore(app: tauri::AppHandle, archive: std::path::PathBuf) -> Result<(), String> {
+    let root = app.path().app_data_dir().map_err(|error| error.to_string())?;
+    let profile = app.state::<AppState>().profile.clone();
+    tauri::async_runtime::spawn_blocking(move || backup::restore(&root, &profile, &archive))
+        .await.map_err(|error| error.to_string())?
+}
+#[tauri::command]
+fn backup_restore_pending(app: tauri::AppHandle) -> Result<bool, String> {
+    let root = app.path().app_data_dir().map_err(|error| error.to_string())?;
+    Ok(backup::active_profile(&root)? != app.state::<AppState>().profile)
 }
 #[tauri::command]
 async fn discover_providers(app: tauri::AppHandle) -> Result<Vec<Provider>,String> {
@@ -500,9 +520,11 @@ fn main() {
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
-            let db = Connection::open(dir.join("history.sqlite3"))?;
+            let profile = backup::active_profile(&dir).map_err(std::io::Error::other)?;
+            let db = Connection::open(profile.join("history.sqlite3"))?;
             storage::initialize(&db)?;
             app.manage(AppState {
+                profile,
                 recovery_guard: Default::default(),
                 clients: Default::default(),
                 db: Mutex::new(db),
@@ -523,6 +545,9 @@ fn main() {
             save_provider_settings,
             load_workspace,
             save_workspace,
+            create_backup,
+            stage_backup_restore,
+            backup_restore_pending,
             new_session,
             resume_session,
             set_agent,

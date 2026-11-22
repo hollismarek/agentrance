@@ -440,3 +440,7 @@ html,body,#root{overflow:clip}
 .project-path input{flex:1;min-width:0;margin:0}
 .project-path button{flex-shrink:0}
 .draft-recovery{flex-shrink:0;margin:0;padding:8px 12px;color:var(--text);background:var(--input-bg);font-size:13px;overflow-wrap:anywhere;max-height:100px;overflow:auto}
+
+.backup-dialog{max-height:90vh;overflow:auto}
+.backup-path{overflow-wrap:anywhere}
+.backup-dialog .dialog-actions{flex-wrap:wrap}
