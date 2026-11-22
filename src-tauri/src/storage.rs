@@ -107,6 +107,10 @@ pub fn save_agent_preferences(db: &Connection, id: &str, preferences: &AgentPref
     Ok(())
 }
 
+pub fn save_agent_snapshot(db: &Connection, id: &str, snapshot: &Value) -> rusqlite::Result<()> {
+    save_agent_preferences(db, id, &AgentPreferences::from_snapshot(snapshot))
+}
+
 pub fn agent_preferences(db: &Connection, id: &str) -> rusqlite::Result<AgentPreferences> {
     use rusqlite::OptionalExtension;
     let saved: Option<String> = db.query_row(

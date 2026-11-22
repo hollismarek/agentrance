@@ -53,15 +53,33 @@ export function useSessions(onError: (message:string) => void) {
     // History replay fills the startup gap; events arriving during replay are
     // buffered by session id and deduplicated using persisted sequence numbers.
     const id = await invoke<string>('new_session',{provider});
+    await loadConnected(id,provider);
+    return id;
+  }
+  async function loadConnected(id:string,provider:Provider,title?:string|null){
     const buffered:ActivityEvent[]=[];
     earlyEvents.current.set(id,buffered);
     try {
       const items = await invoke<ActivityEvent[]>('messages',{id});
       const events=mergeEvents(items,buffered);
-      setSessions(a => [...a,{id,provider:provider.name,cwd:provider.cwd,items:events,busy:false,
-        live:connectionIsLive(events),providerId:provider.id,canResume:true}]);
+      setSessions(all=>{
+        const current=all.find(session=>session.id===id);
+        const metadata={id,provider:provider.name,cwd:provider.cwd,items:events,busy:false,
+        live:connectionIsLive(events),providerId:provider.id,canResume:true,...(title?{title}:{})};
+        if(current)return all.map(session=>session.id===id?{
+          ...session,items:mergeEvents(events,current.items),live:metadata.live,
+        }:session);
+        return [...all,metadata];
+      });
     } finally {earlyEvents.current.delete(id)}
-    void refresh();return id;
+    void refresh();
+  }
+  async function openProviderSession(provider:Provider,remoteId:string,title:string|null){
+    await listenersReady.current;
+    const {id,cwd}=await invoke<{id:string;cwd:string}>('open_provider_session',{provider,remoteId,title});
+    await loadConnected(id,{...provider,cwd},title);
+    setPanes([id]);
+    return cwd;
   }
   async function start(provider:Provider) {
     setStarting(true);
@@ -168,5 +186,5 @@ export function useSessions(onError: (message:string) => void) {
     finally{switching.current.delete(id);setSessions(a=>a.map(s=>s.id===id?{...s,changingModel:false}:s))}
   }
   async function cancel(id:string) {try{await invoke('cancel',{id})}catch(e){onError(String(e))}}
-  return {sessions,past,panes,setPanes,starting,start,send,compare,compareExisting,open,restore,close,cancel,resume,rename,remove,setAgent,setModel};
+  return {sessions,past,panes,setPanes,starting,start,send,compare,compareExisting,open,openProviderSession,restore,close,cancel,resume,rename,remove,setAgent,setModel};
 }

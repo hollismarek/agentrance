@@ -8,6 +8,7 @@ import {WorkspaceLayout} from './components/WorkspaceLayout';
 import {useSessions} from './useSessions';
 import {useWorkspaceRecovery} from './useWorkspaceRecovery';
 import {AppMenu} from './components/AppMenu';
+import {ProviderSessionsDialog} from './components/ProviderSessionsDialog';
 import {BackupDialog,type BackupProfileStatus} from './components/BackupDialog';
 import {HelpDialog,type HelpTopic} from './components/HelpDialog';
 import {Sidebar} from './components/Sidebar';
@@ -29,6 +30,7 @@ function App() {
   const [workspace,dispatch]=useReducer(workspaceReducer,initialWorkspace);
   const [error,setError] = useState('');
   const [help,setHelp]=useState<{topic:HelpTopic;sessionId?:string}|null>(null);
+  const [providerSessions,setProviderSessions]=useState(false);
   const [backup,setBackup]=useState(false);
   const [backupProfile,setBackupProfile]=useState<BackupProfileStatus|null>(null);
   const [cancellingRestore,setCancellingRestore]=useState(false);
@@ -62,7 +64,7 @@ function App() {
     <main>
       <header><div className="workspace-heading"><strong>Conversations {channel==='Development'&&<span className="development-badge">DEV</span>}</strong></div><div className="header-actions">
         <button disabled={!recovery.ready||desk.starting||!providers.length} onClick={()=>{withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>setComparison(true))}}>Compare…</button>
-        <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option><option value="three">Three panes</option><option value="grid">Four panes (grid)</option></select></label><AppMenu onBackup={()=>setBackup(true)} settingsReady={ready} onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
+        <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option><option value="three">Three panes</option><option value="grid">Four panes (grid)</option></select></label><AppMenu onProviderSession={ready&&recovery.ready&&!desk.starting?()=>withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>setProviderSessions(true)):undefined} onBackup={()=>setBackup(true)} settingsReady={ready} onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
       </header>
       {backupProfile?.pending&&<div className="restore-notice">
         <span role="status">Restore or profile switch pending. Reopen Agentrance to apply it.</span>
@@ -77,6 +79,8 @@ function App() {
       onCompare={(text,attachments,cwd,selected)=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.compare(providersAtProject(selected,cwd),text,attachments)})}}
       onExisting={(text,attachments,ids)=>{setComparison(false);void desk.compareExisting(ids,text,attachments)}}/>}
     {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={desk.sessions} onClose={()=>setHelp(null)}/>}
+    {providerSessions&&<ProviderSessionsDialog providers={providers} selected={selected} projects={projects} onClose={()=>setProviderSessions(false)}
+      onOpen={async(provider,id,title)=>{const cwd=await desk.openProviderSession(provider,id,title);recovery.rememberProject(cwd)}}/>}
     {backup&&<BackupDialog onClose={()=>setBackup(false)} flushWorkspace={recovery.flushWorkspace} profile={backupProfile}
       onStaged={()=>setBackupProfile(profile=>({pending:true,hasPrevious:profile?.hasPrevious??false}))}/>}
     {settings && ready && <ProviderSettings providers={providers} detected={detected} detecting={detecting} discoveryError={discoveryError} onDiscover={discover} theme={theme.preference} onTheme={theme.choose} onSave={async providers=>{await save(providers);setSettings(false)}} onClose={() => setSettings(false)}/>}

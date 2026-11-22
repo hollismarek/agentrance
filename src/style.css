@@ -447,3 +447,7 @@ html,body,#root{overflow:clip}
 
 .restore-notice{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 12px;background:var(--error-bg)}
 .restore-notice button{padding:4px 8px}
+
+.provider-session-results{max-height:34vh;overflow:auto;margin-top:8px}
+.provider-session-results ul{list-style:none;margin:0;padding:0}
+.provider-session-results li>button{display:block;width:100%;text-align:start;overflow-wrap:anywhere;margin-bottom:4px}

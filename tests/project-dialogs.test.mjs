@@ -11,7 +11,7 @@ const old=keys.map(key=>Object.getOwnPropertyDescriptor(globalThis,key));
 Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true,ResizeObserver:class{observe(){}disconnect(){}}});
 const {createRoot}=await import('react-dom/client');
 test.after(()=>{dom.window.close();keys.forEach((key,i)=>{if(old[i])Object.defineProperty(globalThis,key,old[i]);else delete globalThis[key]})});
-const out=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`export {BackupDialog} from './src/components/BackupDialog';export {NewSessionDialog} from './src/components/NewSessionDialog';export {CompareDialog} from './src/components/CompareDialog';`},bundle:true,platform:'node',format:'cjs',external:['react'],write:false,plugins:[{name:'fake-tauri',setup(build){
+const out=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`export {ProviderSessionsDialog} from './src/components/ProviderSessionsDialog';export {BackupDialog} from './src/components/BackupDialog';export {NewSessionDialog} from './src/components/NewSessionDialog';export {CompareDialog} from './src/components/CompareDialog';`},bundle:true,platform:'node',format:'cjs',external:['react'],write:false,plugins:[{name:'fake-tauri',setup(build){
  build.onResolve({filter:/^@tauri-apps\//},args=>({path:args.path,namespace:'fake-tauri'}));
  build.onLoad({filter:/.*/,namespace:'fake-tauri'},()=>({contents:`export const invoke=(...args)=>globalThis.__projectTest.invoke(...args);export const open=(...args)=>globalThis.__projectTest.open(...args);export const save=(...args)=>globalThis.__projectTest.save(...args);`}));
 }}]});
@@ -174,5 +174,37 @@ test('backup flushes workspace before export and restore requires explicit confi
    onClose(){},profile:{pending:true,hasPrevious:false},onStaged(){},flushWorkspace:async()=>{},
   })));
   assert.match(document.body.textContent,/Quit and reopen Agentrance/);
+ }finally{await act(async()=>root.unmount())}
+});
+
+test('provider session picker pages through the project and opens only the selected chat',async()=>{
+ const root=createRoot(document.getElementById('root'));
+ const calls=[],opened=[];
+ globalThis.__projectTest.invoke=async(command,args)=>{
+  calls.push([command,args]);
+  return args.cursor?
+   {sessions:[{sessionId:'second',title:'Second chat'}],nextCursor:null}:
+   {sessions:[{sessionId:'first',title:'First chat'}],nextCursor:'more'};
+ };
+ const click=label=>act(async()=>{
+  const button=[...document.querySelectorAll('button')].find(node=>node.textContent===label);
+  assert.ok(button,label);
+  button.click();
+ });
+ try{
+  await act(async()=>root.render(React.createElement(module.exports.ProviderSessionsDialog,{
+   providers:[provider],selected:provider.id,projects:[],onClose(){},
+   onOpen:async(...args)=>{opened.push(args)},
+  })));
+  await type(document.querySelector('[aria-label="Project folder"]'),'/original');
+  await click('Find sessions');
+  await click('Load more sessions');
+  assert.deepEqual(calls,[
+   ['list_provider_sessions',{provider:{...provider,cwd:'/original'},cursor:undefined}],
+   ['list_provider_sessions',{provider:{...provider,cwd:'/original'},cursor:'more'}],
+  ]);
+  assert.equal(opened.length,0);
+  await click('Second chat');
+  assert.deepEqual(opened,[[{...provider,cwd:'/original'},'second','Second chat']]);
  }finally{await act(async()=>root.unmount())}
 });

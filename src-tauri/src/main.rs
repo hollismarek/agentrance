@@ -13,6 +13,7 @@ mod resume;
 mod storage;
 mod event_delivery;
 mod backup;
+mod provider_sessions;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -298,17 +299,10 @@ async fn resume_session(
     }
     Ok(())
 }
-fn remember_selection(app: &tauri::AppHandle, id: &str, snapshot: &Value, model: bool) -> Result<(), String> {
+fn remember_selection(app: &tauri::AppHandle, id: &str, snapshot: &Value) -> Result<(), String> {
     let state = app.state::<AppState>();
     let db = state.db.lock().map_err(|error| error.to_string())?;
-    let mut preferences = storage::agent_preferences(&db, id).map_err(|error| error.to_string())?;
-    let confirmed = storage::AgentPreferences::from_snapshot(snapshot);
-    if model {
-        preferences.model = confirmed.model;
-    } else {
-        preferences.agent = confirmed.agent;
-    }
-    storage::save_agent_preferences(&db, id, &preferences).map_err(|error| error.to_string())
+    storage::save_agent_snapshot(&db, id, snapshot).map_err(|error| error.to_string())
 }
 #[tauri::command]
 async fn set_agent(app: tauri::AppHandle, id: String, agent_id: String) -> Result<(), String> {
@@ -331,7 +325,7 @@ async fn set_agent(app: tauri::AppHandle, id: String, agent_id: String) -> Resul
     {
         return Err("The conversation connection closed during the agent switch".into());
     }
-    let saved = remember_selection(&app, &id, &snapshot, false);
+    let saved = remember_selection(&app, &id, &snapshot);
     event(&app, &id, "agent_state", snapshot);
     saved.map_err(|e| format!("The provider changed its selection, but Agentrance could not save it: {e}"))
 }
@@ -356,7 +350,7 @@ async fn set_model(app: tauri::AppHandle, id: String, model_id: String) -> Resul
     {
         return Err("The conversation connection closed during the model switch".into());
     }
-    let saved = remember_selection(&app, &id, &snapshot, true);
+    let saved = remember_selection(&app, &id, &snapshot);
     event(&app, &id, "agent_state", snapshot);
     saved.map_err(|e| format!("The provider changed its selection, but Agentrance could not save it: {e}"))
 }
@@ -584,6 +578,8 @@ fn main() {
             cancel_backup_restore,
             stage_previous_profile,
             new_session,
+            provider_sessions::list_provider_sessions,
+            provider_sessions::open_provider_session,
             resume_session,
             set_agent,
             set_model,

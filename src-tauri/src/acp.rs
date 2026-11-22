@@ -33,9 +33,28 @@ struct Pending {
     mode: Option<String>,
 }
 type EventSink = Arc<dyn Fn(&str, Value) + Send + Sync>;
+#[derive(Default)]
+struct ImportedTranscript {
+    session_id: String,
+    bytes: usize,
+    turns: Vec<(&'static str, String)>,
+}
+impl ImportedTranscript {
+    fn push(&mut self, kind: &'static str, text: &str) {
+        self.bytes = self.bytes.saturating_add(text.len());
+        if self.exceeds_limit() || text.is_empty() { return; }
+        if let Some((last_kind, last_text)) = self.turns.last_mut() {
+            if *last_kind == kind { last_text.push_str(text); return; }
+        }
+        self.turns.push((kind, text.to_owned()));
+    }
+
+    fn exceeds_limit(&self) -> bool { self.bytes > 16 * 1024 * 1024 || self.turns.len() >= 10_000 }
+}
 pub struct Client {
     agents: Arc<Mutex<crate::agents::State>>,
     replaying: Arc<AtomicBool>,
+    imported: Arc<Mutex<Option<ImportedTranscript>>>,
     stopped: Arc<AtomicBool>,
     connected: Arc<AtomicBool>,
     input: Arc<AsyncMutex<ChildStdin>>,
@@ -64,7 +83,7 @@ impl Client {
     ) -> Result<Arc<Self>, String> {
         Self::start_transport(p, Arc::new(move |kind, data| event(&app, &id, kind, data))).await
     }
-    async fn start_transport(p: &Provider, emit: EventSink) -> Result<Arc<Self>, String> {
+    pub(crate) async fn start_transport(p: &Provider, emit: EventSink) -> Result<Arc<Self>, String> {
         let executable=platform::provider_executable(p)?;
         let mut command=Command::new(executable);
         #[cfg(windows)]
@@ -94,6 +113,7 @@ impl Client {
         let pending = Arc::new(AsyncMutex::new(HashMap::<u64, Pending>::new()));
         let permissions = Arc::new(AsyncMutex::new(HashMap::new()));
         let replaying = Arc::new(AtomicBool::new(false));
+        let imported = Arc::new(Mutex::new(None::<ImportedTranscript>));
         let stopped = Arc::new(AtomicBool::new(false));
         let connected = Arc::new(AtomicBool::new(true));
         let emission_gate = Arc::new(Mutex::new(()));
@@ -112,6 +132,7 @@ impl Client {
             prompt_caps:Mutex::new(Value::Null),
             agents: agents.clone(),
             replaying: replaying.clone(),
+            imported: imported.clone(),
             stopped: stopped.clone(),
             connected: connected.clone(),
             input: input.clone(),
@@ -138,6 +159,10 @@ impl Client {
                 if let Some(method) = v["method"].as_str() {
                     if method == "session/update" {
                         let u = &v["params"]["update"];
+                        if imported.lock().is_ok_and(|replay| replay.as_ref().is_some_and(|history|
+                            v["params"]["sessionId"].as_str() != Some(history.session_id.as_str()))) {
+                            continue;
+                        }
                         // Restore mode/configuration reports even while history
                         // replay is suppressed. They describe current controls.
                         let snapshot = if let Ok(mut state) = agents.lock() {
@@ -152,6 +177,19 @@ impl Client {
                         if let Some(snapshot) = snapshot {
                             emit("agent_state", snapshot);
                         }
+                        if let Ok(mut history) = imported.lock() {
+                            if let Some(history) = history.as_mut() {
+                                let kind = match u["sessionUpdate"].as_str() {
+                                    Some("user_message_chunk") => Some("user"),
+                                    Some("agent_message_chunk") => Some("delta"),
+                                    _ => None,
+                                };
+                                if let (Some(kind), Some(text)) = (kind, u["content"]["text"].as_str()) {
+                                    history.push(kind, text);
+                                }
+                                continue;
+                            }
+                        }
                         if replaying.load(Ordering::SeqCst) {
                             continue;
                         }
@@ -165,6 +203,12 @@ impl Client {
                             _ => {}
                         }
                     } else if method == "session/request_permission" {
+                        let importing = imported.lock().is_ok_and(|history| history.is_some());
+                        if importing {
+                            let response = json!({"jsonrpc":"2.0","id":v["id"],"result":{"outcome":{"outcome":"cancelled"}}});
+                            let _ = write(&input, response).await;
+                            continue;
+                        }
                         permissions
                             .lock()
                             .await
@@ -261,6 +305,18 @@ impl Client {
         result?;
         *self.remote.lock().await = remote.to_string();
         Ok(())
+    }
+    pub async fn import_session(&self, remote: &str, cwd: &str) -> Result<Vec<(&'static str, String)>, String> {
+        *self.imported.lock().map_err(|e| e.to_string())? = Some(ImportedTranscript{session_id:remote.to_owned(),..ImportedTranscript::default()});
+        let result = self.request("session/load", json!({"sessionId":remote,"cwd":cwd,"mcpServers":[]})).await;
+        let history = self.imported.lock().map_err(|e| e.to_string())?.take()
+            .ok_or("Session history capture is unavailable")?;
+        result?;
+        if history.exceeds_limit() {
+            return Err("The provider replay exceeds the import limit (16 MB or 10,000 turns).".into());
+        }
+        *self.remote.lock().await = remote.to_string();
+        Ok(history.turns)
     }
     pub fn agent_snapshot(&self) -> Result<Value, String> {
         Ok(self.agents.lock().map_err(|e| e.to_string())?.snapshot())
@@ -447,6 +503,61 @@ mod tests {
         assert_eq!(events.lock().unwrap().len(),1,"stopping twice must not emit a stale disconnect");
     }
     #[tokio::test]
+    async fn lists_project_sessions_and_imports_only_the_chosen_transcript() {
+        let script = r#"
+import json,sys
+cwd=sys.argv[1]
+def send(value): print(json.dumps(value),flush=True)
+def update(session,kind,text):
+ send({"method":"session/update","params":{"sessionId":session,"update":{"sessionUpdate":kind,"content":{"type":"text","text":text}}}})
+for line in sys.stdin:
+ m=json.loads(line)
+ params=m.get("params",{})
+ if m["method"]=="initialize":
+  result={"protocolVersion":1,"agentCapabilities":{"loadSession":True,"sessionCapabilities":{"list":{}}}}
+ elif m["method"]=="session/list":
+  assert params["cwd"]==cwd and params["cursor"]=="page-two"
+  result={"sessions":[{"sessionId":"chosen","cwd":cwd,"title":"Test import"},{"sessionId":"unrelated","cwd":cwd+"/other"}],"nextCursor":"page-three"}
+ elif m["method"]=="session/load":
+  assert params["sessionId"]=="chosen" and params["cwd"]==cwd
+  update("unrelated","user_message_chunk","other conversation")
+  update("chosen","user_message_chunk","Old ")
+  update("chosen","user_message_chunk","question")
+  update("chosen","tool_call","old tool metadata")
+  update("chosen","agent_message_chunk","Old answer")
+  send({"jsonrpc":"2.0","id":"old-permission","method":"session/request_permission","params":{"sessionId":"chosen"}})
+  reply=json.loads(sys.stdin.readline())
+  assert reply["id"]=="old-permission" and reply["result"]["outcome"]["outcome"]=="cancelled"
+  result={}
+ elif m["method"]=="session/prompt":
+  assert params["sessionId"]=="chosen"
+  update("chosen","agent_message_chunk","Continued")
+  result={}
+ else: raise AssertionError(m["method"])
+ send({"jsonrpc":"2.0","id":m["id"],"result":result})
+"#;
+        let cwd = std::env::temp_dir().to_string_lossy().into_owned();
+        let provider = Provider {
+            id: "mock".into(), name: "Mock".into(), executable: test_python(),
+            args: vec!["-u".into(), "-c".into(), script.into(), cwd.clone()],
+            env: HashMap::new(), cwd: cwd.clone(),
+        };
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let sink = events.clone();
+        let client = Client::start_transport(&provider, Arc::new(move |kind, value|
+            sink.lock().unwrap().push((kind.to_owned(), value)))).await.unwrap();
+        let page = crate::provider_sessions::list_page(&client, &cwd, Some("page-two".into())).await.unwrap();
+        let page = json!(page);
+        assert_eq!(page["sessions"].as_array().unwrap().len(), 1);
+        assert_eq!(page["sessions"][0]["sessionId"], "chosen");
+        assert_eq!(page["nextCursor"], "page-three");
+        let transcript = client.import_session("chosen", &cwd).await.unwrap();
+        assert_eq!(transcript, vec![("user", "Old question".into()), ("delta", "Old answer".into())]);
+        assert!(events.lock().unwrap().is_empty());
+        client.request("session/prompt", json!({"sessionId":"chosen"})).await.unwrap();
+        assert_eq!(*events.lock().unwrap(), vec![("delta".into(), json!("Continued"))]);
+    }
+    #[tokio::test]
     async fn reconnects_exact_sessions_without_duplicate_replay_or_cross_talk() {
         tokio::time::timeout(Duration::from_secs(10), async {
             let script=r#"
@@ -582,6 +693,18 @@ for line in sys.stdin:
             assert_eq!(c.agent_snapshot().unwrap()["model"]["current"],"auto");
             let snapshot=c.set_model("sonnet").await.unwrap();assert_eq!(snapshot["model"]["current"],"sonnet");assert_eq!(snapshot["selection"]["current"],"plan");
             let snapshot=c.set_agent("code").await.unwrap();assert_eq!(snapshot["model"]["current"],"auto");assert_eq!(snapshot["selection"]["current"],"code");
+            {
+                let db=Connection::open_in_memory().unwrap();
+                storage::initialize(&db).unwrap();
+                db.execute("INSERT INTO sessions(id,provider,cwd) VALUES('local','Mock','/tmp')",[]).unwrap();
+                storage::save_agent_preferences(&db,"local",&storage::AgentPreferences{
+                    agent:Some("plan".into()),model:Some("sonnet".into()),
+                }).unwrap();
+                storage::save_agent_snapshot(&db,"local",&snapshot).unwrap();
+                let saved=storage::agent_preferences(&db,"local").unwrap();
+                assert_eq!(saved.agent.as_deref(),Some("code"));
+                assert_eq!(saved.model.as_deref(),Some("auto"));
+            }
             let idle=c.turn.lock().await;assert!(c.set_model("sonnet").await.is_err());drop(idle);c.shutdown();
             let resumed=Client::start_transport(&p,Arc::new(|_,_|{})).await.unwrap();
             resumed.restore(&json!({"agentCapabilities":{"sessionCapabilities":{"resume":{}}}}),"r",&p.cwd).await.unwrap();
