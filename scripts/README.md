@@ -158,3 +158,8 @@ launch**, and quit and reopen Agentrance. The restore is prepared in a separate
 folder under the channel's `profiles` directory. The existing profile stays
 available on disk. The terminal backup helper follows the `active-profile`
 marker when a channel uses a restored profile.
+
+A pending restore stays visible above the workspace until you reopen the app or
+choose **Cancel restore**. After a restore, **Switch to previous profile…** in
+the same menu stages a switch back for the next launch. Both profiles stay on
+disk. Backing up during a send can preserve both the draft and the recorded turn.

@@ -145,7 +145,6 @@ test('backup flushes workspace before export and restore requires explicit confi
  const calls=[];
  Object.assign(globalThis.__projectTest,{
   invoke:async(command,args)=>{
-   if(command==='backup_restore_pending')return false;
    calls.push([command,args]);
   },
   save:async()=>'/backup-new.zip',
@@ -159,7 +158,7 @@ test('backup flushes workspace before export and restore requires explicit confi
  }
  try{
   await act(async()=>root.render(React.createElement(module.exports.BackupDialog,{
-   onClose(){},flushWorkspace:async()=>{calls.push(['flush'])},
+   onClose(){},profile:{pending:false,hasPrevious:false},onStaged(){},flushWorkspace:async()=>{calls.push(['flush'])},
   })));
   await click('Create backup…');
   assert.deepEqual(calls,[['flush'],['create_backup',{destination:'/backup-new.zip'}]]);
@@ -171,6 +170,9 @@ test('backup flushes workspace before export and restore requires explicit confi
   await click('Restore backup…');
   await click('Restore on next launch');
   assert.deepEqual(calls.at(-1),['stage_backup_restore',{archive:'/backup-existing.zip'}]);
+  await act(async()=>root.render(React.createElement(module.exports.BackupDialog,{
+   onClose(){},profile:{pending:true,hasPrevious:false},onStaged(){},flushWorkspace:async()=>{},
+  })));
   assert.match(document.body.textContent,/Quit and reopen Agentrance/);
  }finally{await act(async()=>root.unmount())}
 });

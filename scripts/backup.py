@@ -17,6 +17,7 @@ HISTORY = "history.sqlite3"
 SETTINGS = ("providers.json", "workspace.json")
 MANIFEST = "manifest.json"
 FORMAT = {"format": "agentrance-backup", "version": 1}
+LIMITS = {MANIFEST: 4096, HISTORY: 4 * 1024**3, **dict.fromkeys(SETTINGS, 8 * 1024**2)}
 
 
 def profile_path(channel):
@@ -35,7 +36,9 @@ def selected_profile(root):
         marker = (root / "active-profile").read_text(encoding="utf-8")
     except FileNotFoundError:
         return root
-    return root / "profiles" / str(uuid.UUID(marker.strip()))
+    marker = marker.strip()
+    active = json.loads(marker)["active"] if marker.startswith("{") else marker
+    return root if active == "root" else root / "profiles" / str(uuid.UUID(active))
 
 
 def validate_database(path):
@@ -48,6 +51,54 @@ def validate_database(path):
             raise ValueError("Backup database failed SQLite integrity checks.")
         db.execute("SELECT id, provider, cwd FROM sessions LIMIT 0")
         db.execute("SELECT session, kind, data FROM events LIMIT 0")
+
+
+def copy_bounded(source, target, name):
+    remaining = LIMITS[name]
+    while chunk := source.read(min(1024 * 1024, remaining + 1)):
+        if len(chunk) > remaining:
+            raise ValueError(f"{name} exceeds the backup size limit.")
+        target.write(chunk)
+        remaining -= len(chunk)
+
+
+def validate_workspace(data):
+    def invalid():
+        raise ValueError("Invalid workspace recovery format in backup.")
+
+    if not isinstance(data, dict) or data.get("version") != 1:
+        invalid()
+    layout = data.get("workspace")
+    drafts = data.get("drafts")
+    recent = data.get("recentProjects")
+    if not isinstance(layout, dict) or not isinstance(drafts, dict) or not isinstance(recent, list):
+        invalid()
+    if not all(isinstance(project, str) for project in recent):
+        invalid()
+    mode = layout.get("mode")
+    panes = {"single": 1, "rows": 2, "columns": 2, "three": 3, "grid": 4}.get(mode) if isinstance(mode, str) else None
+    focus, groups, selected = (layout.get(key) for key in ("focus", "groups", "selected"))
+    if panes is None or type(focus) is not int or not 0 <= focus < panes:
+        invalid()
+    if not isinstance(groups, list) or len(groups) != 4 or not isinstance(selected, list) or len(selected) != 4:
+        invalid()
+    seen = set()
+    for index, (group, selection) in enumerate(zip(groups, selected)):
+        if not isinstance(group, list) or (index >= panes and group) or (selection is not None and selection not in group):
+            invalid()
+        for session in group:
+            if not isinstance(session, str) or not session or session in seen:
+                invalid()
+            seen.add(session)
+            if len(seen) > 1000:
+                invalid()
+            if session in drafts:
+                draft = drafts[session]
+                if not isinstance(draft, dict) or not isinstance(draft.get("text"), str):
+                    invalid()
+                missing = draft.get("missingAttachments")
+                if not isinstance(missing, list) or not all(isinstance(name, str) for name in missing):
+                    invalid()
 
 
 def validate_settings(folder):
@@ -67,8 +118,8 @@ def validate_settings(folder):
                 for entry in data
             ):
                 raise ValueError("Invalid provider settings in backup.")
-        elif not isinstance(data, dict) or data.get("version") != 1:
-            raise ValueError("Unsupported workspace recovery file in backup.")
+        else:
+            validate_workspace(data)
 
 
 def backup_profile(profile, destination):
@@ -77,18 +128,23 @@ def backup_profile(profile, destination):
         raise ValueError(f"No Agentrance history database in {profile}")
     with tempfile.TemporaryDirectory(prefix=".agentrance-backup-", dir=destination.parent) as tmp:
         stage = Path(tmp)
+        # A draft is cleared only after its prompt is recorded. Read it first.
+        for name in ("workspace.json", "providers.json"):
+            try:
+                source = (profile / name).open("rb")
+            except FileNotFoundError:
+                continue
+            with source, (stage / name).open("wb") as target:
+                copy_bounded(source, target, name)
+        validate_settings(stage)
         snapshot = stage / HISTORY
         with closing(sqlite3.connect(history.as_uri() + "?mode=ro", uri=True)) as source:
             with closing(sqlite3.connect(snapshot)) as target:
                 source.backup(target)
                 target.execute("PRAGMA journal_mode=DELETE")
+        if snapshot.stat().st_size > LIMITS[HISTORY]:
+            raise ValueError("History exceeds the backup size limit.")
         validate_database(snapshot)
-        for name in SETTINGS:
-            try:
-                shutil.copyfile(profile / name, stage / name)
-            except FileNotFoundError:
-                pass
-        validate_settings(stage)
         archive = stage / "backup.zip"
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as bundle:
             bundle.writestr(MANIFEST, json.dumps(FORMAT))
@@ -121,13 +177,18 @@ def restore_profile(archive, destination):
                 or not {MANIFEST, HISTORY}.issubset(names)
                 or set(names) - {MANIFEST, HISTORY, *SETTINGS}):
                 raise ValueError("Unexpected or missing files in Agentrance backup.")
-            if bundle.getinfo(MANIFEST).file_size > 4096 or json.loads(bundle.read(MANIFEST)) != FORMAT:
+            for name in names:
+                if bundle.getinfo(name).file_size > LIMITS[name]:
+                    raise ValueError(f"{name} exceeds the backup size limit.")
+            with bundle.open(MANIFEST) as manifest:
+                raw = manifest.read(LIMITS[MANIFEST] + 1)
+            if len(raw) > LIMITS[MANIFEST] or json.loads(raw) != FORMAT:
                 raise ValueError("Unsupported Agentrance backup format.")
             for name in names:
                 if name == MANIFEST:
                     continue
                 with bundle.open(name) as source, (stage / name).open("wb") as target:
-                    shutil.copyfileobj(source, target)
+                    copy_bounded(source, target, name)
                 (stage / name).chmod(0o600)
         validate_database(stage / HISTORY)
         validate_settings(stage)

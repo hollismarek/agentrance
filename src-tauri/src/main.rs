@@ -113,9 +113,17 @@ async fn stage_backup_restore(app: tauri::AppHandle, archive: std::path::PathBuf
         .await.map_err(|error| error.to_string())?
 }
 #[tauri::command]
-fn backup_restore_pending(app: tauri::AppHandle) -> Result<bool, String> {
+fn backup_profile_status(app: tauri::AppHandle) -> Result<backup::ProfileStatus, String> {
     let root = app.path().app_data_dir().map_err(|error| error.to_string())?;
-    Ok(backup::active_profile(&root)? != app.state::<AppState>().profile)
+    backup::profile_status(&root)
+}
+#[tauri::command]
+fn cancel_backup_restore(app: tauri::AppHandle) -> Result<(), String> {
+    backup::cancel_restore(&app.path().app_data_dir().map_err(|error| error.to_string())?)
+}
+#[tauri::command]
+fn stage_previous_profile(app: tauri::AppHandle) -> Result<(), String> {
+    backup::stage_previous(&app.path().app_data_dir().map_err(|error| error.to_string())?)
 }
 #[tauri::command]
 async fn discover_providers(app: tauri::AppHandle) -> Result<Vec<Provider>,String> {
@@ -520,7 +528,7 @@ fn main() {
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
-            let profile = backup::active_profile(&dir).map_err(std::io::Error::other)?;
+            let profile = backup::activate_profile(&dir).map_err(std::io::Error::other)?;
             let db = Connection::open(profile.join("history.sqlite3"))?;
             storage::initialize(&db)?;
             app.manage(AppState {
@@ -547,7 +555,9 @@ fn main() {
             save_workspace,
             create_backup,
             stage_backup_restore,
-            backup_restore_pending,
+            backup_profile_status,
+            cancel_backup_restore,
+            stage_previous_profile,
             new_session,
             resume_session,
             set_agent,

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from "node:fs";
 import {build} from 'esbuild';
 const out=await build({entryPoints:['src/workspaceRecovery.ts'],bundle:true,platform:'node',format:'esm',write:false});
 const {parseRecovery,serializeRecovery,retainRecovery,recoveryWriter}=await import('data:text/javascript;base64,'+Buffer.from(out.outputFiles[0].text).toString('base64'));
@@ -48,4 +49,15 @@ test('flush waits for the final queued edit, reports failures and can retry',asy
  finish();await closing;assert.deepEqual(writes,['old','last edit']);
  await assert.rejects(write.flush('bad'),/disk full/);
  await write.flush('retry');assert.equal(writes.at(-1),'retry');
+});
+
+test('the cross-platform backup fixture matches the workspace serializer',()=>{
+ const fixture=JSON.parse(readFileSync(new URL('./fixtures/backup-workspace.json',import.meta.url),'utf8'));
+ const serialized=serializeRecovery(
+  {groups:[['one'],[],[],[]],selected:['one',null,null,null],focus:0,mode:'single'},
+  {one:{revision:0,text:'unsent'}},
+  [],
+ );
+ assert.deepEqual(JSON.parse(serialized),fixture);
+ assert.equal(parseRecovery(serialized).drafts.one.text,'unsent');
 });

@@ -15,6 +15,65 @@ pub fn load(directory: &Path) -> Result<Option<String>, String> {
     Ok(Some(raw))
 }
 
+pub fn validate_recovery(raw: &str) -> Result<(), String> {
+    use serde::Deserialize;
+    use std::collections::{HashMap, HashSet};
+
+    #[derive(Deserialize)]
+    struct Recovery {
+        version: u32,
+        workspace: Layout,
+        drafts: HashMap<String, serde_json::Value>,
+        #[serde(rename = "recentProjects")]
+        _recent_projects: Vec<String>,
+    }
+    #[derive(Deserialize)]
+    struct Layout {
+        mode: String,
+        focus: usize,
+        groups: [Vec<String>; 4],
+        selected: [Option<String>; 4],
+    }
+    #[derive(Deserialize)]
+    struct Draft {
+        #[serde(rename = "text")]
+        _text: String,
+        #[serde(rename = "missingAttachments")]
+        _missing_attachments: Vec<String>,
+    }
+
+    let error = || "Invalid workspace recovery format in backup".to_string();
+    let value: serde_json::Value = serde_json::from_str(raw).map_err(|_| error())?;
+    if !value.is_object() || !value["workspace"].is_object() {
+        return Err(error());
+    }
+    let recovery: Recovery = serde_json::from_value(value).map_err(|_| error())?;
+    let layout = recovery.workspace;
+    let panes = match layout.mode.as_str() {
+        "single" => 1,
+        "columns" | "rows" => 2,
+        "three" => 3,
+        "grid" => 4,
+        _ => return Err(error()),
+    };
+    if recovery.version != 1 || layout.focus >= panes
+        || layout.groups[panes..].iter().any(|group| !group.is_empty()) {
+        return Err(error());
+    }
+    let mut seen = HashSet::new();
+    for (group, selected) in layout.groups.iter().zip(layout.selected.iter()) {
+        if selected.as_ref().is_some_and(|id| !group.contains(id)) { return Err(error()); }
+        for id in group {
+            if id.is_empty() || !seen.insert(id) || seen.len() > 1000 { return Err(error()); }
+            if let Some(draft) = recovery.drafts.get(id) {
+                if !draft.is_object() { return Err(error()); }
+                serde_json::from_value::<Draft>(draft.clone()).map_err(|_| error())?;
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn save(directory: &Path, raw: &str) -> Result<(), String> {
     if raw.len() > LIMIT { return Err("Workspace recovery exceeds the 8 MB limit".into()); }
     let value: serde_json::Value = serde_json::from_str(raw).map_err(|e| e.to_string())?;

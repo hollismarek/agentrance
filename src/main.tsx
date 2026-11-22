@@ -1,3 +1,4 @@
+import {invoke} from '@tauri-apps/api/core';
 import React, {useEffect, useState, useReducer} from 'react';
 import {createRoot} from 'react-dom/client';
 import {withSavedProviders} from './providerSetup';
@@ -7,7 +8,7 @@ import {WorkspaceLayout} from './components/WorkspaceLayout';
 import {useSessions} from './useSessions';
 import {useWorkspaceRecovery} from './useWorkspaceRecovery';
 import {AppMenu} from './components/AppMenu';
-import {BackupDialog} from './components/BackupDialog';
+import {BackupDialog,type BackupProfileStatus} from './components/BackupDialog';
 import {HelpDialog,type HelpTopic} from './components/HelpDialog';
 import {Sidebar} from './components/Sidebar';
 import {CompareDialog} from './components/CompareDialog';
@@ -29,6 +30,19 @@ function App() {
   const [error,setError] = useState('');
   const [help,setHelp]=useState<{topic:HelpTopic;sessionId?:string}|null>(null);
   const [backup,setBackup]=useState(false);
+  const [backupProfile,setBackupProfile]=useState<BackupProfileStatus|null>(null);
+  const [cancellingRestore,setCancellingRestore]=useState(false);
+  useEffect(()=>{
+    void invoke<BackupProfileStatus>('backup_profile_status').then(setBackupProfile).catch(reason=>setError(String(reason)));
+  },[]);
+  async function cancelRestore(){
+    setCancellingRestore(true);
+    try{
+      await invoke('cancel_backup_restore');
+      setBackupProfile(profile=>profile&&{...profile,pending:false});
+    }catch(reason){setError(String(reason))}
+    finally{setCancellingRestore(false)}
+  }
   const [settings,setSettings] = useState(false);
   const desk = useSessions(setError);
   const recovery=useWorkspaceRecovery(workspace,drafts,dispatch,setDrafts,desk.restore,setError);
@@ -50,6 +64,10 @@ function App() {
         <button disabled={!recovery.ready||desk.starting||!providers.length} onClick={()=>{withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>setComparison(true))}}>Compare…</button>
         <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option><option value="three">Three panes</option><option value="grid">Four panes (grid)</option></select></label><AppMenu onBackup={()=>setBackup(true)} settingsReady={ready} onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
       </header>
+      {backupProfile?.pending&&<div className="restore-notice">
+        <span role="status">Restore or profile switch pending. Reopen Agentrance to apply it.</span>
+        <button disabled={cancellingRestore} onClick={()=>void cancelRestore()}>Cancel restore</button>
+      </div>}
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
       <WorkspaceLayout workspace={workspace} dispatch={dispatch} desk={desk} providers={providers} drafts={drafts} setDrafts={setDrafts} onHelp={id=>setHelp({topic:'models',sessionId:id})}/>
     </main>
@@ -59,7 +77,8 @@ function App() {
       onCompare={(text,attachments,cwd,selected)=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.compare(providersAtProject(selected,cwd),text,attachments)})}}
       onExisting={(text,attachments,ids)=>{setComparison(false);void desk.compareExisting(ids,text,attachments)}}/>}
     {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={desk.sessions} onClose={()=>setHelp(null)}/>}
-    {backup&&<BackupDialog onClose={()=>setBackup(false)} flushWorkspace={recovery.flushWorkspace}/>}
+    {backup&&<BackupDialog onClose={()=>setBackup(false)} flushWorkspace={recovery.flushWorkspace} profile={backupProfile}
+      onStaged={()=>setBackupProfile(profile=>({pending:true,hasPrevious:profile?.hasPrevious??false}))}/>}
     {settings && ready && <ProviderSettings providers={providers} detected={detected} detecting={detecting} discoveryError={discoveryError} onDiscover={discover} theme={theme.preference} onTheme={theme.choose} onSave={async providers=>{await save(providers);setSettings(false)}} onClose={() => setSettings(false)}/>}
   </div><CloseRecoveryDialog returnFocus={recovery.closeFocus} saving={recovery.closing} error={recovery.closeError} onRetry={()=>void recovery.retryClose()} onKeepWorking={recovery.keepWorking} onQuit={()=>void recovery.quitWithoutSaving()}/></>;
 }

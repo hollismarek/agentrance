@@ -39,7 +39,7 @@ class BackupTest(unittest.TestCase):
             """)
             self.assertTrue((self.source / 'history.sqlite3-wal').exists())
             providers = [{'id':'test','name':'Test','executable':'test-cli','cwd':'/original/project','args':[],'env':{}}]
-            workspace = {'version':1, 'drafts':{'one':{'text':'unsent text','missingAttachments':[]}}}
+            workspace = json.loads((SCRIPT.parents[1] / 'tests/fixtures/backup-workspace.json').read_text())
             (self.source / 'providers.json').write_text(json.dumps(providers), encoding='utf-8')
             (self.source / 'workspace.json').write_text(json.dumps(workspace), encoding='utf-8')
             backup = self.command('backup', self.source)
@@ -66,6 +66,16 @@ class BackupTest(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse(self.restored.exists())
                 self.assertFalse((self.root / 'outside').exists())
+
+    def test_oversized_workspace_zip_entry_is_rejected(self):
+        with zipfile.ZipFile(self.archive, 'w', compression=zipfile.ZIP_DEFLATED) as bundle:
+            bundle.writestr('manifest.json', json.dumps({'format':'agentrance-backup','version':1}))
+            bundle.writestr('history.sqlite3', b'database placeholder')
+            bundle.writestr('workspace.json', b' ' * (8 * 1024**2 + 1))
+        result = self.command('restore', self.restored)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('workspace.json exceeds the backup size limit', result.stderr)
+        self.assertFalse(self.restored.exists())
 
 
 if __name__ == '__main__':

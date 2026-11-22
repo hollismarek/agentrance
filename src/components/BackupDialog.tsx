@@ -4,10 +4,17 @@ import {open, save} from '@tauri-apps/plugin-dialog';
 
 const filters = [{name:'Agentrance backup', extensions:['zip']}];
 
-export function BackupDialog({onClose, flushWorkspace}: {onClose:()=>void; flushWorkspace:()=>Promise<void>}) {
+export type BackupProfileStatus = {pending:boolean;hasPrevious:boolean};
+
+export function BackupDialog({onClose,flushWorkspace,profile,onStaged}: {
+  onClose:()=>void;
+  flushWorkspace:()=>Promise<void>;
+  profile:BackupProfileStatus|null;
+  onStaged:()=>void;
+}) {
   const panel = useRef<HTMLDivElement>(null);
   const [archive,setArchive] = useState<string|null>(null);
-  const [pending,setPending] = useState<boolean|null>(null);
+  const [switchingBack,setSwitchingBack] = useState(false);
   const [busy,setBusy] = useState(false);
   const [status,setStatus] = useState('');
   const [error,setError] = useState('');
@@ -15,13 +22,7 @@ export function BackupDialog({onClose, flushWorkspace}: {onClose:()=>void; flush
   useEffect(()=>{
     const previous = document.activeElement as HTMLElement|null;
     panel.current?.querySelector('button')?.focus();
-    let active = true;
-    void invoke<boolean>('backup_restore_pending').then(value=>{
-      if(active)setPending(value);
-    }).catch(reason=>{
-      if(active)setError(String(reason));
-    });
-    return ()=>{active=false;previous?.focus()};
+    return ()=>previous?.focus();
   },[]);
 
   async function run(action:()=>Promise<void>) {
@@ -59,7 +60,15 @@ export function BackupDialog({onClose, flushWorkspace}: {onClose:()=>void; flush
     void run(async()=>{
       await invoke('stage_backup_restore',{archive});
       setArchive(null);
-      setPending(true);
+      onStaged();
+    });
+  }
+
+  function switchBack(){
+    void run(async()=>{
+      await invoke('stage_previous_profile');
+      setSwitchingBack(false);
+      onStaged();
     });
   }
 
@@ -74,7 +83,8 @@ export function BackupDialog({onClose, flushWorkspace}: {onClose:()=>void; flush
     }}>
     <h2 id="backup-title">Backup &amp; Restore</h2>
     <p>Backups include conversation history, provider settings, and saved text drafts. Keep the ZIP private. Provider sign-ins and attachment files stay on their original machine.</p>
-    {pending&&<p role="status">Restore is staged. Quit and reopen Agentrance to use the restored profile. Your current profile is kept separately.</p>}
+    {profile?.pending&&<p>A profile switch is pending. Quit and reopen Agentrance to apply it.</p>}
+    {switchingBack&&<p>Open the previous profile on the next launch? This profile will remain available on disk.</p>}
     {archive&&<div>
       <p>On the next launch, Agentrance will open the conversations, settings, and drafts from this backup. Your current profile stays on disk. Only restore a backup you trust.</p>
       <p className="backup-path">{archive}</p>
@@ -83,12 +93,16 @@ export function BackupDialog({onClose, flushWorkspace}: {onClose:()=>void; flush
     {status&&<p className="backup-path" role="status">{status}</p>}
     {error&&<p role="alert" className="error">{error}</p>}
     <div className="dialog-actions">
-      {archive?<>
+      {switchingBack?<>
+        <button disabled={busy} onClick={()=>setSwitchingBack(false)}>Cancel</button>
+        <button disabled={busy} className="primary" onClick={switchBack}>Switch on next launch</button>
+      </>:archive?<>
         <button disabled={busy} onClick={()=>setArchive(null)}>Cancel</button>
         <button disabled={busy} className="primary" onClick={restoreBackup}>Restore on next launch</button>
       </>:<>
         <button disabled={busy} onClick={onClose}>Close</button>
-        <button disabled={busy||pending!==false} onClick={chooseBackup}>Restore backup…</button>
+        <button disabled={busy||profile?.pending!==false} onClick={chooseBackup}>Restore backup…</button>
+        {profile?.hasPrevious&&<button disabled={busy||profile.pending} onClick={()=>setSwitchingBack(true)}>Switch to previous profile…</button>}
         <button disabled={busy} className="primary" onClick={makeBackup}>Create backup…</button>
       </>}
     </div>

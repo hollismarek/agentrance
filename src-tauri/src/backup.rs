@@ -1,4 +1,5 @@
 use rusqlite::{backup::Backup, Connection, OpenFlags};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::HashSet,
@@ -26,13 +27,40 @@ fn manifest() -> Value {
     json!({"format": "agentrance-backup", "version": 1})
 }
 
-pub fn active_profile(root: &Path) -> Result<PathBuf, String> {
-    let id = match fs::read_to_string(root.join(ACTIVE)) {
-        Ok(id) => id,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(root.to_owned()),
+#[derive(Serialize, Deserialize)]
+struct ProfileSelection {
+    active: String,
+    previous: Option<String>,
+    pending: Option<String>,
+}
+
+fn read_selection(root: &Path) -> Result<ProfileSelection, String> {
+    let marker = match fs::read_to_string(root.join(ACTIVE)) {
+        Ok(marker) => marker,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(ProfileSelection {
+                active: "root".into(),
+                previous: None,
+                pending: None,
+            })
+        }
         Err(error) => return Err(error.to_string()),
     };
-    let id = Uuid::parse_str(id.trim()).map_err(|_| "Invalid active profile marker")?;
+    if let Ok(id) = Uuid::parse_str(marker.trim()) {
+        return Ok(ProfileSelection {
+            active: id.to_string(),
+            previous: root.join(HISTORY).is_file().then(|| "root".into()),
+            pending: None,
+        });
+    }
+    serde_json::from_str(&marker).map_err(|e| format!("Invalid active profile marker: {e}"))
+}
+
+fn profile_path(root: &Path, id: &str) -> Result<PathBuf, String> {
+    if id == "root" {
+        return Ok(root.to_owned());
+    }
+    let id = Uuid::parse_str(id).map_err(|_| "Invalid profile ID")?;
     let path = root.join(PROFILES).join(id.to_string());
     if !path.join(HISTORY).is_file() {
         return Err(format!(
@@ -43,9 +71,94 @@ pub fn active_profile(root: &Path) -> Result<PathBuf, String> {
     Ok(path)
 }
 
-fn export(profile: &Path, destination: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn write_selection(root: &Path, selection: &ProfileSelection) -> Result<(), String> {
+    let mut marker = NamedTempFile::new_in(root).map_err(|e| e.to_string())?;
+    serde_json::to_writer(marker.as_file_mut(), selection).map_err(|e| e.to_string())?;
+    marker.as_file().sync_all().map_err(|e| e.to_string())?;
+    marker
+        .persist(root.join(ACTIVE))
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn activate_profile(root: &Path) -> Result<PathBuf, String> {
+    let mut selection = read_selection(root)?;
+    if let Some(id) = selection.pending.take() {
+        let path = profile_path(root, &id)?;
+        if !path.join(HISTORY).is_file() {
+            return Err("Pending profile is missing its history database".into());
+        }
+        selection.previous = Some(std::mem::replace(&mut selection.active, id));
+        write_selection(root, &selection)?;
+        return Ok(path);
+    }
+    profile_path(root, &selection.active)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileStatus {
+    pending: bool,
+    has_previous: bool,
+}
+
+pub fn profile_status(root: &Path) -> Result<ProfileStatus, String> {
+    let selection = read_selection(root)?;
+    Ok(ProfileStatus {
+        pending: selection.pending.is_some(),
+        has_previous: selection.previous.is_some(),
+    })
+}
+
+pub fn cancel_restore(root: &Path) -> Result<(), String> {
+    let _guard = RESTORE_LOCK.lock().map_err(|e| e.to_string())?;
+    let mut selection = read_selection(root)?;
+    selection.pending = None;
+    write_selection(root, &selection)
+}
+
+pub fn stage_previous(root: &Path) -> Result<(), String> {
+    let _guard = RESTORE_LOCK.lock().map_err(|e| e.to_string())?;
+    let mut selection = read_selection(root)?;
+    if selection.pending.is_some() {
+        return Err("A profile switch is already pending".into());
+    }
+    let id = selection
+        .previous
+        .clone()
+        .ok_or("No previous profile is available")?;
+    if !profile_path(root, &id)?.join(HISTORY).is_file() {
+        return Err("Previous profile is missing its history database".into());
+    }
+    selection.pending = Some(id);
+    write_selection(root, &selection)
+}
+
+fn export(
+    profile: &Path,
+    destination: &Path,
+    before_snapshot: impl FnOnce(),
+) -> Result<(), Box<dyn std::error::Error>> {
     let parent = destination.parent().ok_or("Select a backup destination")?;
     let staging = TempDir::new_in(parent)?;
+    let mut settings = Vec::new();
+    // Draft removal follows successful history recording. Capture the draft first
+    // so a prompt recorded during export cannot be absent from both copies.
+    for name in [WORKSPACE, PROVIDERS] {
+        match File::open(profile.join(name)) {
+            Ok(file) => {
+                let mut contents = Vec::new();
+                file.take(SETTINGS_LIMIT + 1).read_to_end(&mut contents)?;
+                if contents.len() as u64 > SETTINGS_LIMIT {
+                    return Err(format!("{name} exceeds the 8 MB backup limit").into());
+                }
+                settings.push((name, contents));
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    before_snapshot();
     let snapshot = staging.path().join(HISTORY);
     {
         let source =
@@ -70,20 +183,9 @@ fn export(profile: &Path, destination: &Path) -> Result<(), Box<dyn std::error::
     archive.write_all(manifest().to_string().as_bytes())?;
     archive.start_file(HISTORY, options)?;
     io::copy(&mut File::open(snapshot)?, &mut archive)?;
-    for name in [PROVIDERS, WORKSPACE] {
-        match File::open(profile.join(name)) {
-            Ok(file) => {
-                let mut contents = Vec::new();
-                file.take(SETTINGS_LIMIT + 1).read_to_end(&mut contents)?;
-                if contents.len() as u64 > SETTINGS_LIMIT {
-                    return Err(format!("{name} exceeds the 8 MB backup limit").into());
-                }
-                archive.start_file(name, options)?;
-                archive.write_all(&contents)?;
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error.into()),
-        }
+    for (name, contents) in settings {
+        archive.start_file(name, options)?;
+        archive.write_all(&contents)?;
     }
     archive.finish()?;
     archive_file.as_file().sync_all()?;
@@ -137,7 +239,7 @@ fn extract(source: &Path, destination: &Path) -> Result<(), Box<dyn std::error::
         crate::settings::save(destination, &raw)?;
     }
     if let Some(raw) = crate::workspace::load(destination)? {
-        crate::workspace::save(destination, &raw)?;
+        crate::workspace::validate_recovery(&raw)?;
     }
     Ok(())
 }
@@ -148,7 +250,8 @@ fn stage_restore(
     archive: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let _guard = RESTORE_LOCK.lock().map_err(|error| error.to_string())?;
-    if active_profile(root)? != current {
+    let mut selection = read_selection(root)?;
+    if selection.pending.is_some() || profile_path(root, &selection.active)? != current {
         return Err("A restore is already staged. Reopen Agentrance to use it.".into());
     }
     let profiles = root.join(PROFILES);
@@ -157,12 +260,10 @@ fn stage_restore(
     extract(archive, staging.path())?;
 
     let id = Uuid::new_v4().to_string();
-    let mut marker = NamedTempFile::new_in(root)?;
-    marker.write_all(id.as_bytes())?;
-    marker.as_file().sync_all()?;
-    let restored = profiles.join(id);
+    let restored = profiles.join(&id);
     fs::rename(staging.path(), &restored)?;
-    if let Err(error) = marker.persist(root.join(ACTIVE)) {
+    selection.pending = Some(id);
+    if let Err(error) = write_selection(root, &selection) {
         let _ = fs::remove_dir_all(restored);
         return Err(error.into());
     }
@@ -170,7 +271,7 @@ fn stage_restore(
 }
 
 pub fn create(profile: &Path, destination: &Path) -> Result<(), String> {
-    export(profile, destination).map_err(|error| format!("Backup failed: {error}"))
+    export(profile, destination, || {}).map_err(|error| format!("Backup failed: {error}"))
 }
 
 pub fn restore(root: &Path, current: &Path, archive: &Path) -> Result<(), String> {
@@ -189,15 +290,25 @@ mod tests {
         crate::storage::initialize(&db).unwrap();
         db.execute_batch("PRAGMA wal_autocheckpoint=0; INSERT INTO sessions(id,provider,cwd) VALUES('one','Test','/original');").unwrap();
         crate::storage::append(&db, "one", "user", &json!("original"), 1).unwrap();
-        crate::workspace::save(root, r#"{"version":1,"drafts":{"one":{"text":"unsent"}}}"#)
-            .unwrap();
+        let workspace = include_str!("../../tests/fixtures/backup-workspace.json");
+        crate::workspace::save(root, workspace).unwrap();
 
         let archive = root.join("backup.zip");
-        create(root, &archive).unwrap();
+        export(root, &archive, || {
+            // Simulate a send acknowledged after the draft was captured.
+            crate::storage::append(&db, "one", "user", &json!("during export"), 2).unwrap();
+            crate::workspace::save(root, &workspace.replace("unsent", "")).unwrap();
+        })
+        .unwrap();
         assert!(create(root, &archive).is_err());
-        crate::storage::append(&db, "one", "user", &json!("newer"), 2).unwrap();
+        crate::storage::append(&db, "one", "user", &json!("newer"), 3).unwrap();
         restore(root, root, &archive).unwrap();
-        let restored = active_profile(root).unwrap();
+        assert!(profile_status(root).unwrap().pending);
+        assert_eq!(read_selection(root).unwrap().active, "root");
+        cancel_restore(root).unwrap();
+        assert_eq!(activate_profile(root).unwrap(), root);
+        restore(root, root, &archive).unwrap();
+        let restored = activate_profile(root).unwrap();
         assert_ne!(restored, root);
         assert!(restore(root, root, &archive).is_err());
         let snapshot = Connection::open(restored.join(HISTORY)).unwrap();
@@ -207,7 +318,7 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .len(),
-            1
+            2
         );
         assert_eq!(
             crate::storage::messages(&db, "one")
@@ -215,12 +326,32 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .len(),
-            2
+            3
         );
         assert_eq!(
             crate::workspace::load(&restored).unwrap(),
-            crate::workspace::load(root).unwrap()
+            Some(workspace.to_owned())
         );
+        assert!(profile_status(root).unwrap().has_previous);
+        stage_previous(root).unwrap();
+        assert_eq!(activate_profile(root).unwrap(), root);
+        stage_previous(root).unwrap();
+        assert_eq!(activate_profile(root).unwrap(), restored);
+    }
+
+    #[test]
+    fn workspace_that_cannot_be_reopened_does_not_stage_a_restore() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let db = Connection::open(root.join(HISTORY)).unwrap();
+        crate::storage::initialize(&db).unwrap();
+        crate::workspace::save(root, r#"{"version":1}"#).unwrap();
+        let archive = root.join("invalid-workspace.zip");
+        create(root, &archive).unwrap();
+        assert!(restore(root, root, &archive)
+            .unwrap_err()
+            .contains("Invalid workspace recovery"));
+        assert!(!profile_status(root).unwrap().pending);
     }
 
     #[test]
@@ -230,6 +361,6 @@ mod tests {
         let archive = root.join("invalid.zip");
         fs::write(&archive, b"not an archive").unwrap();
         assert!(restore(root, root, &archive).is_err());
-        assert_eq!(active_profile(root).unwrap(), root);
+        assert_eq!(activate_profile(root).unwrap(), root);
     }
 }

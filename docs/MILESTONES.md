@@ -835,3 +835,12 @@ workspace recovery and snapshots SQLite without Python. Restore verifies the
 archive, prepares a separate profile, and selects it for the next launch. The
 current process and previous profile retain their original data. The menu uses
 the same ZIP format as the terminal helper.
+
+### Backup review follow-up
+
+Desktop and terminal export capture workspace drafts before snapshotting history
+so an acknowledged send remains recoverable during a live backup. Restore checks
+workspace layout and draft fields against startup's requirements. The CLI
+enforces archive entry limits before and during extraction. The workspace shows
+pending profile changes with a cancel action. After reopening, the backup menu
+can stage a switch to the previous profile.
