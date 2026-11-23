@@ -853,6 +853,8 @@ agent before the model, since changing agents can affect model choices.
 The chat stays usable if a provider refuses a saved choice, with a warning
 to check the active selection. Transient defaults do not overwrite the
 saved preference. Older chats use their last recorded selection when present.
+Successful agent and model switches and provider-driven selection changes
+during a live conversation save the provider-confirmed pair.
 
 ## Open provider sessions
 
@@ -862,6 +864,3 @@ session listing and loading. Opening a chat replays its text transcript and
 stores the provider session ID for later continuation. Opening a session already
 associated with this provider configuration reuses the existing local chat.
 Historical tool output, approvals and attachments are outside the text import.
-
-Successful agent and model switches now save both provider-confirmed values, so
-an agent change that also resets the model is preserved on Continue.

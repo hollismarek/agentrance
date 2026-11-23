@@ -45,7 +45,10 @@ implemented.
 - Waiting tabs show an amber approval badge with the pending-request count.
 - Per-conversation image/file attachments with a removable thumbnail strip; image
   and binary input depend on advertised provider capabilities.
-- Agent and model selection from provider-advertised choices.
+- Agent and model selections saved per conversation and restored on Continue.
+- Open existing sessions from compatible ACP providers.
+- Back up local history, provider settings, and workspace recovery to a ZIP.
+  Restores activate on the next launch and preserve the previous profile.
 - Copy question, answer, or Q&A; collapsible sidebar; integrated Help.
 - Separate Stable and Development identities, history, and provider settings.
 

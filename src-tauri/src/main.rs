@@ -55,6 +55,8 @@ fn event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) {
     let _ = record_event(app, id, kind, data);
 }
 fn record_event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) -> Option<i64> {
+    let remember = kind == "agent_state_live";
+    let kind = if remember { "agent_state" } else { kind };
     let at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -77,7 +79,7 @@ fn record_event(app: &tauri::AppHandle, id: &str, kind: &str, data: Value) -> Op
                 {
                     return None;
                 }
-                storage::append(&db, id, kind, &data, at).map_err(|e| e.to_string())
+                storage::record_activity(&db, id, kind, &data, at, remember).map_err(|e| e.to_string())
             }
             Err(e) => Err(e),
         }
@@ -198,9 +200,10 @@ async fn new_session(app: tauri::AppHandle, mut provider: Provider) -> Result<St
             ],
         )
         .map_err(|e| e.to_string())?;
-    state.clients.lock().await.insert(id.clone(), client);
     event(&app, &id, "identity", init);
     event(&app, &id, "agent_state", agent_state);
+    client.enable_live_selections();
+    state.clients.lock().await.insert(id.clone(), client);
     Ok(id)
 }
 // Reserve a local session while reconnecting, without serializing other chats.
@@ -291,18 +294,14 @@ async fn resume_session(
         )
         .map_err(|e| e.to_string())?;
     let agent_state = client.agent_snapshot()?;
-    state.clients.lock().await.insert(id.clone(), client);
     event(&app, &id, "connection_started", init);
     event(&app, &id, "agent_state", agent_state);
+    client.enable_live_selections();
+    state.clients.lock().await.insert(id.clone(), client);
     if !selection_warnings.is_empty() {
         let _ = app.emit("history-error", selection_warnings.join("\n"));
     }
     Ok(())
-}
-fn remember_selection(app: &tauri::AppHandle, id: &str, snapshot: &Value) -> Result<(), String> {
-    let state = app.state::<AppState>();
-    let db = state.db.lock().map_err(|error| error.to_string())?;
-    storage::save_agent_snapshot(&db, id, snapshot).map_err(|error| error.to_string())
 }
 #[tauri::command]
 async fn set_agent(app: tauri::AppHandle, id: String, agent_id: String) -> Result<(), String> {
@@ -314,7 +313,7 @@ async fn set_agent(app: tauri::AppHandle, id: String, agent_id: String) -> Resul
         .get(&id)
         .cloned()
         .ok_or("Continue this conversation before choosing an agent")?;
-    let snapshot = client.set_agent(&agent_id).await?;
+    client.set_agent(&agent_id).await?;
     if !app
         .state::<AppState>()
         .clients
@@ -325,9 +324,7 @@ async fn set_agent(app: tauri::AppHandle, id: String, agent_id: String) -> Resul
     {
         return Err("The conversation connection closed during the agent switch".into());
     }
-    let saved = remember_selection(&app, &id, &snapshot);
-    event(&app, &id, "agent_state", snapshot);
-    saved.map_err(|e| format!("The provider changed its selection, but Agentrance could not save it: {e}"))
+    Ok(())
 }
 #[tauri::command]
 async fn set_model(app: tauri::AppHandle, id: String, model_id: String) -> Result<(), String> {
@@ -339,7 +336,7 @@ async fn set_model(app: tauri::AppHandle, id: String, model_id: String) -> Resul
         .get(&id)
         .cloned()
         .ok_or("Continue this conversation before choosing a model")?;
-    let snapshot = client.set_model(&model_id).await?;
+    client.set_model(&model_id).await?;
     if !app
         .state::<AppState>()
         .clients
@@ -350,9 +347,7 @@ async fn set_model(app: tauri::AppHandle, id: String, model_id: String) -> Resul
     {
         return Err("The conversation connection closed during the model switch".into());
     }
-    let saved = remember_selection(&app, &id, &snapshot);
-    event(&app, &id, "agent_state", snapshot);
-    saved.map_err(|e| format!("The provider changed its selection, but Agentrance could not save it: {e}"))
+    Ok(())
 }
 #[tauri::command]
 async fn prompt(app: tauri::AppHandle, id: String, text: String, attachments: Option<Vec<attachments::Attachment>>, submission_id: Option<String>) -> Result<(), String> {

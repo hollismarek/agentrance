@@ -17,8 +17,8 @@ explicit user decisions; never auto-approve or weaken provider policy.
 Working features: streamed chat and activity, explicit approvals, agent/model
 choices when advertised, SQLite history/resume/rename/delete, copy Q&A, central
 Help, independent drafts/composers, up to four adaptive tabbed panes, and
-OS-following light/dark appearance. Two-pane layouts retain a resizable divider. Compare
-creates fresh independent conversations. Stable and Development have separate
+OS-following light/dark appearance. Two-pane layouts retain a resizable divider.
+Compare can start fresh sessions or send to selected connected conversations. Stable and Development have separate
 identities, history and provider settings. See scripts/README.md for builds,
 local snapshot installation and rollback; docs/MILESTONES.md records decisions.
 
@@ -32,7 +32,12 @@ Native Browse is available in project dialogs; validation failures retain the
 dialog and Compare input. Conversation reading positions survive tab/pane
 switches in memory, and first opens start at the bottom. Normal window close and
 app quit flush recovery before exiting; save failures keep the app open with an
-explicit Quit without saving option. Backup/export is still outstanding.
+explicit Quit without saving option. Menu → Backup & Restore exports local
+history, provider settings, and workspace recovery. Restore stages a separate
+profile for the next launch and preserves the previous profile.
+Menu → Open provider session lists and opens existing sessions from ACP
+providers that advertise listing and loading. Agent and model choices are
+saved per conversation and restored on Continue, with the agent applied first.
 Waiting tabs now show an approval-count badge based on the same live-request
 reducer as approval cards. Drafts clear only after a correlated backend
 acknowledgment that the prompt is recorded. Quit/save failures appear in a

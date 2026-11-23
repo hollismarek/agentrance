@@ -54,6 +54,7 @@ impl ImportedTranscript {
 pub struct Client {
     agents: Arc<Mutex<crate::agents::State>>,
     replaying: Arc<AtomicBool>,
+    live_selections: Arc<AtomicBool>,
     imported: Arc<Mutex<Option<ImportedTranscript>>>,
     stopped: Arc<AtomicBool>,
     connected: Arc<AtomicBool>,
@@ -112,6 +113,7 @@ impl Client {
         });
         let pending = Arc::new(AsyncMutex::new(HashMap::<u64, Pending>::new()));
         let permissions = Arc::new(AsyncMutex::new(HashMap::new()));
+        let live_selections = Arc::new(AtomicBool::new(false));
         let replaying = Arc::new(AtomicBool::new(false));
         let imported = Arc::new(Mutex::new(None::<ImportedTranscript>));
         let stopped = Arc::new(AtomicBool::new(false));
@@ -132,6 +134,7 @@ impl Client {
             prompt_caps:Mutex::new(Value::Null),
             agents: agents.clone(),
             replaying: replaying.clone(),
+            live_selections: live_selections.clone(),
             imported: imported.clone(),
             stopped: stopped.clone(),
             connected: connected.clone(),
@@ -166,16 +169,33 @@ impl Client {
                         // Restore mode/configuration reports even while history
                         // replay is suppressed. They describe current controls.
                         let snapshot = if let Ok(mut state) = agents.lock() {
+                            let remember = live_selections.load(Ordering::SeqCst)
+                                && matches!(
+                                    u["sessionUpdate"].as_str(),
+                                    Some("config_option_update" | "current_mode_update")
+                                );
+                            let before = remember.then(|| {
+                                crate::storage::AgentPreferences::from_snapshot(&state.snapshot())
+                            });
                             if state.update(u) {
-                                Some(state.snapshot())
+                                let after = state.snapshot();
+                                let changed = before.is_some_and(|before| {
+                                    before != crate::storage::AgentPreferences::from_snapshot(&after)
+                                });
+                                Some((after, changed))
                             } else {
                                 None
                             }
                         } else {
                             None
                         };
-                        if let Some(snapshot) = snapshot {
-                            emit("agent_state", snapshot);
+                        if let Some((snapshot, changed)) = snapshot {
+                            let kind = if changed {
+                                "agent_state_live"
+                            } else {
+                                "agent_state"
+                            };
+                            emit(kind, snapshot);
                         }
                         if let Ok(mut history) = imported.lock() {
                             if let Some(history) = history.as_mut() {
@@ -242,16 +262,23 @@ impl Client {
                                     }
                                     _ => {}
                                 }
-                                if state.revision != before {
-                                    Some(state.snapshot())
+                                let selection_reply = request.method == "session/set_mode"
+                                    || (request.method == "session/set_config_option" && v["result"]["configOptions"].is_array());
+                                if state.revision != before || selection_reply {
+                                    Some((state.snapshot(), selection_reply))
                                 } else {
                                     None
                                 }
                             } else {
                                 None
                             };
-                            if let Some(snapshot) = snapshot {
-                                emit("agent_state", snapshot);
+                            if let Some((snapshot, selection_reply)) = snapshot {
+                                let kind = if selection_reply && live_selections.load(Ordering::SeqCst) {
+                                    "agent_state_live"
+                                } else {
+                                    "agent_state"
+                                };
+                                emit(kind, snapshot);
                             }
                         }
                         let _ = request.tx.send(if v.get("error").is_some() {
@@ -317,6 +344,9 @@ impl Client {
         }
         *self.remote.lock().await = remote.to_string();
         Ok(history.turns)
+    }
+    pub fn enable_live_selections(&self) {
+        self.live_selections.store(true, Ordering::SeqCst);
     }
     pub fn agent_snapshot(&self) -> Result<Value, String> {
         Ok(self.agents.lock().map_err(|e| e.to_string())?.snapshot())
@@ -682,39 +712,50 @@ for line in sys.stdin:
   assert p['modeId']=='code';agent='code';model='auto'
   send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'r','update':{'sessionUpdate':'config_option_update','configOptions':config()}}})
   result={}
+ elif method=='session/prompt':
+  model='sonnet'
+  send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'r','update':{'sessionUpdate':'config_option_update','configOptions':config()}}})
+  result={'stopReason':'end_turn'}
  else:raise AssertionError(method)
  send({'jsonrpc':'2.0','id':m['id'],'result':result})
 "#;
             let p=Provider{id:"mock".into(),name:"Mock".into(),executable:test_python(),args:vec!["-u".into(),"-c".into(),script.into()],env:HashMap::new(),cwd:std::env::temp_dir().to_string_lossy().into_owned()};
-            let c=Client::start_transport(&p,Arc::new(|_,_|{})).await.unwrap();
+            let db = Connection::open_in_memory().unwrap();
+            storage::initialize(&db).unwrap();
+            db.execute("INSERT INTO sessions(id,provider,cwd) VALUES('local','Mock','/tmp')", []).unwrap();
+            let db = Arc::new(Mutex::new(db));
+            let event_db = db.clone();
+            let emit: EventSink = Arc::new(move |kind, snapshot| {
+                if kind == "agent_state_live" {
+                    storage::record_activity(&event_db.lock().unwrap(), "local", "agent_state", &snapshot, 0, true).unwrap();
+                }
+            });
+            let c=Client::start_transport(&p,emit.clone()).await.unwrap();
             c.request("session/new",json!({})).await.unwrap();*c.remote.lock().await="r".into();
+            c.enable_live_selections();
             assert!(c.set_model("plan").await.is_err());
             assert!(c.set_model("unavailable").await.unwrap_err().contains("Model unavailable"));
             assert_eq!(c.agent_snapshot().unwrap()["model"]["current"],"auto");
             let snapshot=c.set_model("sonnet").await.unwrap();assert_eq!(snapshot["model"]["current"],"sonnet");assert_eq!(snapshot["selection"]["current"],"plan");
             let snapshot=c.set_agent("code").await.unwrap();assert_eq!(snapshot["model"]["current"],"auto");assert_eq!(snapshot["selection"]["current"],"code");
-            {
-                let db=Connection::open_in_memory().unwrap();
-                storage::initialize(&db).unwrap();
-                db.execute("INSERT INTO sessions(id,provider,cwd) VALUES('local','Mock','/tmp')",[]).unwrap();
-                storage::save_agent_preferences(&db,"local",&storage::AgentPreferences{
-                    agent:Some("plan".into()),model:Some("sonnet".into()),
-                }).unwrap();
-                storage::save_agent_snapshot(&db,"local",&snapshot).unwrap();
-                let saved=storage::agent_preferences(&db,"local").unwrap();
-                assert_eq!(saved.agent.as_deref(),Some("code"));
-                assert_eq!(saved.model.as_deref(),Some("auto"));
-            }
+            let saved = || storage::agent_preferences(&db.lock().unwrap(), "local").unwrap();
+            assert_eq!(saved().agent.as_deref(), Some("code"));
+            assert_eq!(saved().model.as_deref(), Some("auto"));
+            c.request("session/prompt", json!({"sessionId":"r","prompt":[]})).await.unwrap();
+            let preferences = saved();
+            assert_eq!(preferences.agent.as_deref(), Some("code"));
+            assert_eq!(preferences.model.as_deref(), Some("sonnet"));
             let idle=c.turn.lock().await;assert!(c.set_model("sonnet").await.is_err());drop(idle);c.shutdown();
-            let resumed=Client::start_transport(&p,Arc::new(|_,_|{})).await.unwrap();
+            let resumed=Client::start_transport(&p,emit).await.unwrap();
             resumed.restore(&json!({"agentCapabilities":{"sessionCapabilities":{"resume":{}}}}),"r",&p.cwd).await.unwrap();
-            let preferences=crate::storage::AgentPreferences{agent:Some("code".into()),model:Some("sonnet".into())};
+            assert_eq!(saved(), preferences);
             assert!(resumed.restore_preferences(&preferences).await.is_empty());
             let state=resumed.agent_snapshot().unwrap();
             assert_eq!(crate::storage::AgentPreferences::from_snapshot(&state),preferences);
             let warnings=resumed.restore_preferences(&crate::storage::AgentPreferences{agent:None,model:Some("unavailable".into())}).await;
             assert_eq!(warnings.len(),1);
             assert!(warnings[0].contains("Model unavailable"));
+            assert_eq!(saved(), preferences);
             resumed.shutdown();
         }).await.expect("model selection timed out");
     }

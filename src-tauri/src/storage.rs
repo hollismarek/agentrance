@@ -56,6 +56,24 @@ pub fn append(
     )?;
     Ok(db.last_insert_rowid())
 }
+pub fn record_activity(
+    db: &Connection,
+    id: &str,
+    kind: &str,
+    data: &Value,
+    at: i64,
+    remember: bool,
+) -> rusqlite::Result<i64> {
+    if !remember {
+        return append(db, id, kind, data, at);
+    }
+    let transaction = db.unchecked_transaction()?;
+    save_agent_snapshot(&transaction, id, data)?;
+    let sequence = append(&transaction, id, kind, data, at)?;
+    transaction.commit()?;
+    Ok(sequence)
+}
+
 pub fn messages(db: &Connection, session: &str) -> rusqlite::Result<Value> {
     let mut q =
         db.prepare("SELECT rowid,kind,data,at FROM events WHERE session=?1 ORDER BY rowid")?;

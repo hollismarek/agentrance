@@ -45,9 +45,10 @@ def promote(root, binary, data, rollback=False):
         if not binary.is_file() or not os.access(binary, os.X_OK):
             raise ValueError('Build the release binary first')
         icons = root / 'src-tauri/icons'
-        files = [binary, *[icons / n for n in ('32x32.png', '128x128.png', 'icon.png')]]
+        license_file = root / 'LICENSE'
+        icon_files = [icons / name for name in ('32x32.png', '128x128.png', 'icon.png')]
         digest = hashlib.sha256()
-        for file in files:
+        for file in (binary, license_file, *icon_files):
             digest.update(file.read_bytes())
         release = digest.hexdigest()[:20]
         target = base / 'releases' / release
@@ -57,8 +58,9 @@ def promote(root, binary, data, rollback=False):
                 staging = Path(folder) / release
                 staging.mkdir()
                 shutil.copy2(binary, staging / 'agent-desk')
+                shutil.copy2(license_file, staging / 'LICENSE')
                 (staging / 'icons').mkdir()
-                for file in files[1:]:
+                for file in icon_files:
                     shutil.copy2(file, staging / 'icons' / file.name)
                 # Never overwrite an existing release, including its running binary.
                 staging.rename(target)

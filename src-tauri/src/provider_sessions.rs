@@ -200,6 +200,7 @@ pub async fn open_provider_session(
         transaction.commit().map_err(|e| e.to_string())?;
     }
     publish.store(true, Ordering::SeqCst);
+    client.enable_live_selections();
     if !client.is_connected() {
         event(&app, &id, "disconnected", Value::Null);
     }

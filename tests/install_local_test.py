@@ -18,6 +18,7 @@ class StableInstallTests(unittest.TestCase):
         (root / 'src-tauri/tauri.conf.json').write_text('{"identifier":"local.agentdesk.app"}')
         for name in ('32x32.png','128x128.png','icon.png'):
             (icons / name).write_bytes(name.encode())
+        (root / 'LICENSE').write_text('MIT notice')
         binary = root / 'candidate'
         binary.write_text('first')
         binary.chmod(0o755)
@@ -33,6 +34,8 @@ class StableInstallTests(unittest.TestCase):
             binary.write_text('second')
             second = installer.promote(root,binary,data)
             self.assertNotEqual(first,second)
+            for installed in (first, second):
+                self.assertEqual(installed.with_name("LICENSE").read_text(), "MIT notice")
             self.assertEqual(first.read_text(),'first')
             self.assertEqual(second.read_text(),'second')
             self.assertEqual(installer.promote(root,binary,data),second)
