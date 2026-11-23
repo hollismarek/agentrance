@@ -173,5 +173,5 @@ private transcripts, or project contents you do not intend to share.
 
 ## License
 
-A project license has not yet been selected. Third-party dependencies have their
-own licenses.
+Agentrance is available under the [MIT License](LICENSE). Third-party
+dependencies have their own licenses.
