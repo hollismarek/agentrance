@@ -14,6 +14,7 @@ mod storage;
 mod event_delivery;
 mod backup;
 mod provider_sessions;
+mod project_brief;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -561,6 +562,7 @@ fn main() {
             finish_app_exit,
             startup_directory,
             validate_project,
+            project_brief::collect_project_brief,
             app_channel,
             discover_providers,
             load_provider_settings,

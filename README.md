@@ -45,6 +45,8 @@ implemented.
 - Waiting tabs show an amber approval badge with the pending-request count.
 - Per-conversation image/file attachments with a removable thumbnail strip; image
   and binary input depend on advertised provider capabilities.
+- Compare can send a previewed project brief with the Git baseline, changed
+  paths, an optional tracked diff, and the task or constraints you provide.
 - Agent and model selections saved per conversation and restored on Continue.
 - Open existing sessions from compatible ACP providers.
 - Back up local history, provider settings, and workspace recovery to a ZIP.

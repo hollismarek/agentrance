@@ -451,3 +451,11 @@ html,body,#root{overflow:clip}
 .provider-session-results{max-height:34vh;overflow:auto;margin-top:8px}
 .provider-session-results ul{list-style:none;margin:0;padding:0}
 .provider-session-results li>button{display:block;width:100%;text-align:start;overflow-wrap:anywhere;margin-bottom:4px}
+
+/* Shared project evidence in Compare */
+.compare-brief{display:grid;gap:6px;margin-top:10px}
+.compare-brief label:has(input[type=checkbox]){display:flex;align-items:center;gap:6px}
+.compare-brief input[type=checkbox]{width:auto;margin:0}
+.compare-brief-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.compare-brief textarea{display:block;width:100%;margin-top:4px}
+.compare-brief-preview{font-family:monospace;resize:vertical}

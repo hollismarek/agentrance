@@ -864,3 +864,13 @@ session listing and loading. Opening a chat replays its text transcript and
 stores the provider session ID for later continuation. Opening a session already
 associated with this provider configuration reuses the existing local chat.
 Historical tool output, approvals and attachments are outside the text import.
+
+## Shared project brief in Compare
+
+Opt in to a factual brief for new sessions or for existing sessions in the same
+project. Preview the Git baseline and status for the selected folder, with an
+optional bounded tracked diff and user-supplied task or constraints. Compare sends
+the previewed snapshot to each recipient. Refresh before sending to capture
+later changes. Untracked files are listed by path, and submodule internals are
+excluded. Agent transcripts, rationale, and check results are outside this
+first pass. Automatic updates and per-session deltas remain open.

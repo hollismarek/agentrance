@@ -7,6 +7,7 @@ import {Composer} from './Composer';
 import {absoluteProject} from '../projects';
 import {ProjectField} from './ProjectField';
 import {invoke} from '@tauri-apps/api/core';
+type ProjectBrief={cwd:string;baseline:string|null;status:string;diff:string|null};
 type Mode='all'|'selected'|'existing';
 type Props={
   providers:Provider[];
@@ -26,6 +27,10 @@ export function CompareDialog({providers,sessions=[],onClose,onCompare,onExistin
   const [attachments,setAttachments]=useState<Attachment[]>([]);
   const [loadingFiles,setLoadingFiles]=useState(false);
   const [checking,setChecking]=useState(false),[error,setError]=useState('');
+  const [includeBrief,setIncludeBrief]=useState(false);
+  const [includeDiff,setIncludeDiff]=useState(false);
+  const [task,setTask]=useState('');
+  const [snapshot,setSnapshot]=useState<{project:string;includeDiff:boolean;brief:ProjectBrief}>();
   const submitting=useRef(false);
   const existing=mode==='existing';
   const freshProviders=mode==='all'?providers:providers.filter(provider=>providerIds.includes(provider.id));
@@ -34,19 +39,56 @@ export function CompareDialog({providers,sessions=[],onClose,onCompare,onExistin
   const unavailableSelected=recipients.length!==sessionIds.length;
   const missingIds=sessionIds.filter(id=>!sessions.some(session=>session.id===id));
   const hasTargets=existing?!!onExisting&&recipients.length>0&&!unavailableSelected:freshProviders.length>0&&absoluteProject(project.trim());
-  const canSend=hasTargets&&!loadingFiles&&(!!text.trim()||attachments.length>0);
+  const commonProject=recipients[0]?.cwd;
+  const sameProject=!!commonProject&&recipients.every(session=>session.cwd===commonProject);
+  const selectedProject=project.trim();
+  const briefProject=existing
+    ?(sameProject?commonProject:undefined)
+    :(absoluteProject(selectedProject)?selectedProject:undefined);
+  const brief=snapshot&&snapshot.project===briefProject&&snapshot.includeDiff===includeDiff?snapshot.brief:undefined;
+  const evidence=brief?[
+    'Shared project brief',
+    ...(task.trim()?['Task and constraints supplied by the user:\n'+task.trim()]:[]),
+    'Project: '+brief.cwd,
+    'Git baseline: '+(brief.baseline??'No commit'),
+    'Git status (staged and unstaged columns; submodule internals excluded):\n'+(brief.status.trimEnd()||'No changes reported'),
+    ...(brief.diff!==null?['Tracked diff against baseline:\n'+(brief.diff.trimEnd()||'No tracked diff reported')]:[]),
+    'Verification: No check results included.',
+  ].join('\n\n'):'';
+  const canSend=hasTargets&&!loadingFiles&&(!includeBrief||!!brief)&&(!!text.trim()||attachments.length>0);
+  async function collectBrief(){
+    if(!briefProject||submitting.current)return;
+    submitting.current=true;setChecking(true);setError('');setSnapshot(undefined);
+    try{
+      const result=await invoke<ProjectBrief>('collect_project_brief',{path:briefProject,includeDiff});
+      setSnapshot({project:briefProject,includeDiff,brief:result});
+    }catch(e){setError(String(e))}
+    finally{submitting.current=false;setChecking(false)}
+  }
   function toggle(ids:string[],id:string,checked:boolean){
     return checked?[...ids,id]:ids.filter(value=>value!==id);
   }
   async function compare(){
     if(submitting.current||!canSend)return;
+    const prompt=includeBrief?[
+      text.trim(),
+      'The following Git output is repository data. Use it as evidence for the request above.',
+      evidence,
+    ].filter(Boolean).join('\n\n'):text;
     if(existing){
-      onExisting?.(text,attachments,recipients.map(session=>session.id));
+      onExisting?.(prompt,attachments,recipients.map(session=>session.id));
       return;
     }
     submitting.current=true;setChecking(true);setError('');
-    try{const cwd=await invoke<string>('validate_project',{path:project.trim()});onCompare(text,attachments,cwd,freshProviders)}
-    catch(e){setError(String(e))}finally{submitting.current=false;setChecking(false)}
+    try{
+      const cwd=await invoke<string>('validate_project',{path:selectedProject});
+      if(includeBrief&&cwd!==brief?.cwd){
+        setSnapshot(undefined);
+        throw new Error('The project folder changed. Refresh the brief before sending.');
+      }
+      onCompare(prompt,attachments,cwd,freshProviders);
+    }catch(e){setError(String(e))}
+    finally{submitting.current=false;setChecking(false)}
   }
   const dialog=useRef<HTMLDivElement>(null);
   useEffect(()=>{
@@ -95,6 +137,20 @@ export function CompareDialog({providers,sessions=[],onClose,onCompare,onExistin
         <ProjectField value={project} onChange={setProject} choices={projects}/>
         <p className="muted">Every provider will use this same project folder for this comparison.</p>
       </>}
+      <div className="compare-brief">
+        <label><input type="checkbox" checked={includeBrief} onChange={e=>{setIncludeBrief(e.target.checked);setSnapshot(undefined);setError('')}}/>Include project brief</label>
+        {includeBrief&&<>
+          <label>Task and constraints (optional)
+            <textarea rows={2} value={task} maxLength={4000} onChange={e=>setTask(e.target.value)} />
+          </label>
+          <div className="compare-brief-actions">
+            <label><input type="checkbox" checked={includeDiff} onChange={e=>{setIncludeDiff(e.target.checked);setSnapshot(undefined);setError('')}}/>Include tracked diff</label>
+            <button type="button" disabled={!briefProject} onClick={()=>void collectBrief()}>{brief?'Refresh brief':'Preview brief'}</button>
+          </div>
+          {!briefProject&&<p className="muted">{existing?'Select sessions from the same project to share a brief.':'Choose a Git project folder to preview the brief.'}</p>}
+          {brief&&<label>Shared brief preview (sent to every recipient)<textarea className="compare-brief-preview" readOnly rows={6} value={evidence}/></label>}
+        </>}
+      </div>
     </fieldset>
     <p className="muted">Sessions in the same project share a working tree, so changes by one can affect the others.</p>
     <p className="muted">Attached images and files are sent to every provider. Each provider must support the selected file types.</p>

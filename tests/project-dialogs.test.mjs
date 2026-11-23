@@ -208,3 +208,46 @@ test('provider session picker pages through the project and opens only the selec
   assert.deepEqual(opened,[[{...provider,cwd:'/original'},'second','Second chat']]);
  }finally{await act(async()=>root.unmount())}
 });
+
+test('Compare sends the previewed evidence only to selected sessions in the same project',async()=>{
+ const root=createRoot(document.getElementById('root'));
+ const sent=[],calls=[];
+ const sessions=[
+  {id:'one',provider:'Kiro',cwd:'/project',live:true,busy:false},
+  {id:'two',provider:'Kiro',cwd:'/project',live:true,busy:false},
+  {id:'other',provider:'Kiro',cwd:'/other',live:true,busy:false},
+ ];
+ globalThis.__projectTest.invoke=async(command,args)=>{
+  calls.push([command,args]);
+  return {cwd:'/project',baseline:'abc123',status:' M file.txt\n',diff:null};
+ };
+ const click=element=>act(async()=>element.click());
+ try{
+  await act(async()=>root.render(React.createElement(module.exports.CompareDialog,{
+   providers:[provider],sessions,onClose(){},onCompare(){},onExisting:(...args)=>sent.push(args),
+  })));
+  const mode=document.querySelector('.compare-mode select');
+  await act(async()=>{mode.value='existing';mode.dispatchEvent(new dom.window.Event('change',{bubbles:true}))});
+  const targets=document.querySelectorAll('.compare-targets input');
+  await click(targets[0]);
+  await type(document.querySelector('textarea'),'Review this change independently');
+  await click(document.querySelector('.compare-brief input'));
+  const preview=()=>[...document.querySelectorAll('button')].find(button=>button.textContent==='Preview brief');
+  const send=document.querySelector('button.primary');
+  assert.equal(preview().disabled,true);
+  assert.equal(send.disabled,true);
+  await click(targets[3]);
+  await type(document.querySelector('.compare-brief textarea'),'Preserve the existing settings');
+  await click(preview());
+  assert.deepEqual(calls,[['collect_project_brief',{path:'/project',includeDiff:false}]]);
+  const evidence=document.querySelector('.compare-brief-preview').value;
+  assert.match(evidence,/Preserve the existing settings/);
+  assert.match(evidence,/Git baseline: abc123/);
+  assert.match(evidence,/ M file.txt/);
+  await click(send);
+  assert.deepEqual(sent.map(args=>args[2]),[['one','two']]);
+  assert.ok(sent[0][0].endsWith(evidence));
+  await click(document.querySelectorAll('.compare-brief input')[1]);
+  assert.equal(send.disabled,true);
+ }finally{await act(async()=>root.unmount())}
+});
