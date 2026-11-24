@@ -340,12 +340,27 @@ test('Git diff switches sources and keeps file navigation pinned to the resolved
   const select=document.querySelector('select');
   await act(async()=>{select.value='staged';select.dispatchEvent(new dom.window.Event('change',{bubbles:true}))});
   assert.equal(calls.at(-1)[1].source,'staged');
-  await act(async()=>{select.value='commit';select.dispatchEvent(new dom.window.Event('change',{bubbles:true}))});
+  const switchSource=value=>act(async()=>{select.value=value;select.dispatchEvent(new dom.window.Event('change',{bubbles:true}))});
+  const load=()=>act(async()=>document.querySelector('.git-diff-controls button').click());
+  const count=calls.length;
+  await switchSource('commit');
+  assert.equal(calls.length,count);
+  await load();
   assert.equal(calls.at(-2)[1].revision,'HEAD');
   await act(async()=>document.querySelectorAll('.git-diff-files button')[1].click());
   assert.deepEqual(calls.at(-1),['git_diff_file',{path:'/project',source:'commit',commit,file:'two.txt'}]);
   assert.equal(document.querySelector('[data-kind="added"]').textContent,'+two.txt  \n');
+  assert.match(document.querySelectorAll('.git-diff-files button')[1].textContent,/Added/);
   await type(document.querySelector('input[placeholder="HEAD"]'),'another-ref');
   assert.equal(document.querySelector('.git-patch'),null);
+  await switchSource('staged');
+  const afterStaged=calls.length;
+  await switchSource('commit');
+  assert.equal(calls.length,afterStaged);
+  assert.equal(document.querySelector('input[placeholder="HEAD"]').value,'another-ref');
+  const invoke=globalThis.__projectTest.invoke;
+  globalThis.__projectTest.invoke=(command,args)=>command==='git_diff_file'?Promise.resolve(''):invoke(command,args);
+  await load();
+  assert.match(document.body.textContent,/No patch available for this file in the selected commit/);
  }finally{await act(async()=>root.unmount())}
 });

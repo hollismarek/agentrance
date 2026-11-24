@@ -1,4 +1,4 @@
-import React,{useEffect,useRef,useState} from 'react';
+import React,{memo,useEffect,useRef,useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {absoluteProject} from '../projects';
 import {ProjectField} from './ProjectField';
@@ -9,9 +9,9 @@ type ChangedFile={status:string;path:string};
 type DiffFiles={cwd:string;commit:string|null;files:ChangedFile[]};
 const statusNames:Record<string,string>={A:'Added',D:'Deleted',M:'Modified',T:'Type changed',U:'Unmerged'};
 
-function Patch({text}:{text:string}){
- const lines=text.replace(/\n$/, '').split('\n');
+const Patch=memo(function Patch({text}:{text:string}){
  const limit=5000;
+ const lines=text.replace(/\n$/, '').split('\n',limit+1);
  let inHunk=false;
  return <>
   <pre className="git-patch" tabIndex={0} aria-label="Unified diff">{lines.slice(0,limit).map((line,index)=>{
@@ -23,7 +23,7 @@ function Patch({text}:{text:string}){
   })}</pre>
   {lines.length>limit&&<p role="status">Showing the first {limit.toLocaleString()} lines of this diff.</p>}
  </>;
-}
+});
 
 export default function GitDiffDialog({initialProject,projects,onClose}:{
  initialProject:string;projects:string[];onClose:()=>void;
@@ -85,7 +85,7 @@ export default function GitDiffDialog({initialProject,projects,onClose}:{
     <label>Changes <select value={source} onChange={event=>{
      const next=event.target.value as Source;
      setSource(next);
-     load(canLoad?{path,source:next,revision}:null);
+     load(canLoad&&next!=='commit'?{path,source:next}:null);
     }}>
      <option value="unstaged">Unstaged</option>
      <option value="staged">Staged</option>
@@ -101,12 +101,12 @@ export default function GitDiffDialog({initialProject,projects,onClose}:{
   {result&&!result.files.length&&<p role="status">No changes in this view.</p>}
   {!!result?.files.length&&<div className="git-diff-grid">
    <nav className="git-diff-files" aria-label="Changed files">{result.files.map(entry=><button key={entry.path} type="button" aria-current={entry.path===file?'true':undefined} title={entry.path} onClick={()=>selectFile(entry.path)}>
-    <span title={statusNames[entry.status]??'Changed'} aria-label={statusNames[entry.status]??'Changed'}>{entry.status}</span> {entry.path}
+    {entry.path}<small>{statusNames[entry.status]??'Changed'}</small>
    </button>)}</nav>
    <section className="git-diff-file" aria-label="File diff">
     <h3>{file}</h3>
     {patchError?<p role="alert" className="error">{patchError}</p>:patch===null?<p role="status">Loading file diff…</p>:
-     patch?<Patch text={patch}/>:<p role="status">No patch available. Refresh if the working tree changed.</p>}
+     patch?<Patch text={patch}/>:<p role="status">{source==='commit'?'No patch available for this file in the selected commit.':'No patch available. Refresh if the index or working tree changed.'}</p>}
    </section>
   </div>}
  </div></div>;

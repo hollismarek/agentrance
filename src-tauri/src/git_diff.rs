@@ -95,6 +95,9 @@ pub async fn git_diff_files(
             _ => None,
         };
         let raw = diff(&git, source, commit.as_deref(), None, FILE_LIST_LIMIT).await?;
+        if !raw.is_empty() && !raw.ends_with('\0') {
+            return Err("Git returned an incomplete file list".into());
+        }
         let mut fields = raw.split_terminator('\0');
         let mut files = Vec::new();
         while let Some(status) = fields.next() {
@@ -199,6 +202,9 @@ mod tests {
         assert_eq!(pinned.files.len(), 1);
         assert_eq!(pinned.files[0].path, file);
         assert_eq!(pinned.files[0].status, "A");
+        let reader = Git::open(&path).await.unwrap();
+        let oversized = diff(&reader, Source::Commit, pinned.commit.as_deref(), None, 4).await;
+        assert!(oversized.unwrap_err().contains("size limit"));
 
         fs::write(&target, "second\n").unwrap();
         git(&["add", "."]);

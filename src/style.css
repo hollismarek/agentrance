@@ -491,6 +491,7 @@ html,body,#root{overflow:clip}
 .git-diff-grid{display:grid;grid-template-columns:minmax(130px,1fr) minmax(0,3fr);gap:12px;margin-top:12px;min-height:0;max-height:62vh}
 .git-diff-files,.git-diff-file{min-height:0;overflow:auto;border:1px solid var(--border);border-radius:6px}
 .git-diff-files button{display:block;width:100%;padding:6px;text-align:left;overflow-wrap:anywhere;border:0;border-radius:0}
+.git-diff-files button small{display:block}
 .git-diff-files button[aria-current]{background:var(--selected-bg);color:var(--accent-text)}
 .git-diff-file h3,.git-diff-file p{margin:8px}
 .git-patch{margin:0;padding:8px;font-size:12px;line-height:1.5;overflow:auto}
