@@ -236,18 +236,22 @@ test('switching workspaces preserves drafts, pane placement and background appro
   assert.equal(select.value,'default');
   assert.match(select.selectedOptions[0].textContent,/Workspace 1/);
   assert.match(select.closest('label').textContent,/Active workspace/);
+  const visibleName=()=>document.querySelector('.workspace-picker-value').textContent;
+  assert.equal(visibleName(),'Workspace 1');
   const dispatch=fixture.state.dispatchWorkspaces;
   await act(async()=>{
    dispatch({type:'create',id:'second-project',name:'Second project',project:'/second'});
    dispatch({type:'open',id:'second-project',ids:['second']});
   });
   assert.match(document.querySelector('[role=tab]').textContent,/Second project chat/);
+  assert.equal(visibleName(),'Second project');
   assert.equal(document.querySelectorAll('.workspace-pane').length,1);
   assert.equal(document.querySelector('[aria-label="1 pending approval in other workspaces"]').textContent,'! 1');
   const switcher=document.querySelector('select[aria-label="Workspace"]');
   await act(async()=>{
    switcher.value='default';switcher.dispatchEvent(new window.Event('change',{bubbles:true}));
   });
+  assert.equal(visibleName(),'Workspace 1');
   assert.equal(document.querySelectorAll('.workspace-pane').length,2);
   assert.equal(document.querySelector('[aria-label="Conversation pane 2"] textarea').value,'old draft');
   assert.equal(document.querySelector('[aria-label="1 pending approval in other workspaces"]'),null);

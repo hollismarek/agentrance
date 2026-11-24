@@ -15,12 +15,19 @@ export function WorkspaceSwitcher({workspaces,sessions,disabled,onSwitch,onCreat
    return {...entry,label:count?`${entry.name} · ${count} waiting for approval`:entry.name,count};
   });
  },[sessions,workspaces.entries]);
+ const activeName=labels.find(entry=>entry.id===workspaces.active)?.name;
  const waitingElsewhere=labels.reduce((total,entry)=>total+(entry.id===workspaces.active?0:entry.count),0);
  const waitingLabel=`${waitingElsewhere} pending ${waitingElsewhere===1?'approval':'approvals'} in other workspaces`;
  return <div className="workspace-switcher">
-  <label className="workspace-picker"><span>Active workspace</span><select aria-label="Workspace" value={workspaces.active} disabled={disabled} onChange={e=>onSwitch(e.target.value)}>
-   {labels.map(entry=><option key={entry.id} value={entry.id}>{entry.label}</option>)}
-  </select></label>
+  <label className="workspace-picker">
+   <span>Active workspace</span>
+   <span className="workspace-picker-control" data-disabled={disabled||undefined}>
+    <span className="workspace-picker-value" aria-hidden="true">{activeName}</span>
+    <select aria-label="Workspace" title={activeName} value={workspaces.active} disabled={disabled} onChange={e=>onSwitch(e.target.value)}>
+     {labels.map(entry=><option key={entry.id} value={entry.id}>{entry.label}</option>)}
+    </select>
+   </span>
+  </label>
   {waitingElsewhere>0&&<span role="status" className="tab-approval" aria-label={waitingLabel} title={waitingLabel}>! {waitingElsewhere}</span>}
   <button type="button" title="New workspace" aria-label="New workspace" disabled={disabled||workspaces.entries.length>=MAX_WORKSPACES} onClick={onCreate}>+</button>
   <button type="button" title="Edit workspace name and project" aria-label="Edit workspace name and project" disabled={disabled} onClick={onEdit}>✎</button>
