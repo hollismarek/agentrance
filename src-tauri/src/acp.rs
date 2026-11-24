@@ -52,6 +52,7 @@ impl ImportedTranscript {
     fn exceeds_limit(&self) -> bool { self.bytes > 16 * 1024 * 1024 || self.turns.len() >= 10_000 }
 }
 pub struct Client {
+    connection_id: String,
     agents: Arc<Mutex<crate::agents::State>>,
     replaying: Arc<AtomicBool>,
     live_selections: Arc<AtomicBool>,
@@ -130,7 +131,9 @@ impl Client {
             })
         };
         let agents = Arc::new(Mutex::new(crate::agents::State::default()));
+        let connection_id = uuid::Uuid::new_v4().to_string();
         let client = Arc::new(Self {
+            connection_id: connection_id.clone(),
             prompt_caps:Mutex::new(Value::Null),
             agents: agents.clone(),
             replaying: replaying.clone(),
@@ -235,7 +238,7 @@ impl Client {
                             .insert(v["id"].to_string(), v["params"].clone());
                         emit(
                             "permission",
-                            json!({"request":v["id"],"params":v["params"]}),
+                            json!({"request":v["id"],"params":v["params"],"agentranceConnectionId":connection_id}),
                         );
                     } else if v.get("id").is_some() {
                         let response = json!({"jsonrpc":"2.0","id":v["id"],"error":{"code":-32601,"message":"Unsupported client method; authentication stays with the CLI"}});
@@ -303,6 +306,10 @@ impl Client {
             }
         });
         Ok(client)
+    }
+    pub fn recorded_handshake(&self, mut handshake: Value) -> Value {
+        handshake["agentranceConnectionId"] = json!(self.connection_id);
+        handshake
     }
     pub fn is_connected(&self) -> bool {
         self.connected.load(Ordering::SeqCst) && !self.stopped.load(Ordering::SeqCst)
@@ -637,6 +644,54 @@ for line in sys.stdin:
                 client.shutdown();assert!(!client.is_connected());
             }
         }).await.expect("mock ACP reconnect timed out");
+    }
+    #[tokio::test]
+    async fn permissions_emitted_during_restore_carry_the_transport_id() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let script = r#"
+import json,sys
+def send(value): print(json.dumps(value), flush=True)
+for line in sys.stdin:
+ m=json.loads(line)
+ if m['method']=='initialize':
+  send({'jsonrpc':'2.0','id':m['id'],'result':{'protocolVersion':1,'agentCapabilities':{'loadSession':True}}})
+ elif m['method']=='session/load':
+  send({'jsonrpc':'2.0','id':7,'method':'session/request_permission','params':{'sessionId':'saved','toolCall':{'toolCallId':'read'},'options':[]}})
+  if sys.argv[1]=='fail':
+   send({'jsonrpc':'2.0','id':m['id'],'error':{'code':-32603,'message':'Restore failed'}})
+  else:
+   send({'jsonrpc':'2.0','id':m['id'],'result':{}})
+"#;
+            let mut successful_id = None;
+            for outcome in ["success", "fail"] {
+                let provider = Provider {
+                    id: "mock".into(),
+                    name: "Mock".into(),
+                    executable: test_python(),
+                    args: vec!["-u".into(), "-c".into(), script.into(), outcome.into()],
+                    env: HashMap::new(),
+                    cwd: std::env::temp_dir().to_string_lossy().into_owned(),
+                };
+                let events = Arc::new(Mutex::new(Vec::<(String, Value)>::new()));
+                let sink = events.clone();
+                let client = Client::start_transport(&provider, Arc::new(move |kind, data| {
+                    sink.lock().unwrap().push((kind.into(), data));
+                })).await.unwrap();
+                let init = client.request("initialize", json!({})).await.unwrap();
+                let restored = client.restore(&init, "saved", &provider.cwd).await;
+                assert_eq!(restored.is_ok(), outcome == "success");
+                let events = events.lock().unwrap();
+                let (_, permission) = events.iter().find(|(kind, _)| kind == "permission").unwrap();
+                let handshake = client.recorded_handshake(init);
+                let connection_id = permission["agentranceConnectionId"].as_str().unwrap();
+                assert_eq!(handshake["agentranceConnectionId"], connection_id);
+                if outcome == "success" {
+                    successful_id = Some(connection_id.to_owned());
+                } else {
+                    assert_ne!(successful_id.as_deref(), Some(connection_id));
+                }
+            }
+        }).await.expect("mock ACP restore timed out");
     }
     #[tokio::test]
     async fn agent_switches_are_confirmed_by_provider_and_preserve_errors_and_busy_state() {

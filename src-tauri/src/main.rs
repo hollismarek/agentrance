@@ -201,7 +201,7 @@ async fn new_session(app: tauri::AppHandle, mut provider: Provider) -> Result<St
             ],
         )
         .map_err(|e| e.to_string())?;
-    event(&app, &id, "identity", init);
+    event(&app, &id, "identity", client.recorded_handshake(init));
     event(&app, &id, "agent_state", agent_state);
     client.enable_live_selections();
     state.clients.lock().await.insert(id.clone(), client);
@@ -295,7 +295,7 @@ async fn resume_session(
         )
         .map_err(|e| e.to_string())?;
     let agent_state = client.agent_snapshot()?;
-    event(&app, &id, "connection_started", init);
+    event(&app, &id, "connection_started", client.recorded_handshake(init));
     event(&app, &id, "agent_state", agent_state);
     client.enable_live_selections();
     state.clients.lock().await.insert(id.clone(), client);

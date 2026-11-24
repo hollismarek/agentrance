@@ -15,7 +15,7 @@ export function connectionDetails(events:ActivityEvent[]){
    handshake=record(data);
    break;
   }
-  if(kind==='permission')permissionRequested=true;
+  if(kind==='permission'&&record(data).agentranceConnectionId===undefined)permissionRequested=true;
   if(kind==='agent_state'){
    const state=record(data);
    if(typeof state.revision==='number'&&state.revision>revision){
@@ -23,6 +23,12 @@ export function connectionDetails(events:ActivityEvent[]){
     options=Array.isArray(state.configOptions)?state.configOptions.map(record):[];
    }
   }
+ }
+ // A reconnect can issue a permission before its successful handshake is
+ // recorded. Tagged requests belong only to the process that emitted them.
+ const connectionId=handshake.agentranceConnectionId;
+ if(typeof connectionId==='string'){
+  permissionRequested=events.some(event=>event.kind==='permission'&&record(event.data).agentranceConnectionId===connectionId);
  }
  const capabilities=record(handshake.agentCapabilities);
  const prompt=record(capabilities.promptCapabilities);

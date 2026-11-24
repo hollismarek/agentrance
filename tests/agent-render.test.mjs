@@ -195,3 +195,14 @@ test('connection details distinguish advertised features, current configuration 
  assert.doesNotMatch(resumed,/Example Provider|_example|Reasoning effort|Review model/);
  assert.match(renderConnection([],false),/No ACP handshake was saved/);
 });
+
+test('connection details attribute reconnect approvals by transport even before the success marker',()=>{
+ const handshake=(id,kind='connection_started')=>({kind,data:{protocolVersion:1,agentranceConnectionId:id}});
+ const permission=id=>({kind:'permission',data:{request:7,agentranceConnectionId:id}});
+ const old=handshake('old','identity');
+ const reconnect=permission('reconnect');
+ assert.match(renderConnection([old,reconnect,handshake('reconnect')]),/provider requested approval/);
+ assert.match(renderConnection([old,reconnect],false),/No approval requests recorded/);
+ assert.match(renderConnection([handshake(undefined,'identity'),reconnect],false),/No approval requests recorded/);
+ assert.match(renderConnection([old,permission('old'),reconnect],false),/provider requested approval/);
+});

@@ -187,7 +187,7 @@ pub async fn open_provider_session(
             storage::append(&transaction, &id, kind, &json!(text), at)
                 .map_err(|e| e.to_string())?;
         }
-        storage::append(&transaction, &id, "connection_started", &init, at)
+        storage::append(&transaction, &id, "connection_started", &client.recorded_handshake(init), at)
             .map_err(|e| e.to_string())?;
         storage::append(&transaction, &id, "agent_state", &selection, at)
             .map_err(|e| e.to_string())?;
