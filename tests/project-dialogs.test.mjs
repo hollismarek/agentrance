@@ -193,10 +193,16 @@ test('provider session picker pages through the project and opens only the selec
  });
  try{
   await act(async()=>root.render(React.createElement(module.exports.ProviderSessionsDialog,{
-   providers:[provider],selected:provider.id,projects:[],onClose(){},
+   providers:[provider,{...provider,id:'other',cwd:'/different-default'}],selected:provider.id,workspaceProject:'/workspace',projects:[],onClose(){},
    onOpen:async(...args)=>{opened.push(args)},
   })));
-  await type(document.querySelector('[aria-label="Project folder"]'),'/original');
+  const folder=document.querySelector('[aria-label="Project folder"]');
+  assert.equal(folder.value,'/workspace');
+  const select=document.querySelector('select');
+  await act(async()=>{select.value='other';select.dispatchEvent(new dom.window.Event('change',{bubbles:true}))});
+  assert.equal(folder.value,'/workspace');
+  await act(async()=>{select.value=provider.id;select.dispatchEvent(new dom.window.Event('change',{bubbles:true}))});
+  await type(folder,'/original');
   await click('Find sessions');
   await click('Load more sessions');
   assert.deepEqual(calls,[
@@ -219,7 +225,8 @@ test('Compare sends the previewed evidence only to selected sessions in the same
  ];
  globalThis.__projectTest.invoke=async(command,args)=>{
   calls.push([command,args]);
-  return {cwd:'/project',baseline:'abc123',status:' M file.txt\n',diff:null};
+  const diff=args.includeDiff?{staged:'+staged edit',unstaged:'+restored line'}:null;
+  return {cwd:'/project',baseline:'abc123',status:' M file.txt\n',diff};
  };
  const click=element=>act(async()=>element.click());
  try{
@@ -249,6 +256,10 @@ test('Compare sends the previewed evidence only to selected sessions in the same
   assert.ok(sent[0][0].endsWith(evidence));
   await click(document.querySelectorAll('.compare-brief input')[1]);
   assert.equal(send.disabled,true);
+  await click(preview());
+  const patchEvidence=document.querySelector('.compare-brief-preview').value;
+  assert.match(patchEvidence,/Staged diff against baseline:\n\+staged edit/);
+  assert.match(patchEvidence,/Unstaged diff against index:\n\+restored line/);
  }finally{await act(async()=>root.unmount())}
 });
 
@@ -275,5 +286,30 @@ test('creating and editing workspaces rejects duplicate names without blocking a
   await type(name(),' Review ');
   await act(async()=>save().click());
   assert.deepEqual(saved,[['Review','/other']]);
+ }finally{await act(async()=>root.unmount())}
+});
+
+test('workspace deletion confirms where open chats and drafts will go',async()=>{
+ const root=createRoot(document.getElementById('root'));
+ let deleted=0;
+ const entry={id:'one',name:'Agentrance',project:'/project',layout:{groups:[['chat'],[],[],[]]}};
+ const other={id:'two',name:'Review',project:'/review',layout:{groups:[[],[],[],[]]}};
+ const render=entries=>act(async()=>root.render(React.createElement(module.exports.WorkspaceDialog,{
+  entry,entries,projects:[],onSave(){},onClose(){},onDelete:()=>deleted++,
+ })));
+ const button=label=>[...document.querySelectorAll('button')].find(node=>node.textContent===label);
+ const click=label=>act(async()=>button(label).click());
+ try{
+  await render([entry]);
+  assert.equal(button('Delete workspace…'),undefined);
+  await render([entry,other]);
+  await click('Delete workspace…');
+  assert.match(document.body.textContent,/open chats and drafts will move to Review/);
+  assert.equal(deleted,0);
+  await click('Keep workspace');
+  assert.equal(deleted,0);
+  await click('Delete workspace…');
+  await click('Delete workspace');
+  assert.equal(deleted,1);
  }finally{await act(async()=>root.unmount())}
 });

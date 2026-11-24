@@ -66,8 +66,8 @@ function App() {
   const activeSessions=desk.sessions.filter(session=>activeIds.has(session.id));
   const projects=projectChoices(recovery.recentProjects,providers,desk.past);
   const focusedProject=activeSessions.find(session=>session.id===workspace.selected[workspace.focus])?.cwd;
-  const defaultProject=(choices:Provider[])=>active.project||focusedProject||
-    initialProject(choices,active.id==='default'?recovery.recentProjects:[]);
+  const workspaceProject=active.project||focusedProject||(active.id==='default'?recovery.recentProjects[0]:undefined);
+  const defaultProject=(choices:Provider[])=>workspaceProject||initialProject(choices,[]);
   return <><div className="app" inert={recovery.closing||!!recovery.closeError?true:undefined}>
     <Sidebar collapsed={sidebarCollapsed} onToggle={()=>setSidebarCollapsed(value=>!value)} providers={providers} selected={selected} past={desk.past} panes={visible} starting={desk.starting||!recovery.ready}
       busyIds={desk.sessions.filter(s=>s.busy||s.resuming||s.changingAgent||s.changingModel).map(s=>s.id)} onRename={desk.rename} onDelete={desk.remove}
@@ -88,6 +88,7 @@ function App() {
       <WorkspaceLayout workspaceId={active.id} workspace={workspace} dispatch={dispatch} desk={desk} providers={providers} drafts={drafts} setDrafts={setDrafts} onHelp={id=>setHelp({topic:'models',sessionId:id})}/>
     </main>
     {workspaceDialog&&<WorkspaceDialog entry={workspaceDialog==='edit'?active:undefined} entries={workspaces.entries} projects={projects}
+      onDelete={()=>{dispatchWorkspaces({type:'delete',id:active.id});setWorkspaceDialog(null)}}
       onClose={()=>setWorkspaceDialog(null)} onSave={(name,project)=>{
         if(workspaceDialog==='new')dispatchWorkspaces({type:'create',id:crypto.randomUUID(),name,project});
         else dispatchWorkspaces({type:'edit',id:active.id,name,project});
@@ -99,7 +100,7 @@ function App() {
       onCompare={(text,attachments,cwd,selected)=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.compare(providersAtProject(selected,cwd),text,attachments,ids=>openInWorkspace(ids,cwd))})}}
       onExisting={(text,attachments,ids)=>{setComparison(false);void desk.compareExisting(ids,text,attachments)}}/>}
     {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={desk.sessions} onClose={()=>setHelp(null)}/>}
-    {providerSessions&&<ProviderSessionsDialog providers={providers} selected={selected} projects={projects} onClose={()=>setProviderSessions(false)}
+    {providerSessions&&<ProviderSessionsDialog providers={providers} selected={selected} workspaceProject={workspaceProject} projects={projects} onClose={()=>setProviderSessions(false)}
       onOpen={async(provider,id,title)=>{const cwd=await desk.openProviderSession(provider,id,title,openInWorkspace);recovery.rememberProject(cwd)}}/>}
     {backup&&<BackupDialog onClose={()=>setBackup(false)} flushWorkspace={recovery.flushWorkspace} profile={backupProfile}
       onStaged={()=>setBackupProfile(profile=>({pending:true,hasPrevious:profile?.hasPrevious??false}))}/>}

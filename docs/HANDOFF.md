@@ -24,7 +24,9 @@ local snapshot installation and rollback; docs/MILESTONES.md records decisions.
 
 Named workspaces have independent layouts, open tabs, and default projects.
 Workspace selection, tabs, layouts, and text drafts recover from channel-local
-workspace.json. Compare lists existing sessions in the active workspace. Restored chats remain disconnected until Continue conversation.
+workspace.json. Compare lists existing sessions in the active workspace.
+Its opt-in project brief uses `collect_project_brief` to preview Git status,
+the baseline, and optional staged and unstaged patches before sending. Restored chats remain disconnected until Continue conversation.
 Attachment bytes are not persisted; restored drafts show names to reattach.
 New sessions confirm a project folder; Compare uses one explicitly selected
 folder for every provider. Recent choices recover with the workspace; saved

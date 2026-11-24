@@ -443,7 +443,7 @@ html,body,#root{overflow:clip}
 
 .backup-dialog{max-height:90vh;overflow:auto}
 .backup-path{overflow-wrap:anywhere}
-.backup-dialog .dialog-actions{flex-wrap:wrap}
+.backup-dialog .dialog-actions,.workspace-dialog .dialog-actions{flex-wrap:wrap}
 
 .restore-notice{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 12px;background:var(--error-bg)}
 .restore-notice button{padding:4px 8px}

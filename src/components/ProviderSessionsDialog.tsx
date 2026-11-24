@@ -7,15 +7,15 @@ import {ProjectField} from './ProjectField';
 type ListedSession={sessionId:string;title:string|null;updatedAt:string|null};
 type SessionPage={sessions:ListedSession[];nextCursor:string|null};
 
-export function ProviderSessionsDialog({providers,selected,projects,onOpen,onClose}:{
-  providers:Provider[];selected:string;projects:string[];
+export function ProviderSessionsDialog({providers,selected,workspaceProject,projects,onOpen,onClose}:{
+  providers:Provider[];selected:string;workspaceProject?:string;projects:string[];
   onOpen:(provider:Provider,id:string,title:string|null)=>Promise<void>;
   onClose:()=>void;
 }){
   const initial=providers.find(provider=>provider.id===selected)??providers[0];
   const [providerId,setProviderId]=useState(initial?.id??'');
   const provider=providers.find(candidate=>candidate.id===providerId);
-  const [project,setProject]=useState(initial?.cwd??'');
+  const [project,setProject]=useState(workspaceProject??initial?.cwd??'');
   const [page,setPage]=useState<SessionPage|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
@@ -72,7 +72,7 @@ export function ProviderSessionsDialog({providers,selected,projects,onOpen,onClo
         <select value={providerId} onChange={event=>{
           const id=event.target.value;
           setProviderId(id);
-          changeProject(providers.find(candidate=>candidate.id===id)?.cwd??'');
+          changeProject(workspaceProject??providers.find(candidate=>candidate.id===id)?.cwd??'');
         }}>
           {providers.map(candidate=><option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
         </select>

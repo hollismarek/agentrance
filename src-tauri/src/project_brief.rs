@@ -14,7 +14,13 @@ pub struct ProjectBrief {
     cwd: String,
     baseline: Option<String>,
     status: String,
-    diff: Option<String>,
+    diff: Option<TrackedDiff>,
+}
+
+#[derive(Serialize)]
+struct TrackedDiff {
+    staged: String,
+    unstaged: String,
 }
 
 struct Git {
@@ -126,26 +132,25 @@ impl Git {
             )
             .await?;
         let diff = if include_diff {
-            let commit = baseline
-                .as_deref()
-                .ok_or("A Git baseline commit is required to include a diff")?;
-            Some(
-                self.read(
-                    &[
-                        "diff",
-                        "--no-ext-diff",
-                        "--no-textconv",
-                        "--no-color",
-                        "--ignore-submodules=all",
-                        "--relative",
-                        commit,
-                        "--",
-                        ".",
-                    ],
-                    DIFF_LIMIT,
-                )
-                .await?,
-            )
+            let common = [
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--no-color",
+                "--ignore-submodules=all",
+                "--relative",
+            ];
+            let mut staged_args = common.to_vec();
+            staged_args.push("--cached");
+            if let Some(commit) = baseline.as_deref() {
+                staged_args.push(commit);
+            }
+            staged_args.extend(["--", "."]);
+            let staged = self.read(&staged_args, DIFF_LIMIT).await?;
+            let mut unstaged_args = common.to_vec();
+            unstaged_args.extend(["--", "."]);
+            let unstaged = self.read(&unstaged_args, DIFF_LIMIT - staged.len()).await?;
+            Some(TrackedDiff { staged, unstaged })
         } else {
             None
         };
@@ -217,17 +222,15 @@ mod tests {
             "-m",
             "Baseline",
         ]);
+        fs::write(repo.path().join("project/file.txt"), "staged edit\n").unwrap();
+        git(&["add", "project/file.txt"]);
         git(&[
             "config",
             "filter.example.clean",
             "echo ran > filter-ran; cat",
         ]);
         git(&["config", "filter.example.required", "true"]);
-        fs::write(
-            repo.path().join("project/file.txt"),
-            "new tracked contents\n",
-        )
-        .unwrap();
+        fs::write(repo.path().join("project/file.txt"), "original\n").unwrap();
         fs::write(repo.path().join("outside.txt"), "outside change\n").unwrap();
         fs::write(repo.path().join("project/new.txt"), "untracked contents\n").unwrap();
 
@@ -243,9 +246,13 @@ mod tests {
             .unwrap()
             .diff
             .unwrap();
-        assert!(diff.contains("+new tracked contents"));
-        assert!(!diff.contains("untracked contents"));
-        assert!(!diff.contains("outside change"));
+        assert!(summary.status.contains("MM project/file.txt"));
+        assert!(diff.staged.contains("+staged edit"));
+        assert!(diff.unstaged.contains("+original"));
+        for patch in [&diff.staged, &diff.unstaged] {
+            assert!(!patch.contains("untracked contents"));
+            assert!(!patch.contains("outside change"));
+        }
         assert!(!repo.path().join("filter-ran").exists());
     }
 }

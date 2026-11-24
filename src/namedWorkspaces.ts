@@ -36,6 +36,7 @@ type Action=
  |{type:'restore';workspaces:Workspaces}
  |{type:'switch';id:string}
  |{type:'create';id:string;name:string;project:string}
+ |{type:'delete';id:string}
  |{type:'edit';id:string;name:string;project:string}
  |{type:'layout';id:string;action:WorkspaceAction}
  |{type:'open';id:string;ids:string[];project?:string}
@@ -55,6 +56,22 @@ export function workspacesReducer(state:Workspaces,action:Action):Workspaces{
   case 'edit':
    if(!action.name.trim()||action.name.trim().length>MAX_WORKSPACE_NAME||workspaceNameTaken(state.entries,action.name,action.id))return state;
    return update(action.id,entry=>({...entry,name:action.name.trim(),project:action.project}));
+  case 'delete':{
+   const removed=state.entries.find(entry=>entry.id===action.id);
+   const destination=state.entries.find(entry=>entry.id!==action.id);
+   if(!removed||!destination)return state;
+   const ids=removed.layout.groups.flat();
+   const pane=destination.layout.focus;
+   const layout={
+    ...destination.layout,
+    groups:destination.layout.groups.map((group,index)=>index===pane?[...group,...ids]:group),
+    selected:destination.layout.selected.map((id,index)=>index===pane?id??ids[0]??null:id),
+   };
+   return {
+    active:state.active===removed.id?destination.id:state.active,
+    entries:state.entries.filter(entry=>entry!==removed).map(entry=>entry===destination?{...entry,layout}:entry),
+   };
+  }
   case 'layout':return update(action.id,entry=>({...entry,layout:workspaceReducer(entry.layout,action.action)}));
   case 'retain':return {...state,entries:state.entries.map(entry=>({...entry,layout:workspaceReducer(entry.layout,action)}))};
   case 'open':{
@@ -71,7 +88,8 @@ export function workspacesReducer(state:Workspaces,action:Action):Workspaces{
     if(action.ids.length===1&&state.active===action.id)next={...next,active:owner.id};
    }
    if(!unowned.length)return next;
-   return {...next,entries:next.entries.map(entry=>entry.id===action.id?{
+   const destination=next.entries.some(entry=>entry.id===action.id)?action.id:next.active;
+   return {...next,entries:next.entries.map(entry=>entry.id===destination?{
     ...entry,project:entry.project||action.project||'',
     layout:workspaceReducer(entry.layout,{type:'open',ids:unowned}),
    }:entry)};

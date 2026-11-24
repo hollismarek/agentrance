@@ -108,3 +108,17 @@ test('old duplicate names are disambiguated while preserving the active workspac
  assert.deepEqual(recovered.entries.map(entry=>entry.layout),named.entries.map(entry=>entry.layout));
  assert.equal(drafts.d.text,'keep this');
 });
+
+test('deleting a workspace retains its tabs and drafts in the remaining workspace',async()=>{
+ const compiled=await build({entryPoints:['src/namedWorkspaces.ts'],bundle:true,platform:'node',format:'esm',write:false});
+ const {workspacesReducer:reduce}=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputFiles[0].text).toString('base64'));
+ const other={id:'other',name:'Review',project:'/other',layout:{mode:'single',focus:0,groups:[['d'],[],[],[]],selected:['d',null,null,null]}};
+ const named={active:'other',entries:[...workspaces.entries,other]};
+ const next=reduce(named,{type:'delete',id:'other'});
+ assert.equal(next.active,'default');
+ assert.equal(next.entries.length,1);
+ assert.deepEqual(activeLayout({workspaces:next}).groups,[['a','b'],[],['c','d'],[]]);
+ assert.deepEqual(activeLayout({workspaces:next}).selected,['b',null,'c',null]);
+ assert.equal(parseRecovery(serializeRecovery(next,{d:{text:'draft'}},[])).drafts.d.text,'draft');
+ assert.equal(reduce(next,{type:'delete',id:'default'}),next);
+});

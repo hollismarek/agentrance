@@ -7,7 +7,7 @@ import {Composer} from './Composer';
 import {absoluteProject} from '../projects';
 import {ProjectField} from './ProjectField';
 import {invoke} from '@tauri-apps/api/core';
-type ProjectBrief={cwd:string;baseline:string|null;status:string;diff:string|null};
+type ProjectBrief={cwd:string;baseline:string|null;status:string;diff:{staged:string;unstaged:string}|null};
 type Mode='all'|'selected'|'existing';
 type Props={
   providers:Provider[];
@@ -52,7 +52,10 @@ export function CompareDialog({providers,sessions=[],onClose,onCompare,onExistin
     'Project: '+brief.cwd,
     'Git baseline: '+(brief.baseline??'No commit'),
     'Git status (staged and unstaged columns; submodule internals excluded):\n'+(brief.status.trimEnd()||'No changes reported'),
-    ...(brief.diff!==null?['Tracked diff against baseline:\n'+(brief.diff.trimEnd()||'No tracked diff reported')]:[]),
+    ...(brief.diff?[
+      'Staged diff against baseline:\n'+(brief.diff.staged.trimEnd()||'No staged diff reported'),
+      'Unstaged diff against index:\n'+(brief.diff.unstaged.trimEnd()||'No unstaged diff reported'),
+    ]:[]),
     'Verification: No check results included.',
   ].join('\n\n'):'';
   const canSend=hasTargets&&!loadingFiles&&(!includeBrief||!!brief)&&(!!text.trim()||attachments.length>0);
@@ -144,7 +147,7 @@ export function CompareDialog({providers,sessions=[],onClose,onCompare,onExistin
             <textarea rows={2} value={task} maxLength={4000} onChange={e=>setTask(e.target.value)} />
           </label>
           <div className="compare-brief-actions">
-            <label><input type="checkbox" checked={includeDiff} onChange={e=>{setIncludeDiff(e.target.checked);setSnapshot(undefined);setError('')}}/>Include tracked diff</label>
+            <label><input type="checkbox" checked={includeDiff} onChange={e=>{setIncludeDiff(e.target.checked);setSnapshot(undefined);setError('')}}/>Include tracked diff (up to 32 KB)</label>
             <button type="button" disabled={!briefProject} onClick={()=>void collectBrief()}>{brief?'Refresh brief':'Preview brief'}</button>
           </div>
           {!briefProject&&<p className="muted">{existing?'Select sessions from the same project to share a brief.':'Choose a Git project folder to preview the brief.'}</p>}
