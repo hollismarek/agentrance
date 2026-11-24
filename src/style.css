@@ -478,3 +478,25 @@ html,body,#root{overflow:clip}
 .connection-fields dd{margin:0}
 .connection-fields dd small{display:block;color:var(--detail-text)}
 .connection-inspector pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto}
+
+.git-diff-dialog{display:flex;flex-direction:column;width:min(1050px,94vw);max-height:92vh;overflow:auto}
+.git-diff-heading,.git-diff-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.git-diff-heading{justify-content:space-between;margin-bottom:8px}
+.git-diff-heading h2{margin:0}
+.git-diff-controls{margin-top:8px}
+.git-diff-controls label{display:flex;align-items:center;gap:6px}
+.git-diff-controls select,.git-diff-controls input{padding:4px 6px}
+.git-diff-controls input{width:min(240px,54vw)}
+.git-diff-commit,.git-diff-file h3{overflow-wrap:anywhere}
+.git-diff-grid{display:grid;grid-template-columns:minmax(130px,1fr) minmax(0,3fr);gap:12px;margin-top:12px;min-height:0;max-height:62vh}
+.git-diff-files,.git-diff-file{min-height:0;overflow:auto;border:1px solid var(--border);border-radius:6px}
+.git-diff-files button{display:block;width:100%;padding:6px;text-align:left;overflow-wrap:anywhere;border:0;border-radius:0}
+.git-diff-files button[aria-current]{background:var(--selected-bg);color:var(--accent-text)}
+.git-diff-file h3,.git-diff-file p{margin:8px}
+.git-patch{margin:0;padding:8px;font-size:12px;line-height:1.5;overflow:auto}
+.git-patch span[data-kind=added]{color:var(--accent-text);background:var(--selected-bg)}
+.git-patch span[data-kind=removed]{color:var(--danger-text)}
+.git-patch span[data-kind=hunk]{color:var(--selector-label)}
+@media(max-width:660px){
+ .git-diff-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(54px,1fr) minmax(96px,3fr)}
+}

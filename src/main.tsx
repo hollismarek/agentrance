@@ -1,5 +1,5 @@
 import {invoke} from '@tauri-apps/api/core';
-import React, {useEffect, useState, useReducer} from 'react';
+import React, {useEffect, useState, useReducer, lazy, Suspense} from 'react';
 import {createRoot} from 'react-dom/client';
 import {withSavedProviders} from './providerSetup';
 import {useTheme} from './useTheme';
@@ -25,10 +25,13 @@ import './style.css';
 import {type LayoutMode,type WorkspaceAction,paneCount} from './workspace';
 import {initialWorkspaces,workspacesReducer} from './namedWorkspaces';
 import {type Drafts} from './drafts';
+const GitDiffDialog=lazy(()=>import('./components/GitDiffDialog'));
+
 function App() {
   const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
   const [drafts,setDrafts]=useState<Drafts>({});
   const [comparison,setComparison]=useState(false);
+  const [gitDiff,setGitDiff]=useState(false);
   const [newSession,setNewSession]=useState(false);
   const [workspaces,dispatchWorkspaces]=useReducer(workspacesReducer,initialWorkspaces);
   const [workspaceDialog,setWorkspaceDialog]=useState<'new'|'edit'|null>(null);
@@ -78,7 +81,7 @@ function App() {
         onSwitch={id=>dispatchWorkspaces({type:'switch',id})} onCreate={()=>setWorkspaceDialog('new')} onEdit={()=>setWorkspaceDialog('edit')}/>
         {channel==='Development'&&<span className="development-badge">DEV</span>}</div><div className="header-actions">
         <button disabled={!recovery.ready||desk.starting||!providers.length} onClick={()=>{withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>setComparison(true))}}>Compare…</button>
-        <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option><option value="three">Three panes</option><option value="grid">Four panes (grid)</option></select></label><AppMenu onProviderSession={ready&&recovery.ready&&!desk.starting?()=>withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>setProviderSessions(true)):undefined} onBackup={()=>setBackup(true)} settingsReady={ready} onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
+        <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option><option value="three">Three panes</option><option value="grid">Four panes (grid)</option></select></label><AppMenu onGitDiff={recovery.ready?()=>setGitDiff(true):undefined} onProviderSession={ready&&recovery.ready&&!desk.starting?()=>withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>setProviderSessions(true)):undefined} onBackup={()=>setBackup(true)} settingsReady={ready} onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
       </header>
       {backupProfile?.pending&&<div className="restore-notice">
         <span role="status">Restore or profile switch pending. Reopen Agentrance to apply it.</span>
@@ -107,6 +110,7 @@ function App() {
       initialProject={defaultProject(providers)} onClose={()=>setComparison(false)}
       onCompare={(text,attachments,cwd,selected)=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.compare(providersAtProject(selected,cwd),text,attachments,ids=>openInWorkspace(ids,cwd))})}}
       onExisting={(text,attachments,ids)=>{setComparison(false);void desk.compareExisting(ids,text,attachments)}}/>}
+    {gitDiff&&<Suspense fallback={null}><GitDiffDialog initialProject={focusedProject||defaultProject(providers)} projects={projects} onClose={()=>setGitDiff(false)}/></Suspense>}
     {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={desk.sessions} onClose={()=>setHelp(null)}/>}
     {providerSessions&&<ProviderSessionsDialog providers={providers} selected={selected} workspaceProject={workspaceProject} projects={projects} onClose={()=>setProviderSessions(false)}
       onOpen={async(provider,id,title)=>{const cwd=await desk.openProviderSession(provider,id,title,openInWorkspace);recovery.rememberProject(cwd)}}/>}

@@ -6,6 +6,7 @@ use std::{
 };
 use tokio::{io::AsyncReadExt, process::Command};
 
+pub(crate) const GIT_TIMEOUT: Duration = Duration::from_secs(8);
 const STATUS_LIMIT: usize = 12 * 1024;
 const DIFF_LIMIT: usize = 32 * 1024;
 
@@ -23,15 +24,17 @@ struct TrackedDiff {
     unstaged: String,
 }
 
-struct Git {
+pub(crate) struct Git {
     executable: PathBuf,
-    cwd: String,
+    pub(crate) cwd: String,
     overrides: Vec<String>,
 }
 
 impl Git {
-    async fn run(&self, args: &[&str], limit: usize) -> Result<(i32, String), String> {
+    pub(crate) async fn run(&self, args: &[&str], limit: usize) -> Result<(i32, String), String> {
         let mut command = Command::new(&self.executable);
+        #[cfg(windows)]
+        command.creation_flags(0x08000000); // CREATE_NO_WINDOW
         command
             .current_dir(&self.cwd)
             .env_remove("GIT_DIR")
@@ -41,6 +44,7 @@ impl Git {
             .args([
                 "--no-optional-locks",
                 "--no-pager",
+                "--literal-pathspecs",
                 "-c",
                 "core.fsmonitor=false",
             ])
@@ -61,7 +65,7 @@ impl Git {
             .await
             .map_err(|e| format!("Could not read Git output: {e}"))?;
         if bytes.len() > limit {
-            return Err("Git output exceeds the project brief limit. Turn off the optional diff if selected.".into());
+            return Err("Git output exceeds the size limit.".into());
         }
         let status = child
             .wait()
@@ -71,17 +75,30 @@ impl Git {
         Ok((status.code().unwrap_or(-1), output))
     }
 
-    async fn read(&self, args: &[&str], limit: usize) -> Result<String, String> {
+    pub(crate) async fn read(&self, args: &[&str], limit: usize) -> Result<String, String> {
         match self.run(args, limit).await? {
             (0, output) => Ok(output),
             _ => Err("Git could not read the selected project. Check that it is a Git working tree accessible to Agentrance.".into()),
         }
     }
 
-    async fn brief(mut self, include_diff: bool) -> Result<ProjectBrief, String> {
+    pub(crate) async fn open(path: &str) -> Result<Self, String> {
+        let cwd = crate::platform::project_directory(Path::new(path))?;
+        let name = if cfg!(windows) { "git.exe" } else { "git" };
+        let path = std::env::var_os("PATH").unwrap_or_default();
+        let executable = std::env::split_paths(&path)
+            .filter(|path| path.is_absolute())
+            .map(|path| path.join(name))
+            .find(|path| crate::platform::runnable(path))
+            .ok_or("Git was not found on Agentrance’s PATH")?;
+        let mut git = Self {
+            executable,
+            cwd,
+            overrides: Vec::new(),
+        };
         // Status and diff can run configured clean filters when inspecting the
         // worktree. Disable them, along with external diff and text conversion.
-        let (code, keys) = self
+        let (code, keys) = git
             .run(
                 &[
                     "config",
@@ -106,10 +123,14 @@ impl Git {
                 return Err("Unsupported Git filter configuration".into());
             }
             let value = if field == "required" { "false" } else { "" };
-            self.overrides
+            git.overrides
                 .extend(["-c".into(), format!("{key}={value}")]);
         }
 
+        Ok(git)
+    }
+
+    async fn brief(self, include_diff: bool) -> Result<ProjectBrief, String> {
         let baseline = match self
             .run(&["rev-parse", "--verify", "--quiet", "HEAD^{commit}"], 128)
             .await?
@@ -168,23 +189,9 @@ pub async fn collect_project_brief(
     path: String,
     include_diff: bool,
 ) -> Result<ProjectBrief, String> {
-    let cwd = crate::platform::project_directory(Path::new(&path))?;
-    let name = if cfg!(windows) { "git.exe" } else { "git" };
-    let path = std::env::var_os("PATH").unwrap_or_default();
-    let executable = std::env::split_paths(&path)
-        .filter(|path| path.is_absolute())
-        .map(|path| path.join(name))
-        .find(|path| crate::platform::runnable(path))
-        .ok_or("Git was not found on Agentrance’s PATH")?;
-    tokio::time::timeout(
-        Duration::from_secs(8),
-        Git {
-            executable,
-            cwd,
-            overrides: Vec::new(),
-        }
-        .brief(include_diff),
-    )
+    tokio::time::timeout(GIT_TIMEOUT, async {
+        Git::open(&path).await?.brief(include_diff).await
+    })
     .await
     .map_err(|_| "Git took too long to collect the project brief")?
 }

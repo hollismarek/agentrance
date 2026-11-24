@@ -1,5 +1,5 @@
 import React,{useEffect,useRef} from 'react';
-export function AppMenu({onSettings,onHelp,onBackup,onProviderSession,settingsReady=true}:{settingsReady?:boolean;onSettings:()=>void;onHelp:()=>void;onBackup?:()=>void;onProviderSession?:()=>void}){
+export function AppMenu({onSettings,onHelp,onBackup,onProviderSession,onGitDiff,settingsReady=true}:{settingsReady?:boolean;onSettings:()=>void;onHelp:()=>void;onBackup?:()=>void;onProviderSession?:()=>void;onGitDiff?:()=>void}){
   const menu=useRef<HTMLDetailsElement>(null);
   useEffect(()=>{
     function outside(e:PointerEvent){if(!menu.current?.contains(e.target as Node)&&menu.current)menu.current.open=false}
@@ -11,6 +11,7 @@ export function AppMenu({onSettings,onHelp,onBackup,onProviderSession,settingsRe
   return <details className="app-menu" ref={menu}><summary>Menu</summary><div className="app-menu-items">
     <button disabled={!settingsReady} onClick={()=>choose(onSettings)}>{settingsReady?'Settings':'Settings (loading…)'}</button>
     {onProviderSession&&<button onClick={()=>choose(onProviderSession)}>Open provider session…</button>}
+    {onGitDiff&&<button onClick={()=>choose(onGitDiff)}>Git diff…</button>}
     {onBackup&&<button onClick={()=>choose(onBackup)}>Backup &amp; Restore</button>}
     <button onClick={()=>choose(onHelp)}>Help &amp; About</button>
   </div></details>;

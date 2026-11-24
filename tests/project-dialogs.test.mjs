@@ -11,7 +11,7 @@ const old=keys.map(key=>Object.getOwnPropertyDescriptor(globalThis,key));
 Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true,ResizeObserver:class{observe(){}disconnect(){}}});
 const {createRoot}=await import('react-dom/client');
 test.after(()=>{dom.window.close();keys.forEach((key,i)=>{if(old[i])Object.defineProperty(globalThis,key,old[i]);else delete globalThis[key]})});
-const out=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`export {ProviderSessionsDialog} from './src/components/ProviderSessionsDialog';export {BackupDialog} from './src/components/BackupDialog';export {NewSessionDialog} from './src/components/NewSessionDialog';export {CompareDialog} from './src/components/CompareDialog';export {WorkspaceDialog} from './src/components/WorkspaceDialog';`},bundle:true,platform:'node',format:'cjs',external:['react'],write:false,plugins:[{name:'fake-tauri',setup(build){
+const out=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`export {ProviderSessionsDialog} from './src/components/ProviderSessionsDialog';export {BackupDialog} from './src/components/BackupDialog';export {NewSessionDialog} from './src/components/NewSessionDialog';export {CompareDialog} from './src/components/CompareDialog';export {WorkspaceDialog} from './src/components/WorkspaceDialog';export {default as GitDiffDialog} from './src/components/GitDiffDialog';`},bundle:true,platform:'node',format:'cjs',external:['react'],write:false,plugins:[{name:'fake-tauri',setup(build){
  build.onResolve({filter:/^@tauri-apps\//},args=>({path:args.path,namespace:'fake-tauri'}));
  build.onLoad({filter:/.*/,namespace:'fake-tauri'},()=>({contents:`export const invoke=(...args)=>globalThis.__projectTest.invoke(...args);export const open=(...args)=>globalThis.__projectTest.open(...args);export const save=(...args)=>globalThis.__projectTest.save(...args);`}));
 }}]});
@@ -316,5 +316,36 @@ test('workspace deletion confirms where open chats and drafts will go',async()=>
   await click('Delete workspace…');
   await click('Delete workspace');
   assert.equal(deleted,1);
+ }finally{await act(async()=>root.unmount())}
+});
+
+test('Git diff switches sources and keeps file navigation pinned to the resolved commit',async()=>{
+ const root=createRoot(document.getElementById('root'));
+ const calls=[];
+ const commit='1234567890abcdef1234567890abcdef12345678';
+ globalThis.__projectTest.invoke=async(command,args)=>{
+  calls.push([command,args]);
+  if(command==='git_diff_files')return {cwd:'/project',commit:args.source==='commit'?commit:null,files:[
+   {status:'M',path:'one.txt'},{status:'A',path:'two.txt'},
+  ]};
+  assert.equal(command,'git_diff_file');
+  return '@@ -0,0 +1 @@\n+'+args.file+'  \n';
+ };
+ try{
+  await act(async()=>root.render(React.createElement(module.exports.GitDiffDialog,{
+   initialProject:'/project',projects:[],onClose(){},
+  })));
+  assert.deepEqual(calls[0],['git_diff_files',{path:'/project',source:'unstaged'}]);
+  assert.equal(document.querySelector('[data-kind="added"]').textContent,'+one.txt  \n');
+  const select=document.querySelector('select');
+  await act(async()=>{select.value='staged';select.dispatchEvent(new dom.window.Event('change',{bubbles:true}))});
+  assert.equal(calls.at(-1)[1].source,'staged');
+  await act(async()=>{select.value='commit';select.dispatchEvent(new dom.window.Event('change',{bubbles:true}))});
+  assert.equal(calls.at(-2)[1].revision,'HEAD');
+  await act(async()=>document.querySelectorAll('.git-diff-files button')[1].click());
+  assert.deepEqual(calls.at(-1),['git_diff_file',{path:'/project',source:'commit',commit,file:'two.txt'}]);
+  assert.equal(document.querySelector('[data-kind="added"]').textContent,'+two.txt  \n');
+  await type(document.querySelector('input[placeholder="HEAD"]'),'another-ref');
+  assert.equal(document.querySelector('.git-patch'),null);
  }finally{await act(async()=>root.unmount())}
 });

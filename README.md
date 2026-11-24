@@ -40,6 +40,7 @@ implemented.
   first opens start at the latest response and readers at the bottom follow updates.
 - SQLite conversation history, rename/delete, and continuation when supported by
   the provider's saved-session capabilities.
+- Read-only Git diffs for staged changes, unstaged changes, and individual commits.
 - Connection details for provider-advertised capabilities, current session
   configuration, and observed approval requests.
 - Activity inspection with reported tool input/output, elapsed time, readable
@@ -57,7 +58,7 @@ implemented.
 - Copy question, answer, or Q&A; collapsible sidebar; integrated Help.
 - Separate Stable and Development identities, history, and provider settings.
 
-Ollama HTTP, a project file browser, a read-only code viewer, and a diff viewer
+Ollama HTTP, a project file browser, and a read-only code viewer
 are planned. See [milestones](docs/MILESTONES.md) for implementation details and
 known limitations.
 

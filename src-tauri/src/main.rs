@@ -15,6 +15,7 @@ mod event_delivery;
 mod backup;
 mod provider_sessions;
 mod project_brief;
+mod git_diff;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -563,6 +564,8 @@ fn main() {
             startup_directory,
             validate_project,
             project_brief::collect_project_brief,
+            git_diff::git_diff_files,
+            git_diff::git_diff_file,
             app_channel,
             discover_providers,
             load_provider_settings,

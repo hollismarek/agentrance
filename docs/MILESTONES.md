@@ -12,7 +12,7 @@ Validation: activity reducer tests, database migration/replay tests, TypeScript 
 
 1. **Project file browser:** lazy directory listing rooted in each session's configured project. Canonicalize paths and enforce containment, including symlinks. Respect hidden/ignored paths by default, with explicit visibility settings. Directory entries remain display data; selecting a file never executes it.
 2. **Read-only code viewer:** file tabs with syntax highlighting, line numbers, search, and bounded reads. Handle binary, large, missing, and non-UTF-8 files explicitly. Open tool-reported locations only after root validation; require an explicit choice for files outside the project. No save/edit commands.
-3. **Diff viewer:** unified/side-by-side read-only comparison of ACP diff content and explicitly requested local Git changes. Distinguish provider-proposed changes from filesystem changes, mark stale snapshots, and link validated paths back to the code viewer. No apply, stage, or revert actions.
+3. **Diff viewer:** unified local Git diffs are implemented. Planned follow-ups include side-by-side viewing and comparison with ACP diff content. Distinguish provider-proposed changes from filesystem changes, mark stale snapshots, and link validated paths back to the code viewer. No apply, stage, or revert actions.
 
 Use the existing single window: separate collapsible project panel alongside the conversation area, and a resizable inspection area; retain the conversation/provider rail for history and follow the focused conversation’s project in split panes. Test containment and symlink escapes, large/binary files, line navigation, diff additions/deletions, and independent pane selection before committing this milestone.
 
@@ -898,3 +898,14 @@ methods, MCP transports, and extension metadata keys. The view also lists
 session configuration descriptors and agent/model choices. Approval requests
 are observations scoped to the recorded connection. Saved sessions identify
 the report as historical. Usage capture remains a separate milestone.
+
+## Git diff viewer
+
+Menu → Git diff opens a read-only unified patch viewer. Staged, Unstaged, and
+Commit views list changed files and load one patch at a time. Commit refs
+resolve to an immutable object ID for that review. Merge commits compare
+against their first parent. Root commits compare against an empty tree.
+Untracked files and submodule internals are excluded. Renames appear as
+additions and deletions. Git output is bounded to 64 KiB for the file list
+and 256 KiB per patch. The viewer shows up to 5,000 lines from a patch.
+Pinning a commit for Compare and adding a file viewer remain follow-ups.
