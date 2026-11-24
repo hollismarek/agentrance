@@ -874,3 +874,16 @@ the previewed snapshot to each recipient. Refresh before sending to capture
 later changes. Untracked files are listed by path, and submodule internals are
 excluded. Agent transcripts, rationale, and check results are outside this
 first pass. Automatic updates and per-session deltas remain open.
+
+## Named workspaces
+
+The toolbar switches between named sets of panes. Each set remembers its tabs,
+active pane, and initial project folder for future sessions and comparisons.
+Switching leaves provider sessions running and shows a count of approvals
+waiting elsewhere. Compare lists existing sessions from the active set.
+History remains shared and opens a tab in its existing workspace when possible.
+
+Version 2 recovery migrates a single-layout snapshot into Workspace 1 and saves
+all workspaces and drafts. Desktop and CLI restore accept both versions.
+Recovered sessions reopen disconnected. Transcript positions and divider sizes
+stay in memory while the app is open.

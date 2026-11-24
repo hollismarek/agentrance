@@ -5,6 +5,8 @@ import {withSavedProviders} from './providerSetup';
 import {useTheme} from './useTheme';
 import {useProviders} from './useProviders';
 import {WorkspaceLayout} from './components/WorkspaceLayout';
+import {WorkspaceDialog} from './components/WorkspaceDialog';
+import {WorkspaceSwitcher} from './components/WorkspaceSwitcher';
 import {useSessions} from './useSessions';
 import {useWorkspaceRecovery} from './useWorkspaceRecovery';
 import {AppMenu} from './components/AppMenu';
@@ -20,14 +22,20 @@ import type {Provider} from './types';
 import {ProviderSettings} from './components/ProviderSettings';
 import {ErrorBoundary} from './components/ErrorBoundary';
 import './style.css';
-import {initialWorkspace,workspaceReducer,type LayoutMode,paneCount} from './workspace';
+import {type LayoutMode,type WorkspaceAction,paneCount} from './workspace';
+import {initialWorkspaces,workspacesReducer} from './namedWorkspaces';
 import {type Drafts} from './drafts';
 function App() {
   const [sidebarCollapsed,setSidebarCollapsed]=useState(false);
   const [drafts,setDrafts]=useState<Drafts>({});
   const [comparison,setComparison]=useState(false);
   const [newSession,setNewSession]=useState<Provider|null>(null);
-  const [workspace,dispatch]=useReducer(workspaceReducer,initialWorkspace);
+  const [workspaces,dispatchWorkspaces]=useReducer(workspacesReducer,initialWorkspaces);
+  const [workspaceDialog,setWorkspaceDialog]=useState<'new'|'edit'|null>(null);
+  const active=workspaces.entries.find(entry=>entry.id===workspaces.active)!;
+  const workspace=active.layout;
+  const dispatch=(action:WorkspaceAction)=>dispatchWorkspaces({type:'layout',id:active.id,action});
+  const openInWorkspace=(ids:string[],project?:string)=>dispatchWorkspaces({type:'open',id:active.id,ids,project});
   const [error,setError] = useState('');
   const [help,setHelp]=useState<{topic:HelpTopic;sessionId?:string}|null>(null);
   const [providerSessions,setProviderSessions]=useState(false);
@@ -47,22 +55,28 @@ function App() {
   }
   const [settings,setSettings] = useState(false);
   const desk = useSessions(setError);
-  const recovery=useWorkspaceRecovery(workspace,drafts,dispatch,setDrafts,desk.restore,setError);
+  const recovery=useWorkspaceRecovery(workspaces,drafts,dispatchWorkspaces,setDrafts,desk.restore,setError);
   const {ready,channel,providers,selected,setSelected,save,needsSetup,detected,detecting,discoveryError,discover}=useProviders(setError);
   const theme=useTheme(channel);
   useEffect(()=>{if(needsSetup)setSettings(true)},[needsSetup]);
-  useEffect(()=>{if(desk.panes.length)dispatch({type:'open',ids:desk.panes})},[desk.panes]);
   const sessionIds=desk.sessions.map(s=>s.id).join(',');
-  useEffect(()=>{if(!recovery.ready)return;dispatch({type:'retain',ids:desk.sessions.map(s=>s.id)});setDrafts(d=>Object.fromEntries(desk.sessions.map(s=>[s.id,d[s.id]??{text:'',revision:0,attachments:[]}])))},[sessionIds,recovery.ready]);
+  useEffect(()=>{if(!recovery.ready)return;dispatchWorkspaces({type:'retain',ids:desk.sessions.map(s=>s.id)});setDrafts(d=>Object.fromEntries(desk.sessions.map(s=>[s.id,d[s.id]??{text:'',revision:0,attachments:[]}])))},[sessionIds,recovery.ready]);
   const visible=workspace.selected.filter((id,p)=>id&&(p<paneCount(workspace.mode))) as string[];
+  const activeIds=new Set(workspace.groups.flat());
+  const activeSessions=desk.sessions.filter(session=>activeIds.has(session.id));
   const projects=projectChoices(recovery.recentProjects,providers,desk.past);
+  const focusedProject=activeSessions.find(session=>session.id===workspace.selected[workspace.focus])?.cwd;
+  const defaultProject=(choices:Provider[])=>active.project||focusedProject||
+    initialProject(choices,active.id==='default'?recovery.recentProjects:[]);
   return <><div className="app" inert={recovery.closing||!!recovery.closeError?true:undefined}>
     <Sidebar collapsed={sidebarCollapsed} onToggle={()=>setSidebarCollapsed(value=>!value)} providers={providers} selected={selected} past={desk.past} panes={visible} starting={desk.starting||!recovery.ready}
       busyIds={desk.sessions.filter(s=>s.busy||s.resuming||s.changingAgent||s.changingModel).map(s=>s.id)} onRename={desk.rename} onDelete={desk.remove}
       onStart={()=>{withSavedProviders(ready&&recovery.ready,needsSetup,()=>setSettings(true),()=>{const provider=providers.find(p=>p.id===selected);if(provider)setNewSession(provider)})}}
-      onSelect={setSelected} onOpen={s => {if(recovery.ready)void desk.open(s)}}/>
+      onSelect={setSelected} onOpen={s => {if(recovery.ready)void desk.open(s,ids=>openInWorkspace(ids,s.cwd))}}/>
     <main>
-      <header><div className="workspace-heading"><strong>Conversations {channel==='Development'&&<span className="development-badge">DEV</span>}</strong></div><div className="header-actions">
+      <header><div className="workspace-heading"><WorkspaceSwitcher workspaces={workspaces} sessions={desk.sessions} disabled={!recovery.ready}
+        onSwitch={id=>dispatchWorkspaces({type:'switch',id})} onCreate={()=>setWorkspaceDialog('new')} onEdit={()=>setWorkspaceDialog('edit')}/>
+        {channel==='Development'&&<span className="development-badge">DEV</span>}</div><div className="header-actions">
         <button disabled={!recovery.ready||desk.starting||!providers.length} onClick={()=>{withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>setComparison(true))}}>Compare…</button>
         <label className="layout-label">Layout <select aria-label="Conversation layout" value={workspace.mode} onChange={e=>dispatch({type:'mode',mode:e.target.value as LayoutMode})}><option value="single">Single pane</option><option value="columns">Side by side</option><option value="rows">Stacked</option><option value="three">Three panes</option><option value="grid">Four panes (grid)</option></select></label><AppMenu onProviderSession={ready&&recovery.ready&&!desk.starting?()=>withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>setProviderSessions(true)):undefined} onBackup={()=>setBackup(true)} settingsReady={ready} onSettings={()=>setSettings(true)} onHelp={()=>setHelp({topic:'start'})}/></div>
       </header>
@@ -71,16 +85,22 @@ function App() {
         <button disabled={cancellingRestore} onClick={()=>void cancelRestore()}>Cancel restore</button>
       </div>}
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
-      <WorkspaceLayout workspace={workspace} dispatch={dispatch} desk={desk} providers={providers} drafts={drafts} setDrafts={setDrafts} onHelp={id=>setHelp({topic:'models',sessionId:id})}/>
+      <WorkspaceLayout workspaceId={active.id} workspace={workspace} dispatch={dispatch} desk={desk} providers={providers} drafts={drafts} setDrafts={setDrafts} onHelp={id=>setHelp({topic:'models',sessionId:id})}/>
     </main>
-    {newSession&&<NewSessionDialog provider={newSession} initialProject={initialProject([newSession],recovery.recentProjects)} projects={projects} onClose={()=>setNewSession(null)} onStart={cwd=>{setNewSession(null);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.start(providersAtProject([newSession],cwd)[0])})}}/>}
-    {comparison&&<CompareDialog providers={providers} sessions={desk.sessions} projects={projects}
-      initialProject={initialProject(providers,recovery.recentProjects)} onClose={()=>setComparison(false)}
-      onCompare={(text,attachments,cwd,selected)=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.compare(providersAtProject(selected,cwd),text,attachments)})}}
+    {workspaceDialog&&<WorkspaceDialog entry={workspaceDialog==='edit'?active:undefined} projects={projects}
+      onClose={()=>setWorkspaceDialog(null)} onSave={(name,project)=>{
+        if(workspaceDialog==='new')dispatchWorkspaces({type:'create',id:crypto.randomUUID(),name,project});
+        else dispatchWorkspaces({type:'edit',id:active.id,name,project});
+        setWorkspaceDialog(null);
+      }}/>}
+    {newSession&&<NewSessionDialog provider={newSession} initialProject={defaultProject([newSession])} projects={projects} onClose={()=>setNewSession(null)} onStart={cwd=>{setNewSession(null);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.start(providersAtProject([newSession],cwd)[0],ids=>openInWorkspace(ids,cwd))})}}/>}
+    {comparison&&<CompareDialog providers={providers} sessions={activeSessions} projects={projects}
+      initialProject={defaultProject(providers)} onClose={()=>setComparison(false)}
+      onCompare={(text,attachments,cwd,selected)=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.compare(providersAtProject(selected,cwd),text,attachments,ids=>openInWorkspace(ids,cwd))})}}
       onExisting={(text,attachments,ids)=>{setComparison(false);void desk.compareExisting(ids,text,attachments)}}/>}
     {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={desk.sessions} onClose={()=>setHelp(null)}/>}
     {providerSessions&&<ProviderSessionsDialog providers={providers} selected={selected} projects={projects} onClose={()=>setProviderSessions(false)}
-      onOpen={async(provider,id,title)=>{const cwd=await desk.openProviderSession(provider,id,title);recovery.rememberProject(cwd)}}/>}
+      onOpen={async(provider,id,title)=>{const cwd=await desk.openProviderSession(provider,id,title,openInWorkspace);recovery.rememberProject(cwd)}}/>}
     {backup&&<BackupDialog onClose={()=>setBackup(false)} flushWorkspace={recovery.flushWorkspace} profile={backupProfile}
       onStaged={()=>setBackupProfile(profile=>({pending:true,hasPrevious:profile?.hasPrevious??false}))}/>}
     {settings && ready && <ProviderSettings providers={providers} detected={detected} detecting={detecting} discoveryError={discoveryError} onDiscover={discover} theme={theme.preference} onTheme={theme.choose} onSave={async providers=>{await save(providers);setSettings(false)}} onClose={() => setSettings(false)}/>}

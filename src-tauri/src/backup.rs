@@ -290,7 +290,7 @@ mod tests {
         crate::storage::initialize(&db).unwrap();
         db.execute_batch("PRAGMA wal_autocheckpoint=0; INSERT INTO sessions(id,provider,cwd) VALUES('one','Test','/original');").unwrap();
         crate::storage::append(&db, "one", "user", &json!("original"), 1).unwrap();
-        let workspace = include_str!("../../tests/fixtures/backup-workspace.json");
+        let workspace = include_str!("../../tests/fixtures/backup-workspaces.json");
         crate::workspace::save(root, workspace).unwrap();
 
         let archive = root.join("backup.zip");

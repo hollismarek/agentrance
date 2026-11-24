@@ -11,7 +11,6 @@ import type {Provider, SavedSession, Session} from './types';
 export function useSessions(onError: (message:string) => void) {
   const [sessions,setSessions] = useState<Session[]>([]);
   const [past,setPast] = useState<SavedSession[]>([]);
-  const [panes,setPanes] = useState<string[]>([]);
   const [starting,setStarting] = useState(false);
   const switching = useRef(new Set<string>());
   const deleted = useRef(new Set<string>());
@@ -74,16 +73,16 @@ export function useSessions(onError: (message:string) => void) {
     } finally {earlyEvents.current.delete(id)}
     void refresh();
   }
-  async function openProviderSession(provider:Provider,remoteId:string,title:string|null){
+  async function openProviderSession(provider:Provider,remoteId:string,title:string|null,onOpened:(ids:string[],cwd:string)=>void){
     await listenersReady.current;
     const {id,cwd}=await invoke<{id:string;cwd:string}>('open_provider_session',{provider,remoteId,title});
     await loadConnected(id,{...provider,cwd},title);
-    setPanes([id]);
+    onOpened([id],cwd);
     return cwd;
   }
-  async function start(provider:Provider) {
+  async function start(provider:Provider,onOpened:(ids:string[])=>void) {
     setStarting(true);
-    try{setPanes([await fresh(provider)])}catch(e){onError(String(e))}finally{setStarting(false)}
+    try{onOpened([await fresh(provider)])}catch(e){onError(String(e))}finally{setStarting(false)}
   }
   async function send(ids:string[],text:string,attachments:Attachment[]=[],labels:Record<string,string>={},errors:string[]=[],onAccepted?:(id:string)=>void) {
     if (!text.trim()&&!attachments.length) return [];
@@ -96,7 +95,7 @@ export function useSessions(onError: (message:string) => void) {
       finally{pendingAcceptance.current.delete(submissionId)}
     }));
   }
-  async function compare(providers:Provider[],question:string,attachments:Attachment[]=[]) {
+  async function compare(providers:Provider[],question:string,attachments:Attachment[],onOpened:(ids:string[])=>void) {
     if((!question.trim()&&!attachments.length) || !providers.length) return;
     setStarting(true);
     try {
@@ -105,16 +104,17 @@ export function useSessions(onError: (message:string) => void) {
       const errors=startupErrors(results,providers);
       if(errors.length)onError(errors.join('\n'));
       const labels=Object.fromEntries(results.flatMap((r,i)=>r.status==='fulfilled'?[[r.value,providers[i].name]]:[]));
-      setPanes(ids);await send(ids,question,attachments,labels,errors);
+      if(ids.length)onOpened(ids);
+      await send(ids,question,attachments,labels,errors);
     } finally {setStarting(false)}
   }
-  async function open(saved:SavedSession) {
+  async function open(saved:SavedSession,onOpened:(ids:string[])=>void) {
     try {
       if(!sessions.some(x => x.id === saved.id)) {
         const items=await invoke<ActivityEvent[]>('messages',{id:saved.id});
         setSessions(a => deleted.current.has(saved.id) || a.some(s => s.id === saved.id) ? a : [...a,{...saved,items,busy:false,live:false}]);
       }
-      if(!deleted.current.has(saved.id))setPanes([saved.id]);
+      if(!deleted.current.has(saved.id))onOpened([saved.id]);
     } catch(e){onError(String(e))}
   }
   async function compareExisting(ids:string[],question:string,attachments:Attachment[]) {
@@ -186,5 +186,5 @@ export function useSessions(onError: (message:string) => void) {
     finally{switching.current.delete(id);setSessions(a=>a.map(s=>s.id===id?{...s,changingModel:false}:s))}
   }
   async function cancel(id:string) {try{await invoke('cancel',{id})}catch(e){onError(String(e))}}
-  return {sessions,past,panes,setPanes,starting,start,send,compare,compareExisting,open,openProviderSession,restore,close,cancel,resume,rename,remove,setAgent,setModel};
+  return {sessions,past,starting,start,send,compare,compareExisting,open,openProviderSession,restore,close,cancel,resume,rename,remove,setAgent,setModel};
 }

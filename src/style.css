@@ -459,3 +459,8 @@ html,body,#root{overflow:clip}
 .compare-brief-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
 .compare-brief textarea{display:block;width:100%;margin-top:4px}
 .compare-brief-preview{font-family:monospace;resize:vertical}
+
+.workspace-switcher{display:flex;align-items:center;gap:4px;min-width:0}
+.workspace-switcher select{width:auto;min-width:70px;max-width:min(29vw,210px);height:28px;text-overflow:ellipsis}
+.workspace-switcher button{display:grid;place-items:center;width:28px;height:28px;padding:0}
+.workspace-switcher .tab-approval{flex:none}

@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "workspaces": {
+    "active": "review",
+    "entries": [
+      {
+        "id": "default",
+        "name": "Implementation",
+        "project": "/original/project",
+        "layout": {"mode":"single","groups":[["one"],[],[],[]],"selected":["one",null,null,null],"focus":0}
+      },
+      {
+        "id": "review",
+        "name": "Review",
+        "project": "/second/project",
+        "layout": {"mode":"three","groups":[[],["two"],[],[]],"selected":[null,"two",null,null],"focus":1}
+      }
+    ]
+  },
+  "drafts": {
+    "one": {"text":"unsent","missingAttachments":[]},
+    "two": {"text":"review notes","missingAttachments":["diagram.png"]}
+  },
+  "recentProjects": []
+}

@@ -66,39 +66,69 @@ def validate_workspace(data):
     def invalid():
         raise ValueError("Invalid workspace recovery format in backup.")
 
-    if not isinstance(data, dict) or data.get("version") != 1:
+    if not isinstance(data, dict) or type(data.get("version")) is not int:
         invalid()
-    layout = data.get("workspace")
     drafts = data.get("drafts")
     recent = data.get("recentProjects")
-    if not isinstance(layout, dict) or not isinstance(drafts, dict) or not isinstance(recent, list):
+    if not isinstance(drafts, dict) or not isinstance(recent, list):
         invalid()
     if not all(isinstance(project, str) for project in recent):
         invalid()
-    mode = layout.get("mode")
-    panes = {"single": 1, "rows": 2, "columns": 2, "three": 3, "grid": 4}.get(mode) if isinstance(mode, str) else None
-    focus, groups, selected = (layout.get(key) for key in ("focus", "groups", "selected"))
-    if panes is None or type(focus) is not int or not 0 <= focus < panes:
-        invalid()
-    if not isinstance(groups, list) or len(groups) != 4 or not isinstance(selected, list) or len(selected) != 4:
-        invalid()
-    seen = set()
-    for index, (group, selection) in enumerate(zip(groups, selected)):
-        if not isinstance(group, list) or (index >= panes and group) or (selection is not None and selection not in group):
+
+    if data["version"] == 1:
+        layouts = [data.get("workspace")]
+    elif data["version"] == 2:
+        workspaces = data.get("workspaces")
+        if not isinstance(workspaces, dict):
             invalid()
-        for session in group:
-            if not isinstance(session, str) or not session or session in seen:
+        entries = workspaces.get("entries")
+        if not isinstance(entries, list) or not 1 <= len(entries) <= 20:
+            invalid()
+        layouts, workspace_ids = [], set()
+        for entry in entries:
+            if not isinstance(entry, dict):
                 invalid()
-            seen.add(session)
-            if len(seen) > 1000:
+            workspace_id, name, project = (entry.get(key) for key in ("id", "name", "project"))
+            if not isinstance(workspace_id, str) or not workspace_id or workspace_id in workspace_ids:
                 invalid()
-            if session in drafts:
-                draft = drafts[session]
-                if not isinstance(draft, dict) or not isinstance(draft.get("text"), str):
+            if not isinstance(name, str) or not name.strip() or len(name.encode("utf-16-le", errors="surrogatepass")) > 120:
+                invalid()
+            if not isinstance(project, str):
+                invalid()
+            workspace_ids.add(workspace_id)
+            layouts.append(entry.get("layout"))
+        if not isinstance(workspaces.get("active"), str) or workspaces["active"] not in workspace_ids:
+            invalid()
+    else:
+        invalid()
+
+    seen = set()
+    for layout in layouts:
+        if not isinstance(layout, dict):
+            invalid()
+        mode = layout.get("mode")
+        panes = {"single": 1, "rows": 2, "columns": 2, "three": 3, "grid": 4}.get(mode) if isinstance(mode, str) else None
+        focus, groups, selected = (layout.get(key) for key in ("focus", "groups", "selected"))
+        if panes is None or type(focus) is not int or not 0 <= focus < panes:
+            invalid()
+        if not isinstance(groups, list) or len(groups) != 4 or not isinstance(selected, list) or len(selected) != 4:
+            invalid()
+        for index, (group, selection) in enumerate(zip(groups, selected)):
+            if not isinstance(group, list) or (index >= panes and group) or (selection is not None and selection not in group):
+                invalid()
+            for session in group:
+                if not isinstance(session, str) or not session or session in seen:
                     invalid()
-                missing = draft.get("missingAttachments")
-                if not isinstance(missing, list) or not all(isinstance(name, str) for name in missing):
+                seen.add(session)
+                if len(seen) > 1000:
                     invalid()
+                if session in drafts:
+                    draft = drafts[session]
+                    if not isinstance(draft, dict) or not isinstance(draft.get("text"), str):
+                        invalid()
+                    missing = draft.get("missingAttachments")
+                    if not isinstance(missing, list) or not all(isinstance(name, str) for name in missing):
+                        invalid()
 
 
 def validate_settings(folder):

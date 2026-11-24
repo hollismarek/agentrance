@@ -32,6 +32,7 @@ implemented.
   one conversation full space. Two-pane layouts have a resizable divider.
 - Light and dark palettes, following the OS by default, with manual overrides.
 - Fresh independent provider comparisons using a shared initial prompt.
+- Named workspaces with independent panes, open tabs, and default project folders.
 - Project selection for new sessions and one shared project for Compare, with
   a native folder picker, recent-folder suggestions and unchanged saved provider
   defaults. Invalid folders keep the dialog and its prompt/attachments open.
@@ -152,8 +153,8 @@ for the optional Linux immutable-snapshot installer.
 
 Conversation history and provider configuration are stored locally under the
 channel-specific app-data directory. Stable uses `local.agentdesk.app` and
-Development uses `local.agentdesk.app.dev`. Open tabs, pane layouts, recent
-project choices and text drafts are saved locally in `workspace.json` for
+Development uses `local.agentdesk.app.dev`. Named workspaces, open tabs, pane
+layouts, recent project choices, and text drafts are saved locally in `workspace.json` for
 recovery. Restored conversations stay disconnected until explicitly continued.
 Attachment contents and the Compare dialog's unsent prompt are not restored.
 Closing a conversation tab discards its draft.

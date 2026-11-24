@@ -16,7 +16,8 @@ import {ConversationTab} from './ConversationTab';
 const stackedPaneMinimum=360;
 const dividerSize=7;
 
-export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDrafts,onHelp}:{
+export function WorkspaceLayout({workspaceId='default',workspace,dispatch,desk,providers,drafts,setDrafts,onHelp}:{
+  workspaceId?:string;
   workspace:typeof initialWorkspace;
   dispatch:React.Dispatch<Parameters<typeof workspaceReducer>[1]>;
   desk:ReturnType<typeof useSessions>;
@@ -31,9 +32,11 @@ export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDra
   const [maximized,setMaximized]=useState(false);
   const count=paneCount(workspace.mode);
   const focusedPane=maximized?workspace.focus:null;
-  useEffect(()=>setMaximized(false),[workspace.mode]);
+  useEffect(()=>setMaximized(false),[workspaceId,workspace.mode]);
   const paneIndices=Array.from({length:count},(_,i)=>i).filter(p=>focusedPane===null||p===focusedPane);
-  const [preferredRatio,setRatio]=useState(50);
+  const [ratios,setRatios]=useState<Record<string,number>>({});
+  const preferredRatio=ratios[workspaceId]??50;
+  const setRatio=(ratio:number)=>setRatios(all=>({...all,[workspaceId]:ratio}));
   const [workspaceHeight,setWorkspaceHeight]=useState(0);
   const splitRef=useRef<HTMLDivElement>(null);
   const stacked=workspace.mode==='rows'&&focusedPane===null;
@@ -88,7 +91,7 @@ export function WorkspaceLayout({workspace,dispatch,desk,providers,drafts,setDra
                     {!!drafts[id]?.missingAttachments?.length&&<p className="draft-recovery" role="status">Attachments were not restored: {drafts[id].missingAttachments!.join(', ')}. Reattach them before sending. <button onClick={()=>setDrafts(all=>({...all,[id]:{...all[id],missingAttachments:[]}}))}>Dismiss</button></p>}
                     <Composer onAttachmentBusy={busy=>setFileLoading(all=>{const next={...all};const count=pendingReadCount(next[id]??0,busy);if(count)next[id]=count;else delete next[id];return next})} attachments={drafts[id]?.attachments??[]} onAttachments={files=>setDrafts(d=>setAttachments(d,id,files))} text={text} onText={value=>setDrafts(d=>editDraft(d,id,value))} canSend={canSend} label={`Message to ${session.provider}`} onSend={()=>{if(canSend){const revision=drafts[id]?.revision??0;const attachments=drafts[id]?.attachments??[];void desk.send([id],text,attachments,{},[],()=>setDrafts(d=>clearRecordedDraft(d,id,revision)))}}}/>
                   </SessionPane>
-                </ErrorBoundary></>:<div className="empty"><h2>{desk.sessions.length?'Choose a conversation':'A second perspective starts here.'}</h2><p>{workspace.mode==='single'?'Start a session or open a chat from history.':'Click this pane, then start a session or open a chat from history.'}</p></div>}
+                </ErrorBoundary></>:<div className="empty"><h2>{workspace.groups.some(group=>group.length)?'Choose a conversation':'A second perspective starts here.'}</h2><p>{workspace.mode==='single'?'Start a session or open a chat from history.':'Click this pane, then start a session or open a chat from history.'}</p></div>}
             </section>
           </React.Fragment>;
         })}

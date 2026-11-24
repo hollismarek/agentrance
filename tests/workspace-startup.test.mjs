@@ -10,14 +10,22 @@ const output=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:
  import React,{useReducer,useState} from 'react';
  import {useSessions} from './src/useSessions';
  import {useWorkspaceRecovery} from './src/useWorkspaceRecovery';
- import {initialWorkspace,workspaceReducer} from './src/workspace';
+ import {initialWorkspaces,workspacesReducer} from './src/namedWorkspaces';
  import {WorkspaceLayout} from './src/components/WorkspaceLayout';
+ import {WorkspaceSwitcher} from './src/components/WorkspaceSwitcher';
  export function Harness(){
-  const [workspace,dispatch]=useReducer(workspaceReducer,initialWorkspace);
+  const [workspaces,dispatchWorkspaces]=useReducer(workspacesReducer,initialWorkspaces);
+  const workspace=workspaces.entries.find(entry=>entry.id===workspaces.active).layout;
+  const dispatch=action=>dispatchWorkspaces({type:'layout',id:workspaces.active,action});
   const [drafts,setDrafts]=useState({});
   const desk=useSessions(globalThis.__recoveryTest.error);
-  const recovery=useWorkspaceRecovery(workspace,drafts,dispatch,setDrafts,desk.restore,globalThis.__recoveryTest.error);
-  globalThis.__recoveryTest.state={workspace,dispatch,drafts,sessions:desk.sessions,desk,...recovery,setDrafts};
+  const recovery=useWorkspaceRecovery(workspaces,drafts,dispatchWorkspaces,setDrafts,desk.restore,globalThis.__recoveryTest.error);
+  globalThis.__recoveryTest.state={workspace,dispatch,dispatchWorkspaces,drafts,sessions:desk.sessions,desk,...recovery,setDrafts};
+  if(globalThis.__recoveryTest.renderSwitcher)return <>
+   <WorkspaceSwitcher workspaces={workspaces} sessions={desk.sessions} disabled={!recovery.ready}
+    onSwitch={id=>dispatchWorkspaces({type:'switch',id})} onCreate={()=>{}} onEdit={()=>{}}/>
+   <WorkspaceLayout workspaceId={workspaces.active} workspace={workspace} dispatch={dispatch} desk={desk} providers={[]} drafts={drafts} setDrafts={setDrafts} onHelp={()=>{}}/>
+  </>;
   if(globalThis.__recoveryTest.renderDesk)return <WorkspaceLayout workspace={workspace} dispatch={dispatch} desk={desk} providers={[]} drafts={drafts} setDrafts={setDrafts} onHelp={()=>{}}/>;
   return <div>{recovery.ready?'Ready':'Restoring'}</div>;
  }`},bundle:true,platform:'node',format:'cjs',external:['react'],write:false,plugins:[{
@@ -206,5 +214,40 @@ test('stacked divider disables at the pane minimums and resizes after the worksp
   await grow();
   assert.equal(divider.getAttribute('aria-valuenow'),'55');
   assert.equal(pane.style.flexGrow,'55');
+ });
+});
+
+test('switching workspaces preserves drafts, pane placement and background approvals',async()=>{
+ await withClosingFixture(async()=>{},async fixture=>{
+  fixture.renderSwitcher=true;
+  const initial=fixture.invoke;
+  const permission={kind:'permission',data:{request:1,params:{toolCall:{toolCallId:'read',title:'Read repository'},options:[]}}};
+  fixture.invoke=async(command,args)=>{
+   if(command==='resume_session')return;
+   if(command==='messages')return args.id==='chat'?[permission]:[];
+   return initial(command,args);
+  };
+  const saved={id:'second',provider:'Kiro',cwd:'/second',title:'Second project chat'};
+  await act(async()=>fixture.state.dispatch({type:'mode',mode:'columns'}));
+  await act(async()=>fixture.state.dispatch({type:'move',id:'chat',pane:1}));
+  await act(async()=>fixture.state.desk.resume(fixture.state.sessions[0],{id:'kiro',name:'Kiro',cwd:'/project'}));
+  await act(async()=>fixture.state.desk.open(saved,()=>{}));
+  const dispatch=fixture.state.dispatchWorkspaces;
+  await act(async()=>{
+   dispatch({type:'create',id:'second-project',name:'Second project',project:'/second'});
+   dispatch({type:'open',id:'second-project',ids:['second']});
+  });
+  assert.match(document.querySelector('[role=tab]').textContent,/Second project chat/);
+  assert.equal(document.querySelectorAll('.workspace-pane').length,1);
+  assert.equal(document.querySelector('[aria-label="1 pending approval in other workspaces"]').textContent,'! 1');
+  const switcher=document.querySelector('select[aria-label="Workspace"]');
+  await act(async()=>{
+   switcher.value='default';switcher.dispatchEvent(new window.Event('change',{bubbles:true}));
+  });
+  assert.equal(document.querySelectorAll('.workspace-pane').length,2);
+  assert.equal(document.querySelector('[aria-label="Conversation pane 2"] textarea').value,'old draft');
+  assert.equal(document.querySelector('[aria-label="1 pending approval in other workspaces"]'),null);
+  assert.equal(fixture.state.sessions.find(session=>session.id==='chat').live,true);
+  assert.equal(fixture.calls.some(([command])=>command==='close_session'),false);
  });
 });

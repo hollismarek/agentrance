@@ -39,7 +39,7 @@ class BackupTest(unittest.TestCase):
             """)
             self.assertTrue((self.source / 'history.sqlite3-wal').exists())
             providers = [{'id':'test','name':'Test','executable':'test-cli','cwd':'/original/project','args':[],'env':{}}]
-            workspace = json.loads((SCRIPT.parents[1] / 'tests/fixtures/backup-workspace.json').read_text())
+            workspace = json.loads((SCRIPT.parents[1] / 'tests/fixtures/backup-workspaces.json').read_text())
             (self.source / 'providers.json').write_text(json.dumps(providers), encoding='utf-8')
             (self.source / 'workspace.json').write_text(json.dumps(workspace), encoding='utf-8')
             backup = self.command('backup', self.source)

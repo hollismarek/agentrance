@@ -1,18 +1,18 @@
 import {useEffect,useMemo,useRef,useState,type Dispatch,type SetStateAction} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
-import {parseRecovery,retainRecovery,serializeRecovery,recoveryWriter} from './workspaceRecovery';
-import type {Workspace,WorkspaceAction} from './workspace';
+import {parseRecovery,retainRecovery,serializeRecovery,recoveryWriter,workspaceSessions} from './workspaceRecovery';
+import type {Workspaces,workspacesReducer} from './namedWorkspaces';
 import type {Drafts} from './drafts';
 
-export function useWorkspaceRecovery(workspace:Workspace,drafts:Drafts,dispatch:Dispatch<WorkspaceAction>,
+export function useWorkspaceRecovery(workspaces:Workspaces,drafts:Drafts,dispatch:Dispatch<Parameters<typeof workspacesReducer>[1]>,
  setDrafts:Dispatch<SetStateAction<Drafts>>,restore:(ids:string[])=>Promise<string[]>,onError:(message:string)=>void){
  const [ready,setReady]=useState(false),[writable,setWritable]=useState(false);
  const [recentProjects,setRecentProjects]=useState<string[]>([]);
  const [closing,setClosing]=useState(false),[closeError,setCloseError]=useState('');
  const closingRef=useRef(false);
  const closeFocus=useRef<HTMLElement|null>(null);
- const raw=useMemo(()=>serializeRecovery(workspace,drafts,recentProjects),[workspace,drafts,recentProjects]);
+ const raw=useMemo(()=>serializeRecovery(workspaces,drafts,recentProjects),[workspaces,drafts,recentProjects]);
  const latest=useRef({ready,writable,raw:''});
  latest.current={ready,writable,raw};
  const writer=useRef<ReturnType<typeof recoveryWriter>|null>(null);
@@ -38,10 +38,10 @@ export function useWorkspaceRecovery(workspace:Workspace,drafts:Drafts,dispatch:
   void (async()=>{
    try{
     const saved=parseRecovery(await invoke<string|null>('load_workspace'));
-    const ids=await restore(saved.workspace.groups.flat());
+    const ids=await restore(workspaceSessions(saved.workspaces));
     if(!active)return;
     const recovered=retainRecovery(saved,ids);
-    dispatch({type:'restore',workspace:recovered.workspace});setDrafts(recovered.drafts);
+    dispatch({type:'restore',workspaces:recovered.workspaces});setDrafts(recovered.drafts);
     setRecentProjects(recovered.recentProjects);setWritable(true);
    }catch(e){if(active)onError(`Workspace recovery could not be loaded: ${e}. Saved recovery is preserved; automatic workspace saving is disabled until restart.`)}
    finally{if(active)setReady(true)}
