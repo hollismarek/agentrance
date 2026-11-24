@@ -170,7 +170,21 @@ impl State {
         ))
     }
     pub fn snapshot(&self) -> Value {
-        json!({"selection":self.selection(),"model":self.model(),"revision":self.revision})
+        let config_options = self.configs.as_array().map(|options| {
+            options.iter().filter_map(|option| {
+                let id = option["id"].as_str()?;
+                Some(json!({
+                    "id": id,
+                    "name": option["name"].as_str().unwrap_or(id),
+                    "category": option["category"].as_str(),
+                    "type": option["type"].as_str(),
+                }))
+            }).collect::<Vec<_>>()
+        });
+        json!({
+            "selection": self.selection(), "model": self.model(),
+            "revision": self.revision, "configOptions": config_options,
+        })
     }
     pub fn request(&self, remote: &str, id: &str) -> Result<(String, Value), String> {
         let selection = self
@@ -225,6 +239,9 @@ mod tests {
             {"id":"mode","category":"mode","type":"select","currentValue":"review","options":[{"group":"custom","name":"Custom","options":[{"value":"review","name":"Review"},{"value":"code","name":"Code"}]}]},
             {"id":"model","type":"select","currentValue":"m","options":[]}]}));
         assert_eq!(s.selection().unwrap().choices.len(), 2);
+        let snapshot = s.snapshot();
+        assert_eq!(snapshot["configOptions"][0]["id"], "mode");
+        assert!(snapshot["configOptions"][0].get("currentValue").is_none());
         assert_eq!(
             s.request("r", "code").unwrap(),
             (

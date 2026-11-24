@@ -889,3 +889,12 @@ Version 2 recovery migrates a single-layout snapshot into Workspace 1 and saves
 all workspaces and drafts. Desktop and CLI restore accept both versions.
 Recovered sessions reopen disconnected. Transcript positions and divider sizes
 stay in memory while the app is open.
+
+## Provider capability inspection
+
+Connection details is available in a conversation's Details menu and in Help.
+It uses the latest recorded ACP handshake for identity, prompt inputs, session
+methods, MCP transports, and extension metadata keys. The view also lists
+session configuration descriptors and agent/model choices. Approval requests
+are observations scoped to the recorded connection. Saved sessions identify
+the report as historical. Usage capture remains a separate milestone.

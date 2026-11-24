@@ -85,7 +85,7 @@ function App() {
         <button disabled={cancellingRestore} onClick={()=>void cancelRestore()}>Cancel restore</button>
       </div>}
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
-      <WorkspaceLayout workspaceId={active.id} workspace={workspace} dispatch={dispatch} desk={desk} providers={providers} drafts={drafts} setDrafts={setDrafts} onHelp={id=>setHelp({topic:'models',sessionId:id})}/>
+      <WorkspaceLayout workspaceId={active.id} workspace={workspace} dispatch={dispatch} desk={desk} providers={providers} drafts={drafts} setDrafts={setDrafts} onHelp={(id,topic)=>setHelp({topic:topic??'models',sessionId:id})}/>
     </main>
     {workspaceDialog&&<WorkspaceDialog entry={workspaceDialog==='edit'?active:undefined} entries={workspaces.entries} projects={projects}
       onDelete={()=>{dispatchWorkspaces({type:'delete',id:active.id});setWorkspaceDialog(null)}}

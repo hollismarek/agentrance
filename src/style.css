@@ -471,3 +471,10 @@ html,body,#root{overflow:clip}
 .workspace-picker select:disabled{opacity:0;cursor:default}
 .workspace-switcher button{display:grid;place-items:center;width:28px;height:28px;padding:0}
 .workspace-switcher .tab-approval{flex:none}
+
+.connection-details-button{padding:3px 7px;margin-top:4px}
+.connection-fields{display:grid;grid-template-columns:minmax(90px,1fr) 2fr;gap:8px 14px;overflow-wrap:anywhere}
+.connection-fields dt{font-weight:600}
+.connection-fields dd{margin:0}
+.connection-fields dd small{display:block;color:var(--detail-text)}
+.connection-inspector pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto}

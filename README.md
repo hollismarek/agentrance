@@ -40,6 +40,8 @@ implemented.
   first opens start at the latest response and readers at the bottom follow updates.
 - SQLite conversation history, rename/delete, and continuation when supported by
   the provider's saved-session capabilities.
+- Connection details for provider-advertised capabilities, current session
+  configuration, and observed approval requests.
 - Activity inspection with reported tool input/output, elapsed time, readable
   permission cards, and an expanded reading preset.
 - Active approvals directly above the composer; historical requests cannot be approved.

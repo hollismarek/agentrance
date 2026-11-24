@@ -39,6 +39,9 @@ export function renderPermission(params){return renderToStaticMarkup(<Permission
 export function renderDetails(topic='models'){
  return renderToStaticMarkup(<HelpDialog initialTopic={topic} sessions={[session]} onClose={()=>{}}/>);
 }
+export function renderConnection(items,live=true){
+ return renderToStaticMarkup(<HelpDialog initialTopic="connection" sessions={[{...session,live,items}]} onClose={()=>{}}/>);
+}
 export function renderSession(busy=false,answer='My answer'){
  const items=session.items.filter(e=>!busy||e.kind!=='done').map(e=>e.kind==='delta'?{...e,data:answer}:e);
  const s={...session,busy,items};
@@ -52,7 +55,7 @@ export function render(live=true,busy=false,changing=false){
 }`},bundle:true,platform:'node',format:'cjs',write:false,logLevel:'silent'});
 const module={exports:{}};
 new Function('require','module','exports',output.outputFiles[0].text)(createRequire(import.meta.url),module,module.exports);
-const {render,renderDetails,renderSession,renderWorkspace,renderPermission,renderSetup,renderFourPanes,renderLoadingMenu,renderPending,renderCompare}=module.exports;
+const {render,renderDetails,renderConnection,renderSession,renderWorkspace,renderPermission,renderSetup,renderFourPanes,renderLoadingMenu,renderPending,renderCompare}=module.exports;
 test('agent selector is present beside Activity when inspector is collapsed',()=>{
  const html=render();assert.match(html,/aria-expanded="false"/);assert.doesNotMatch(html,/class="activity-body"/);
  assert.match(html,/<\/button><div class="agent-selector"/);
@@ -162,4 +165,33 @@ test('saved agent responses render Markdown without embedding HTML or fetching i
  assert.match(html,/<table>/);
  assert.match(html,/External image/);
  assert.doesNotMatch(html,/<iframe|<img/);
+});
+
+
+test('connection details distinguish advertised features, current configuration and observed approvals',()=>{
+ const init={agentInfo:{name:'provider',title:'Example Provider',version:'2.0'},protocolVersion:1,
+  agentCapabilities:{loadSession:true,sessionCapabilities:{resume:{},list:{}},promptCapabilities:{image:true,audio:true},customFeature:true},
+  _meta:{'_example':{}}};
+ const permission={kind:'permission',data:{request:1}};
+ const state={kind:'agent_state',data:{revision:2,configOptions:[{id:'reason',name:'Reasoning effort',category:'reasoning'}],
+  model:{current:'review',choices:[{id:'review',name:'Review model'}]}}};
+ const live=renderConnection([{kind:'identity',data:init},permission,state]);
+ assert.match(live,/Current ACP connection/);
+ assert.match(live,/Example Provider · 2.0/);
+ assert.match(live,/Resume without replay<\/dt><dd>Advertised/);
+ assert.match(live,/Audio input<\/dt><dd>Advertised <small>Audio prompts are unavailable in Agentrance/);
+ assert.match(live,/_example/);
+ assert.match(live,/customFeature/);
+ assert.match(live,/Reasoning effort/);
+ assert.match(live,/Review model/);
+ assert.match(live,/provider requested approval/);
+
+ const resumed=renderConnection([{kind:'identity',data:init},permission,state,{kind:'connection_started',data:{protocolVersion:1}},{
+  kind:'agent_state',data:{revision:0,configOptions:[]},
+ }],false);
+ assert.match(resumed,/Last recorded ACP connection/);
+ assert.match(resumed,/Resume without replay<\/dt><dd>Not advertised/);
+ assert.match(resumed,/No approval requests recorded/);
+ assert.doesNotMatch(resumed,/Example Provider|_example|Reasoning effort|Review model/);
+ assert.match(renderConnection([],false),/No ACP handshake was saved/);
 });

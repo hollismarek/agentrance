@@ -22,6 +22,10 @@ Compare can start fresh sessions or send to selected connected conversations. St
 identities, history and provider settings. See scripts/README.md for builds,
 local snapshot installation and rollback; docs/MILESTONES.md records decisions.
 
+Conversation Details → Connection details uses the latest recorded ACP
+handshake and session configuration. It distinguishes advertised capabilities
+from client support and observed approval behavior.
+
 Named workspaces have independent layouts, open tabs, and default projects.
 Workspace selection, tabs, layouts, and text drafts recover from channel-local
 workspace.json. Compare lists existing sessions in the active workspace.

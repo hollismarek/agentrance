@@ -24,7 +24,7 @@ export function WorkspaceLayout({workspaceId='default',workspace,dispatch,desk,p
   providers:Provider[];
   drafts:Drafts;
   setDrafts:React.Dispatch<React.SetStateAction<Drafts>>;
-  onHelp:(id:string)=>void;
+  onHelp:(id:string,topic?:'connection')=>void;
 }) {
   const [fileLoading,setFileLoading]=useState<Record<string,number>>({});
   const scrollPositions=useRef<TranscriptPositions>(new Map());
@@ -86,7 +86,7 @@ export function WorkspaceLayout({workspaceId='default',workspace,dispatch,desk,p
               </div>
               {session&&id?<>
                 <ErrorBoundary key={id} label={`${session.provider} conversation`}>
-                  <SessionPane scrollPositions={scrollPositions.current} session={session} onHelp={()=>onHelp(id)} onModel={modelId=>void desk.setModel(id,modelId)} onAgent={agentId=>void desk.setAgent(id,agentId)} resumeAvailable={!!resumeProvider(providers,session)}
+                  <SessionPane scrollPositions={scrollPositions.current} session={session} onHelp={()=>onHelp(id)} onConnectionDetails={()=>onHelp(id,'connection')} onModel={modelId=>void desk.setModel(id,modelId)} onAgent={agentId=>void desk.setAgent(id,agentId)} resumeAvailable={!!resumeProvider(providers,session)}
                     onResume={()=>{const provider=resumeProvider(providers,session);if(provider)void desk.resume(session,provider)}} onPermission={async(request,option)=>{await invoke('permission',{id,request,option})}} onCancel={()=>void desk.cancel(id)}>
                     {!!drafts[id]?.missingAttachments?.length&&<p className="draft-recovery" role="status">Attachments were not restored: {drafts[id].missingAttachments!.join(', ')}. Reattach them before sending. <button onClick={()=>setDrafts(all=>({...all,[id]:{...all[id],missingAttachments:[]}}))}>Dismiss</button></p>}
                     <Composer onAttachmentBusy={busy=>setFileLoading(all=>{const next={...all};const count=pendingReadCount(next[id]??0,busy);if(count)next[id]=count;else delete next[id];return next})} attachments={drafts[id]?.attachments??[]} onAttachments={files=>setDrafts(d=>setAttachments(d,id,files))} text={text} onText={value=>setDrafts(d=>editDraft(d,id,value))} canSend={canSend} label={`Message to ${session.provider}`} onSend={()=>{if(canSend){const revision=drafts[id]?.revision??0;const attachments=drafts[id]?.attachments??[];void desk.send([id],text,attachments,{},[],()=>setDrafts(d=>clearRecordedDraft(d,id,revision)))}}}/>
