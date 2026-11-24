@@ -87,7 +87,7 @@ function App() {
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
       <WorkspaceLayout workspaceId={active.id} workspace={workspace} dispatch={dispatch} desk={desk} providers={providers} drafts={drafts} setDrafts={setDrafts} onHelp={id=>setHelp({topic:'models',sessionId:id})}/>
     </main>
-    {workspaceDialog&&<WorkspaceDialog entry={workspaceDialog==='edit'?active:undefined} projects={projects}
+    {workspaceDialog&&<WorkspaceDialog entry={workspaceDialog==='edit'?active:undefined} entries={workspaces.entries} projects={projects}
       onClose={()=>setWorkspaceDialog(null)} onSave={(name,project)=>{
         if(workspaceDialog==='new')dispatchWorkspaces({type:'create',id:crypto.randomUUID(),name,project});
         else dispatchWorkspaces({type:'edit',id:active.id,name,project});

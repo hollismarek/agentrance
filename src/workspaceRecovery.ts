@@ -1,5 +1,5 @@
 import {paneCount,workspaceReducer,type Workspace,type LayoutMode} from './workspace';
-import {initialWorkspaces,MAX_WORKSPACES,MAX_WORKSPACE_NAME,type Workspaces} from './namedWorkspaces';
+import {disambiguateWorkspaceNames,initialWorkspaces,MAX_WORKSPACES,MAX_WORKSPACE_NAME,type Workspaces} from './namedWorkspaces';
 import type {Drafts} from './drafts';
 
 export type Recovery={workspaces:Workspaces;drafts:Drafts;recentProjects:string[]};
@@ -33,7 +33,7 @@ export function parseRecovery(raw:string|null):Recovery {
    return {id:entry.id,name:entry.name,project:entry.project,layout:parseLayout(entry.layout)};
   });
   if(new Set(entries.map(entry=>entry.id)).size!==entries.length||!entries.some(entry=>entry.id===saved.active))throw invalid();
-  workspaces={entries,active:saved.active};
+  workspaces={entries:disambiguateWorkspaceNames(entries),active:saved.active};
  }
  const ids=workspaceSessions(workspaces);
  if(ids.length>1000||new Set(ids).size!==ids.length)throw invalid();

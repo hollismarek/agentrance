@@ -7,6 +7,31 @@ export const MAX_WORKSPACE_NAME=60;
 export const initialWorkspaces:Workspaces={
  active:'default',entries:[{id:'default',name:'Workspace 1',project:'',layout:initialWorkspace}],
 };
+const nameKey=(name:string)=>name.trim().toLowerCase();
+
+export function workspaceNameTaken(entries:NamedWorkspace[],name:string,exceptId?:string):boolean {
+ return entries.some(entry=>entry.id!==exceptId&&nameKey(entry.name)===nameKey(name));
+}
+
+// Older saves can contain duplicate names. Keep the first label and all tabs.
+export function disambiguateWorkspaceNames(entries:NamedWorkspace[]):NamedWorkspace[]{
+ const reserved=new Set(entries.map(entry=>nameKey(entry.name)));
+ const seen=new Set<string>();
+ return entries.map(entry=>{
+  const key=nameKey(entry.name);
+  if(!seen.has(key)){seen.add(key);return entry}
+  let name:string;
+  for(let number=2;;number++){
+   const suffix=` (${number})`;
+   const prefix=entry.name.trim().slice(0,MAX_WORKSPACE_NAME-suffix.length)
+    .replace(/[\uD800-\uDBFF]$/,'').trimEnd();
+   name=prefix+suffix;
+   if(!reserved.has(nameKey(name)))break;
+  }
+  reserved.add(nameKey(name));
+  return {...entry,name};
+ });
+}
 type Action=
  |{type:'restore';workspaces:Workspaces}
  |{type:'switch';id:string}
@@ -24,9 +49,12 @@ export function workspacesReducer(state:Workspaces,action:Action):Workspaces{
   case 'restore':return action.workspaces;
   case 'switch':return state.entries.some(entry=>entry.id===action.id)?{...state,active:action.id}:state;
   case 'create':
-   if(state.entries.length>=MAX_WORKSPACES||state.entries.some(entry=>entry.id===action.id))return state;
-   return {active:action.id,entries:[...state.entries,{id:action.id,name:action.name,project:action.project,layout:initialWorkspace}]};
-  case 'edit':return update(action.id,entry=>({...entry,name:action.name,project:action.project}));
+   if(state.entries.length>=MAX_WORKSPACES||state.entries.some(entry=>entry.id===action.id)||
+    !action.name.trim()||action.name.trim().length>MAX_WORKSPACE_NAME||workspaceNameTaken(state.entries,action.name))return state;
+   return {active:action.id,entries:[...state.entries,{id:action.id,name:action.name.trim(),project:action.project,layout:initialWorkspace}]};
+  case 'edit':
+   if(!action.name.trim()||action.name.trim().length>MAX_WORKSPACE_NAME||workspaceNameTaken(state.entries,action.name,action.id))return state;
+   return update(action.id,entry=>({...entry,name:action.name.trim(),project:action.project}));
   case 'layout':return update(action.id,entry=>({...entry,layout:workspaceReducer(entry.layout,action.action)}));
   case 'retain':return {...state,entries:state.entries.map(entry=>({...entry,layout:workspaceReducer(entry.layout,action)}))};
   case 'open':{

@@ -60,6 +60,7 @@ test('the cross-platform legacy backup fixture migrates into the first named wor
  const restored=parseRecovery(fixture);
  assert.equal(restored.drafts.one.text,'unsent');
  assert.equal(restored.workspaces.entries[0].name,'Workspace 1');
+ assert.equal(restored.workspaces.active,restored.workspaces.entries[0].id);
  assert.deepEqual(activeLayout(restored),JSON.parse(fixture).workspace);
 });
 test('named workspaces retain drafts and reject duplicate cross-workspace tab ownership',()=>{
@@ -93,4 +94,17 @@ test('the named workspace serializer agrees with the desktop and CLI backup fixt
  const fixture=readFileSync(new URL('./fixtures/backup-workspaces.json',import.meta.url),'utf8');
  const {workspaces,drafts,recentProjects}=parseRecovery(fixture);
  assert.deepEqual(JSON.parse(serializeRecovery(workspaces,drafts,recentProjects)),JSON.parse(fixture));
+});
+
+test('old duplicate names are disambiguated while preserving the active workspace and tabs',()=>{
+ const named={active:'other',entries:[
+  ...workspaces.entries,
+  {id:'other',name:'workspace 1',project:'/other',layout:{mode:'single',focus:0,groups:[['d'],[],[],[]],selected:['d',null,null,null]}},
+  {id:'reserved',name:'Workspace 1 (2)',project:'',layout:{mode:'single',focus:0,groups:[[],[],[],[]],selected:[null,null,null,null]}},
+ ]};
+ const {workspaces:recovered,drafts}=parseRecovery(serializeRecovery(named,{d:{text:'keep this'}},[]));
+ assert.equal(recovered.active,'other');
+ assert.deepEqual(recovered.entries.map(entry=>entry.name),['Workspace 1','workspace 1 (3)','Workspace 1 (2)']);
+ assert.deepEqual(recovered.entries.map(entry=>entry.layout),named.entries.map(entry=>entry.layout));
+ assert.equal(drafts.d.text,'keep this');
 });

@@ -232,6 +232,10 @@ test('switching workspaces preserves drafts, pane placement and background appro
   await act(async()=>fixture.state.dispatch({type:'move',id:'chat',pane:1}));
   await act(async()=>fixture.state.desk.resume(fixture.state.sessions[0],{id:'kiro',name:'Kiro',cwd:'/project'}));
   await act(async()=>fixture.state.desk.open(saved,()=>{}));
+  const select=document.querySelector('select[aria-label="Workspace"]');
+  assert.equal(select.value,'default');
+  assert.match(select.selectedOptions[0].textContent,/Workspace 1/);
+  assert.match(select.closest('label').textContent,/Active workspace/);
   const dispatch=fixture.state.dispatchWorkspaces;
   await act(async()=>{
    dispatch({type:'create',id:'second-project',name:'Second project',project:'/second'});

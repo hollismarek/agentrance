@@ -1,11 +1,11 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
-import {MAX_WORKSPACE_NAME,type NamedWorkspace} from '../namedWorkspaces';
+import {MAX_WORKSPACE_NAME,workspaceNameTaken,type NamedWorkspace} from '../namedWorkspaces';
 import {absoluteProject} from '../projects';
 import {ProjectField} from './ProjectField';
 
-export function WorkspaceDialog({entry,projects,onSave,onClose}:{
- entry?:NamedWorkspace;projects:string[];
+export function WorkspaceDialog({entry,entries,projects,onSave,onClose}:{
+ entry?:NamedWorkspace;entries:NamedWorkspace[];projects:string[];
  onSave:(name:string,project:string)=>void;onClose:()=>void;
 }){
  const [name,setName]=useState(entry?.name??'');
@@ -15,7 +15,8 @@ export function WorkspaceDialog({entry,projects,onSave,onClose}:{
  const panel=useRef<HTMLFormElement>(null);
  const submitting=useRef(false);
  const path=project.trim();
- const valid=!!name.trim()&&(!path||absoluteProject(path));
+ const duplicate=workspaceNameTaken(entries,name,entry?.id);
+ const valid=!!name.trim()&&!duplicate&&(!path||absoluteProject(path));
  useEffect(()=>{
   const previous=document.activeElement as HTMLElement|null;
   panel.current?.querySelector('input')?.focus();
@@ -42,8 +43,10 @@ export function WorkspaceDialog({entry,projects,onSave,onClose}:{
    }
   }}>
   <h2 id="workspace-dialog-title">{entry?'Edit workspace':'New workspace'}</h2>
+  {!entry&&<p>This creates an empty workspace. To name the workspace you’re already using, use the pencil in the toolbar.</p>}
   <fieldset disabled={checking}>
-   <label>Workspace name<input value={name} maxLength={MAX_WORKSPACE_NAME} onChange={e=>setName(e.target.value)}/></label>
+   <label>Workspace name<input value={name} maxLength={MAX_WORKSPACE_NAME} aria-invalid={duplicate||undefined} aria-describedby={duplicate?'workspace-name-error':undefined} onChange={e=>setName(e.target.value)}/></label>
+   {duplicate&&<p id="workspace-name-error" role="status" className="error">A workspace already uses that name.</p>}
    <ProjectField value={project} onChange={setProject} choices={projects}/>
    <p className="muted">Optional. Sets the initial folder for new sessions and comparisons.</p>
   </fieldset>

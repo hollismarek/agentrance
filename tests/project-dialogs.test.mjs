@@ -11,7 +11,7 @@ const old=keys.map(key=>Object.getOwnPropertyDescriptor(globalThis,key));
 Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true,ResizeObserver:class{observe(){}disconnect(){}}});
 const {createRoot}=await import('react-dom/client');
 test.after(()=>{dom.window.close();keys.forEach((key,i)=>{if(old[i])Object.defineProperty(globalThis,key,old[i]);else delete globalThis[key]})});
-const out=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`export {ProviderSessionsDialog} from './src/components/ProviderSessionsDialog';export {BackupDialog} from './src/components/BackupDialog';export {NewSessionDialog} from './src/components/NewSessionDialog';export {CompareDialog} from './src/components/CompareDialog';`},bundle:true,platform:'node',format:'cjs',external:['react'],write:false,plugins:[{name:'fake-tauri',setup(build){
+const out=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`export {ProviderSessionsDialog} from './src/components/ProviderSessionsDialog';export {BackupDialog} from './src/components/BackupDialog';export {NewSessionDialog} from './src/components/NewSessionDialog';export {CompareDialog} from './src/components/CompareDialog';export {WorkspaceDialog} from './src/components/WorkspaceDialog';`},bundle:true,platform:'node',format:'cjs',external:['react'],write:false,plugins:[{name:'fake-tauri',setup(build){
  build.onResolve({filter:/^@tauri-apps\//},args=>({path:args.path,namespace:'fake-tauri'}));
  build.onLoad({filter:/.*/,namespace:'fake-tauri'},()=>({contents:`export const invoke=(...args)=>globalThis.__projectTest.invoke(...args);export const open=(...args)=>globalThis.__projectTest.open(...args);export const save=(...args)=>globalThis.__projectTest.save(...args);`}));
 }}]});
@@ -249,5 +249,31 @@ test('Compare sends the previewed evidence only to selected sessions in the same
   assert.ok(sent[0][0].endsWith(evidence));
   await click(document.querySelectorAll('.compare-brief input')[1]);
   assert.equal(send.disabled,true);
+ }finally{await act(async()=>root.unmount())}
+});
+
+test('creating and editing workspaces rejects duplicate names without blocking a workspace’s own name',async()=>{
+ const root=createRoot(document.getElementById('root'));
+ const saved=[];
+ const entries=[{id:'one',name:'Agentrance',project:'/project'},{id:'two',name:'Review',project:'/other'}];
+ const render=entry=>act(async()=>root.render(React.createElement(module.exports.WorkspaceDialog,{
+  key:entry?.id??'new',entry,entries,projects:[],onClose(){},onSave:(...args)=>saved.push(args),
+ })));
+ const name=()=>document.querySelector('input');
+ const save=()=>document.querySelector('button.primary');
+ try{
+  await render(undefined);
+  assert.match(document.body.textContent,/creates an empty workspace/);
+  await type(name(),' agentrance ');
+  assert.equal(name().getAttribute('aria-invalid'),'true');
+  assert.equal(save().disabled,true);
+  assert.match(document.querySelector('[role="status"]').textContent,/already uses/);
+  await render(entries[1]);
+  assert.equal(save().disabled,false);
+  await type(name(),'AGENTRANCE');
+  assert.equal(save().disabled,true);
+  await type(name(),' Review ');
+  await act(async()=>save().click());
+  assert.deepEqual(saved,[['Review','/other']]);
  }finally{await act(async()=>root.unmount())}
 });
