@@ -1,9 +1,9 @@
 import React, {useState} from 'react';
-import type {Provider, SavedSession} from '../types';
+import type {SavedSession} from '../types';
 import {chatTitle, historyDate} from '../history';
-export function Sidebar({collapsed=false, onToggle, providers, selected, past, panes, starting, busyIds, onStart, onSelect, onOpen, onRename, onDelete}: {
-  collapsed?: boolean; onToggle?: () => void; providers: Provider[]; selected: string; past: SavedSession[]; panes: string[]; starting: boolean; busyIds:string[];
-  onStart: () => void; onSelect: (id: string) => void; onOpen: (session: SavedSession) => void;
+export function Sidebar({collapsed=false, onToggle, hasProviders, past, panes, starting, busyIds, onStart, onOpen, onRename, onDelete}: {
+  collapsed?: boolean; onToggle?: () => void; hasProviders: boolean; past: SavedSession[]; panes: string[]; starting: boolean; busyIds:string[];
+  onStart: () => void; onOpen: (session: SavedSession) => void;
   onRename: (id:string,title:string) => Promise<void>; onDelete: (id:string) => Promise<void>;
 }) {
   const [menu,setMenu]=useState<string|null>(null);
@@ -21,16 +21,12 @@ export function Sidebar({collapsed=false, onToggle, providers, selected, past, p
       setDialog(null);
     }catch(e){setError(String(e))}finally{setWorking(false)}
   }
-  const selectedProvider=providers.find(p=>p.id===selected);
   return <><aside id="workspace-sidebar" className={collapsed?'collapsed':undefined} aria-label="Workspace sidebar">
     <div className="sidebar-heading">
       {!collapsed&&<h1>Agentrance<span>LOCAL WORKSPACE</span></h1>}
       <button className="sidebar-toggle" aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} title={collapsed?'Expand sidebar':'Collapse sidebar'} aria-expanded={!collapsed} aria-controls="workspace-sidebar" onClick={()=>{setMenu(null);onToggle?.()}}><span className="sidebar-toggle-icon" aria-hidden="true"/></button>
     </div>
-    <button className="new-session" aria-label={selectedProvider?`New session with ${selectedProvider.name}`:'New session'} title={`New session${selectedProvider?` · ${selectedProvider.name}`:''}`} disabled={starting || !providers.length} onClick={onStart}><span aria-hidden="true">＋</span>{!collapsed&&' New session'}</button>
-    {!collapsed&&<select aria-label="Provider" value={selected} onChange={e => onSelect(e.target.value)}>
-      {providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-    </select>}
+    <button className="new-session" aria-label="New session" title="New session" disabled={starting || !hasProviders} onClick={onStart}><span aria-hidden="true">＋</span>{!collapsed&&' New session'}</button>
     <h3 className={collapsed?'sr-only':undefined}>History</h3>
     <nav aria-label="Conversation history">{!past.length && <small>No conversations yet.</small>}{past.map(s => <div className={'history-entry '+(panes.includes(s.id)?'selected':'')} key={s.id}>
       <div className="history-row">

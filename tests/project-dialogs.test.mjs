@@ -26,17 +26,22 @@ async function type(element,text){
   element.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
  });
 }
-test('new session shows a full project path and requires an absolute selection before starting',async()=>{
+test('new session selects a provider and validates the project before starting',async()=>{
  const root=createRoot(document.getElementById('root'));const started=[];
+ const other={...provider,id:'two',name:'Second provider',cwd:'/other'};
  try{
-  await act(async()=>root.render(React.createElement(module.exports.NewSessionDialog,{provider,initialProject:'/recent',projects:['/recent','/another'],onClose(){},onStart:path=>started.push(path)})));
+  await act(async()=>root.render(React.createElement(module.exports.NewSessionDialog,{providers:[provider,other],selected:provider.id,workspaceProject:'/recent',projects:['/recent','/another'],onClose(){},onStart:(...args)=>started.push(args)})));
   assert.equal(document.querySelector('[aria-label="Project folder"]').value,'/recent');
   assert.equal(document.querySelectorAll('datalist option').length,2);
   await type(document.querySelector('input'),'relative');
   assert.equal(document.querySelector('button.primary').disabled,true);
   await type(document.querySelector('input'),'/chosen project');
+  const select=document.querySelector('select');
+  assert.equal(select.value,provider.id);
+  await act(async()=>{select.value=other.id;select.dispatchEvent(new dom.window.Event('change',{bubbles:true}))});
+  assert.equal(document.querySelector('input').value,'/chosen project');
   await act(async()=>document.querySelector('button.primary').click());
-  assert.deepEqual(started,['/chosen project']);assert.equal(provider.cwd,'/default');
+  assert.deepEqual(started,[[other,'/chosen project']]);assert.equal(provider.cwd,'/default');
  }finally{await act(async()=>root.unmount())}
 });
 test('native Browse selects a folder and cancellation preserves the current selection',async()=>{
@@ -44,7 +49,7 @@ test('native Browse selects a folder and cancellation preserves the current sele
  let choice='/picked folder';
  globalThis.__projectTest.open=async opts=>{options.push(opts);return choice};
  try{
-  await act(async()=>root.render(React.createElement(module.exports.NewSessionDialog,{provider,initialProject:'/default',projects:[],onClose(){},onStart(){}})));
+  await act(async()=>root.render(React.createElement(module.exports.NewSessionDialog,{providers:[provider],selected:provider.id,projects:[],onClose(){},onStart(){}})));
   const browse=()=>[...document.querySelectorAll('button')].find(button=>button.textContent==='Browse…');
   await act(async()=>browse().click());
   assert.equal(document.querySelector('input').value,'/picked folder');

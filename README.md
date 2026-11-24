@@ -85,8 +85,8 @@ On first launch, open or complete **Menu → Settings**:
 2. Enter its display name, executable, and project folder in the form. Arguments
    have separate fields; environment overrides are optional. **Use for all** can
    apply one project folder to all providers.
-3. Save settings, select the provider in the sidebar, choose **New session**,
-   and confirm the project folder. Use **Browse…**, choose a recent folder or
+3. Save settings, choose **New session**, then select the provider and confirm
+   the project folder. Use **Browse…**, choose a recent folder or
    enter its full path.
    **Compare…** uses one explicitly selected project for every provider.
    Providers share that working tree, so changes by one can affect the others.

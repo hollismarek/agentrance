@@ -44,7 +44,7 @@ export function renderSession(busy=false,answer='My answer'){
  const s={...session,busy,items};
  return renderToStaticMarkup(<SessionPane session={s} onHelp={()=>{}} onAgent={()=>{}} onModel={()=>{}} onPermission={async()=>{}} onCancel={()=>{}} onResume={()=>{}} resumeAvailable={true}/>);
 }
-export function renderWorkspace(){return renderToStaticMarkup(<><Sidebar providers={[]} selected="" past={[]} panes={[]} starting={false} busyIds={[]} onStart={()=>{}} onSelect={()=>{}} onOpen={()=>{}} onRename={async()=>{}} onDelete={async()=>{}}/><AppMenu onSettings={()=>{}} onHelp={()=>{}}/><Composer text="" onText={()=>{}} onSend={()=>{}} canSend={false}/></>)}
+export function renderWorkspace(){return renderToStaticMarkup(<><Sidebar hasProviders past={[]} panes={[]} starting={false} busyIds={[]} onStart={()=>{}} onOpen={()=>{}} onRename={async()=>{}} onDelete={async()=>{}}/><AppMenu onSettings={()=>{}} onHelp={()=>{}}/><Composer text="" onText={()=>{}} onSend={()=>{}} canSend={false}/></>)}
 export function render(live=true,busy=false,changing=false){
  const selection={current:'review',choices:[{id:'review',name:'Reviewer'},{id:'code',name:'Coder'}]};
  return renderToStaticMarkup(<ActivityPanel events={[]} live={live} provider="Kiro CLI" onPermission={async()=>{}}

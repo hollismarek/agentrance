@@ -249,7 +249,7 @@ select:disabled,.agent-selector select:disabled{opacity:1;color:#596269;-webkit-
 
 /* Native GTK select styling can impose extra height despite smaller padding.
    Keep native select behavior, but draw a compact face and arrow ourselves. */
-.agent-selector select,aside>select,.layout-label select{
+.agent-selector select,.layout-label select{
   appearance:none;-webkit-appearance:none;height:28px;min-height:28px;
   line-height:18px;padding:4px 24px 4px 7px;font-size:12px;border-radius:5px;
   background-image:linear-gradient(45deg,transparent 50%,#35464d 50%),linear-gradient(135deg,#35464d 50%,transparent 50%);
