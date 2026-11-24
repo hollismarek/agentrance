@@ -122,3 +122,26 @@ test('deleting a workspace retains its tabs and drafts in the remaining workspac
  assert.equal(parseRecovery(serializeRecovery(next,{d:{text:'draft'}},[])).drafts.d.text,'draft');
  assert.equal(reduce(next,{type:'delete',id:'default'}),next);
 });
+
+test('late session starts follow the deletion destination even after switching or deleting again',async()=>{
+ const compiled=await build({entryPoints:['src/namedWorkspaces.ts'],bundle:true,platform:'node',format:'esm',write:false});
+ const {initialWorkspaces,workspacesReducer:reduce}=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputFiles[0].text).toString('base64'));
+ let state=reduce(initialWorkspaces,{type:'create',id:'b',name:'Project B',project:'/b'});
+ state=reduce(state,{type:'create',id:'c',name:'Project C',project:'/c'});
+ state=reduce(state,{type:'switch',id:'b'});
+ state=reduce(state,{type:'delete',id:'b'});
+ state=reduce(state,{type:'switch',id:'c'});
+ state=reduce(state,{type:'open',id:'b',ids:['late-one','late-two'],project:'/b'});
+ assert.equal(state.active,'c');
+ assert.deepEqual(state.entries.find(entry=>entry.id==='default').layout.groups.flat(),['late-one','late-two']);
+ assert.equal(state.entries.find(entry=>entry.id==='default').project,'');
+ assert.deepEqual(activeLayout({workspaces:state}).groups.flat(),[]);
+ assert.doesNotMatch(serializeRecovery(state,{},[]),/deletedDestinations/);
+
+ state=reduce(state,{type:'delete',id:'default'});
+ state=reduce(state,{type:'create',id:'d',name:'Project D',project:'/d'});
+ state=reduce(state,{type:'open',id:'b',ids:['late-three'],project:'/b'});
+ assert.equal(state.active,'d');
+ assert.deepEqual(state.entries.find(entry=>entry.id==='c').layout.groups.flat(),['late-one','late-two','late-three']);
+ assert.deepEqual(activeLayout({workspaces:state}).groups.flat(),[]);
+});

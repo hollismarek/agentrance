@@ -2,6 +2,7 @@ import {initialWorkspace,workspaceReducer,type Workspace,type WorkspaceAction} f
 
 export type NamedWorkspace={id:string;name:string;project:string;layout:Workspace};
 export type Workspaces={active:string;entries:NamedWorkspace[]};
+type WorkspaceState=Workspaces&{deletedDestinations?:ReadonlyMap<string,string>};
 export const MAX_WORKSPACES=20;
 export const MAX_WORKSPACE_NAME=60;
 export const initialWorkspaces:Workspaces={
@@ -42,7 +43,7 @@ type Action=
  |{type:'open';id:string;ids:string[];project?:string}
  |{type:'retain';ids:string[]};
 
-export function workspacesReducer(state:Workspaces,action:Action):Workspaces{
+export function workspacesReducer(state:WorkspaceState,action:Action):WorkspaceState{
  const update=(id:string,change:(entry:NamedWorkspace)=>NamedWorkspace)=>({
   ...state,entries:state.entries.map(entry=>entry.id===id?change(entry):entry),
  });
@@ -52,7 +53,7 @@ export function workspacesReducer(state:Workspaces,action:Action):Workspaces{
   case 'create':
    if(state.entries.length>=MAX_WORKSPACES||state.entries.some(entry=>entry.id===action.id)||
     !action.name.trim()||action.name.trim().length>MAX_WORKSPACE_NAME||workspaceNameTaken(state.entries,action.name))return state;
-   return {active:action.id,entries:[...state.entries,{id:action.id,name:action.name.trim(),project:action.project,layout:initialWorkspace}]};
+   return {...state,active:action.id,entries:[...state.entries,{id:action.id,name:action.name.trim(),project:action.project,layout:initialWorkspace}]};
   case 'edit':
    if(!action.name.trim()||action.name.trim().length>MAX_WORKSPACE_NAME||workspaceNameTaken(state.entries,action.name,action.id))return state;
    return update(action.id,entry=>({...entry,name:action.name.trim(),project:action.project}));
@@ -67,7 +68,15 @@ export function workspacesReducer(state:Workspaces,action:Action):Workspaces{
     groups:destination.layout.groups.map((group,index)=>index===pane?[...group,...ids]:group),
     selected:destination.layout.selected.map((id,index)=>index===pane?id??ids[0]??null:id),
    };
+   // Opens already in flight still carry the deleted workspace ID. Keep
+   // their destination current if another workspace is deleted in the meantime.
+   const deletedDestinations=new Map(state.deletedDestinations);
+   for(const [id,target] of deletedDestinations){
+    if(target===removed.id)deletedDestinations.set(id,destination.id);
+   }
+   deletedDestinations.set(removed.id,destination.id);
    return {
+    deletedDestinations,
     active:state.active===removed.id?destination.id:state.active,
     entries:state.entries.filter(entry=>entry!==removed).map(entry=>entry===destination?{...entry,layout}:entry),
    };
@@ -88,9 +97,9 @@ export function workspacesReducer(state:Workspaces,action:Action):Workspaces{
     if(action.ids.length===1&&state.active===action.id)next={...next,active:owner.id};
    }
    if(!unowned.length)return next;
-   const destination=next.entries.some(entry=>entry.id===action.id)?action.id:next.active;
+   const destination=next.deletedDestinations?.get(action.id)??action.id;
    return {...next,entries:next.entries.map(entry=>entry.id===destination?{
-    ...entry,project:entry.project||action.project||'',
+    ...entry,project:entry.project||(destination===action.id?action.project:undefined)||'',
     layout:workspaceReducer(entry.layout,{type:'open',ids:unowned}),
    }:entry)};
   }

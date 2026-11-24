@@ -54,7 +54,7 @@ export function retainRecovery(saved:Recovery,ids:string[]):Recovery {
 }
 
 export function serializeRecovery(workspaces:Workspaces,drafts:Drafts,recentProjects:string[]):string {
- return JSON.stringify({version:2,workspaces,drafts:Object.fromEntries(workspaceSessions(workspaces).map(id=>[id,{
+ return JSON.stringify({version:2,workspaces:{active:workspaces.active,entries:workspaces.entries},drafts:Object.fromEntries(workspaceSessions(workspaces).map(id=>[id,{
   text:drafts[id]?.text??'',missingAttachments:[...(drafts[id]?.missingAttachments??[]),...(drafts[id]?.attachments??[]).map(file=>file.name)],
  }])),recentProjects:recentProjects.slice(0,20)});
 }
