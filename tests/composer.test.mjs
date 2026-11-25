@@ -17,3 +17,10 @@ test('Shift Enter and IME preserve input; busy composer and repeated Enter do no
  for(const e of [key({shiftKey:true}),key({nativeEvent:{isComposing:true}}),key({nativeEvent:{keyCode:229}})]){a.onKeyDown(e);assert.equal(e.prevented,undefined)}
  a.onKeyDown(key({repeat:true}));busy.onKeyDown(key());assert.deepEqual(events,[]);
 });
+
+test('the prompt requests native spelling suggestions without autocorrection',()=>{
+ const prompt=editor('speling',[]);
+ assert.equal(prompt.spellCheck,true);
+ assert.equal(prompt.autoCorrect,'off');
+ assert.equal(prompt.value,'speling');
+});

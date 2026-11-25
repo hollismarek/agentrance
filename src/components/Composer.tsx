@@ -8,7 +8,7 @@ export function Composer({text,onText,onSend,canSend,label='Message',sendLabel='
 }) {
   const picker=React.createRef<AttachmentPickerHandle>();
   return <footer>
-    <textarea rows={3} ref={element=>{
+    <textarea rows={3} spellCheck={true} autoCorrect="off" ref={element=>{
       if(!element)return;
       // Recalculate after controlled text changes and when the pane width changes.
       const fit=()=>{element.style.height='0px';element.style.height=`${element.scrollHeight+element.offsetHeight-element.clientHeight}px`};

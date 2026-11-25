@@ -48,6 +48,8 @@ implemented.
   permission cards, and an expanded reading preset.
 - Active approvals directly above the composer; historical requests cannot be approved.
 - Waiting tabs show an amber approval badge with the pending-request count.
+- Native spell check in conversation and Compare prompts. Linux uses an
+  installed WebKitGTK-compatible spelling dictionary.
 - Per-conversation image/file attachments with a removable thumbnail strip; image
   and binary input depend on advertised provider capabilities.
 - Compare can send a previewed project brief with the Git baseline, changed

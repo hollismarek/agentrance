@@ -555,6 +555,21 @@ fn main() {
                 connecting: Default::default(),
                 deleted: Default::default(),
             });
+            #[cfg(target_os = "linux")]
+            if let Some(webview) = app.get_webview_window("main") {
+                webview.with_webview(|webview| {
+                    use webkit2gtk::{WebContextExt, WebViewExt};
+                    if let Some(context) = webview.inner().context() {
+                        let preferred = gtk::glib::language_names();
+                        let languages: Vec<_> = preferred.iter().map(|name| name.as_str())
+                            .filter(|name| *name != "C" && *name != "POSIX" && !name.contains(['.', '@']))
+                            .collect();
+                        context.set_spell_checking_enabled(true);
+                        // Empty preferences let WebKit choose an installed dictionary.
+                        context.set_spell_checking_languages(&languages);
+                    }
+                })?;
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
