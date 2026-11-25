@@ -155,6 +155,20 @@ packaging, and installation remain work in progress; a successful build alone
 is not native validation. See [release and rollback instructions](scripts/README.md)
 for the optional Linux immutable-snapshot installer.
 
+## Prompt spell check
+
+The conversation and Compare prompts use the native webview to underline
+misspellings and offer corrections in the context menu. Autocorrection is
+disabled. Agentrance uses the webview's installed dictionaries and does not
+send prompt text to a spelling service.
+
+On Linux, WebKitGTK needs an Enchant-compatible dictionary for your language.
+If you see no underlines or suggestions, install the appropriate Hunspell
+dictionary using your distribution's package manager and reopen Agentrance.
+If available, `enchant-lsmod-2 -list-dicts` lists the dictionaries Enchant can
+see. On macOS and Windows, the native webview uses the spelling languages
+available on that machine.
+
 ## Data and permissions
 
 Conversation history and provider configuration are stored locally under the
