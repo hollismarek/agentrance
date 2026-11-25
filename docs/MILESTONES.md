@@ -897,7 +897,7 @@ It uses the latest recorded ACP handshake for identity, prompt inputs, session
 methods, MCP transports, and extension metadata keys. The view also lists
 session configuration descriptors and agent/model choices. Approval requests
 are observations scoped to the recorded connection. Saved sessions identify
-the report as historical. Usage capture remains a separate milestone.
+the report as historical.
 
 ## Git diff viewer
 
@@ -909,3 +909,12 @@ Untracked files and submodule internals are excluded. Renames appear as
 additions and deletions. Git output is bounded to 64 KiB for the file list
 and 256 KiB per patch. The viewer shows up to 5,000 lines from a patch.
 Pinning a commit for Compare and adding a file viewer remain follow-ups.
+
+## Standard ACP session usage
+
+Details → Session usage displays the selected model, context token counts,
+and the most recent cumulative session cost with its provider-reported unit.
+Agentrance records validated standard ACP updates for the active provider
+session. Missing metrics appear as unavailable. Saved reports remain readable,
+including after a reconnect with no newer report. Provider-specific metering
+and account balances remain separate.

@@ -42,6 +42,9 @@ export function renderDetails(topic='models'){
 export function renderConnection(items,live=true){
  return renderToStaticMarkup(<HelpDialog initialTopic="connection" sessions={[{...session,live,items}]} onClose={()=>{}}/>);
 }
+export function renderUsage(items,live=true){
+ return renderToStaticMarkup(<HelpDialog initialTopic="usage" sessions={[{...session,live,items:[...session.items,...items]}]} onClose={()=>{}}/>);
+}
 export function renderSession(busy=false,answer='My answer'){
  const items=session.items.filter(e=>!busy||e.kind!=='done').map(e=>e.kind==='delta'?{...e,data:answer}:e);
  const s={...session,busy,items};
@@ -55,7 +58,7 @@ export function render(live=true,busy=false,changing=false){
 }`},bundle:true,platform:'node',format:'cjs',write:false,logLevel:'silent'});
 const module={exports:{}};
 new Function('require','module','exports',output.outputFiles[0].text)(createRequire(import.meta.url),module,module.exports);
-const {render,renderDetails,renderConnection,renderSession,renderWorkspace,renderPermission,renderSetup,renderFourPanes,renderLoadingMenu,renderPending,renderCompare}=module.exports;
+const {render,renderDetails,renderConnection,renderUsage,renderSession,renderWorkspace,renderPermission,renderSetup,renderFourPanes,renderLoadingMenu,renderPending,renderCompare}=module.exports;
 test('agent selector is present beside Activity when inspector is collapsed',()=>{
  const html=render();assert.match(html,/aria-expanded="false"/);assert.doesNotMatch(html,/class="activity-body"/);
  assert.match(html,/<\/button><div class="agent-selector"/);
@@ -205,4 +208,21 @@ test('connection details attribute reconnect approvals by transport even before 
  assert.match(renderConnection([old,reconnect],false),/No approval requests recorded/);
  assert.match(renderConnection([handshake(undefined,'identity'),reconnect],false),/No approval requests recorded/);
  assert.match(renderConnection([old,permission('old'),reconnect],false),/provider requested approval/);
+});
+
+test('session usage displays the latest ACP totals and distinguishes saved reports',()=>{
+ const handshake=id=>({kind:'connection_started',data:{agentranceConnectionId:id}});
+ const usage=(used,cost=null)=>({kind:'session_usage',data:{used,size:100,cost,agentranceConnectionId:'active'}});
+ const prior=usage(10,{amount:1,currency:'credits'});
+ const latest=usage(25,{amount:2,currency:'credits'});
+ const active=renderUsage([handshake('active'),prior,latest]);
+ assert.match(active,/Latest ACP report for this connection/);
+ assert.match(active,/25 \/ 100 tokens/);
+ assert.match(active,/Session cost<\/dt><dd>2 credits/);
+ assert.doesNotMatch(active,/1 credits/);
+ assert.match(renderUsage([handshake('active'),latest,usage(30)]),/Session cost<\/dt><dd>Unavailable/);
+ assert.match(renderUsage([handshake('active'),latest,handshake('reconnected')]),/Last recorded ACP usage report/);
+ assert.match(renderUsage([handshake('active'),latest],false),/Last recorded ACP usage report/);
+ assert.match(renderUsage([]),/No ACP usage update has been received/);
+ assert.match(renderFourPanes(),/Session usage…/);
 });

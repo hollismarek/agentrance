@@ -41,6 +41,7 @@ implemented.
 - SQLite conversation history, rename/delete, and continuation when supported by
   the provider's saved-session capabilities.
 - Read-only Git diffs for staged changes, unstaged changes, and individual commits.
+- Session usage showing provider-reported context occupancy and cumulative cost.
 - Connection details for provider-advertised capabilities, current session
   configuration, and observed approval requests.
 - Activity inspection with reported tool input/output, elapsed time, readable

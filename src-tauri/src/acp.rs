@@ -63,7 +63,7 @@ pub struct Client {
     pending: Arc<AsyncMutex<HashMap<u64, Pending>>>,
     permissions: Arc<AsyncMutex<HashMap<String, Value>>>,
     pub prompt_caps: Mutex<Value>,
-    pub remote: AsyncMutex<String>,
+    pub remote: Arc<AsyncMutex<String>>,
     pub turn: AsyncMutex<()>,
     next: AtomicU64,
     child: Mutex<Child>,
@@ -72,6 +72,17 @@ pub struct Client {
     diagnostics: Arc<Mutex<DiagnosticTail>>,
     stderr_task: tokio::task::AbortHandle,
 }
+fn usage_report(update: &Value, connection_id: &str) -> Option<Value> {
+    const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
+    let used = update["used"].as_u64().filter(|n| *n <= MAX_SAFE_INTEGER)?;
+    let size = update["size"].as_u64().filter(|n| *n <= MAX_SAFE_INTEGER)?;
+    let cost = &update["cost"];
+    let cost = cost["amount"].as_f64().zip(cost["currency"].as_str())
+        .filter(|(amount, unit)| *amount >= 0.0 && !unit.trim().is_empty() && unit.len() <= 32)
+        .map(|(amount, unit)| json!({"amount":amount,"currency":unit}));
+    Some(json!({"used":used,"size":size,"cost":cost,"agentranceConnectionId":connection_id}))
+}
+
 impl Drop for Client {
     fn drop(&mut self) {
         self.shutdown();
@@ -132,6 +143,7 @@ impl Client {
         };
         let agents = Arc::new(Mutex::new(crate::agents::State::default()));
         let connection_id = uuid::Uuid::new_v4().to_string();
+        let remote_session = Arc::new(AsyncMutex::new(String::new()));
         let client = Arc::new(Self {
             connection_id: connection_id.clone(),
             prompt_caps:Mutex::new(Value::Null),
@@ -144,7 +156,7 @@ impl Client {
             input: input.clone(),
             pending: pending.clone(),
             permissions: permissions.clone(),
-            remote: Default::default(),
+            remote: remote_session.clone(),
             turn: Default::default(),
             next: AtomicU64::new(1),
             child: Mutex::new(child),
@@ -223,6 +235,17 @@ impl Client {
                                 }
                             }
                             Some("tool_call") | Some("tool_call_update") => emit("tool", u.clone()),
+                            Some("usage_update") => {
+                                let matches_session = {
+                                    let remote = remote_session.lock().await;
+                                    !remote.is_empty() && v["params"]["sessionId"].as_str() == Some(remote.as_str())
+                                };
+                                if matches_session {
+                                    if let Some(report) = usage_report(u, &connection_id) {
+                                        emit("session_usage", report);
+                                    }
+                                }
+                            }
                             _ => {}
                         }
                     } else if method == "session/request_permission" {
@@ -618,6 +641,8 @@ for line in sys.stdin:
  elif method=='session/prompt':
   assert params['sessionId']==remote
   send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':remote,'update':{'sessionUpdate':'agent_message_chunk','content':{'type':'text','text':'continued '+remote}}}})
+  for session,used in [('another-session',999),(remote,2),(remote,-1)]:
+   send({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':session,'update':{'sessionUpdate':'usage_update','used':used,'size':100,'cost':{'amount':0.25,'currency':'credits','extra':'ignored'}}}})
   result={'stopReason':'end_turn'}
  else: raise AssertionError('Unexpected method: '+str(method))
  send({'jsonrpc':'2.0','id':m['id'],'result':result})
@@ -640,7 +665,14 @@ for line in sys.stdin:
             }
             for (client,events,remote) in &clients {
                 client.request("session/prompt",json!({"sessionId":client.remote.lock().await.clone(),"prompt":[]})).await.unwrap();
-                assert_eq!(*events.lock().unwrap(),vec![("delta".into(),json!(format!("continued {remote}")))]);
+                let tracked = events.lock().unwrap();
+                assert_eq!(tracked.as_slice(), &[
+                    ("delta".into(), json!(format!("continued {remote}"))),
+                    ("session_usage".into(), json!({
+                        "used": 2, "size": 100, "cost": {"amount": 0.25, "currency": "credits"},
+                        "agentranceConnectionId": client.connection_id,
+                    })),
+                ]);
                 client.shutdown();assert!(!client.is_connected());
             }
         }).await.expect("mock ACP reconnect timed out");
