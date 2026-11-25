@@ -259,3 +259,65 @@ test('switching workspaces preserves drafts, pane placement and background appro
   assert.equal(fixture.calls.some(([command])=>command==='close_session'),false);
  });
 });
+
+test('Session usage lists only conversations open in the active workspace',async()=>{
+ const output=await build({
+  entryPoints:['src/main.tsx'],bundle:true,platform:'node',format:'cjs',write:false,
+  loader:{'.css':'empty'},external:['react','react-dom','react-dom/client'],
+  plugins:[{name:'fake-native',setup(build){
+   build.onResolve({filter:/^@tauri-apps\//},args=>({path:args.path,namespace:'fake-native'}));
+   build.onLoad({filter:/.*/,namespace:'fake-native'},()=>({contents:`
+    export const invoke=(...args)=>globalThis.__recoveryTest.invoke(...args);
+    export const listen=async()=>()=>{};
+    export const open=async()=>null;
+    export const save=async()=>null;
+   `}));
+  }}],
+ });
+ const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost/'});
+ const keys=['window','document','localStorage','IS_REACT_ACT_ENVIRONMENT','ResizeObserver','__recoveryTest'];
+ const old=keys.map(key=>Object.getOwnPropertyDescriptor(globalThis,key));
+ dom.window.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
+ Object.assign(globalThis,{window:dom.window,document:dom.window.document,localStorage:dom.window.localStorage,
+  IS_REACT_ACT_ENVIRONMENT:true,ResizeObserver:class{observe(){}disconnect(){}}});
+ const chats=[
+  {id:'one',title:'First project review',provider:'Test ACP',cwd:'/first'},
+  {id:'two',title:'Second project review',provider:'Test ACP',cwd:'/second'},
+ ];
+ const entries=chats.map(({id,title,cwd})=>({id,name:title,project:cwd,layout:{
+  mode:'single',groups:[[id],[],[],[]],selected:[id,null,null,null],focus:0,
+ }}));
+ const snapshot=JSON.stringify({version:2,workspaces:{active:'one',entries},drafts:{},recentProjects:[]});
+ const providers=JSON.stringify([{id:'test',name:'Test ACP',executable:'test-acp',cwd:'/first',args:[],env:{}}]);
+ const responses={history:chats,messages:[],load_workspace:snapshot,load_provider_settings:providers,discover_providers:[],
+  app_channel:'Development',startup_directory:'/first',backup_profile_status:{pending:false,hasPrevious:false},
+  save_workspace:null,enable_workspace_recovery_guard:null};
+ globalThis.__recoveryTest={invoke:async command=>{
+  assert.ok(Object.hasOwn(responses,command),command);
+  return responses[command];
+ }};
+ const root=createRoot(document.getElementById('root'));
+ const require=createRequire(import.meta.url);
+ const appModule={exports:{}};
+ const click=label=>act(async()=>{
+  const button=[...document.querySelectorAll('button')].find(node=>node.textContent===label);
+  assert.ok(button,label);
+  button.click();
+ });
+ const options=()=>Array.from(document.querySelectorAll('#help-usage-session option'),option=>option.value);
+ try{
+  await act(async()=>new Function('require','module','exports',output.outputFiles[0].text)(
+   name=>name==='react-dom/client'?{createRoot:()=>root}:require(name),appModule,appModule.exports,
+  ));
+  await click('Session usage…');
+  assert.deepEqual(options(),['one']);
+  await click('Close');
+  const workspace=document.querySelector('select[aria-label="Workspace"]');
+  await act(async()=>{workspace.value='two';workspace.dispatchEvent(new window.Event('change',{bubbles:true}))});
+  await click('Session usage…');
+  assert.deepEqual(options(),['two']);
+ }finally{
+  await act(async()=>root.unmount());dom.window.close();
+  keys.forEach((key,i)=>{if(old[i])Object.defineProperty(globalThis,key,old[i]);else delete globalThis[key]});
+ }
+});
