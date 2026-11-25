@@ -111,7 +111,7 @@ function App() {
       onCompare={(text,attachments,cwd,selected)=>{setComparison(false);withSavedProviders(ready,needsSetup,()=>setSettings(true),()=>{recovery.rememberProject(cwd);void desk.compare(providersAtProject(selected,cwd),text,attachments,ids=>openInWorkspace(ids,cwd))})}}
       onExisting={(text,attachments,ids)=>{setComparison(false);void desk.compareExisting(ids,text,attachments)}}/>}
     {gitDiff&&<Suspense fallback={null}><GitDiffDialog initialProject={focusedProject||defaultProject(providers)} projects={projects} onClose={()=>setGitDiff(false)}/></Suspense>}
-    {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={desk.sessions} onClose={()=>setHelp(null)}/>}
+    {help&&<HelpDialog initialTopic={help.topic} initialSessionId={help.sessionId} sessions={activeSessions} onClose={()=>setHelp(null)}/>}
     {providerSessions&&<ProviderSessionsDialog providers={providers} selected={selected} workspaceProject={workspaceProject} projects={projects} onClose={()=>setProviderSessions(false)}
       onOpen={async(provider,id,title)=>{const cwd=await desk.openProviderSession(provider,id,title,openInWorkspace);recovery.rememberProject(cwd)}}/>}
     {backup&&<BackupDialog onClose={()=>setBackup(false)} flushWorkspace={recovery.flushWorkspace} profile={backupProfile}
